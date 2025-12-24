@@ -31,9 +31,9 @@ jobs:
 
       - name: Download and start Cassandra (tarball)
         env:
-          CASS_VER: '4.1.9'
+          CASS_VER: '4.1.10'
         run: |
-          wget -q https://downloads.apache.org/cassandra/$CASS_VER/apache-cassandra-$CASS_VER-bin.tar.gz -O cassandra.tar.gz
+          wget -q https://dlcdn.apache.org/cassandra/$CASS_VER/apache-cassandra-$CASS_VER-bin.tar.gz -O cassandra.tar.gz
           tar xzf cassandra.tar.gz
           CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
           echo "Cassandra home: $CASS_HOME"
