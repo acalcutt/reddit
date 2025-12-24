@@ -29,39 +29,22 @@ jobs:
           sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'reddit';"
           sudo -u postgres psql -c "CREATE DATABASE reddit OWNER reddit;"
 
-      - name: Download and start Cassandra (tarball)
-        env:
-          CASS_VER: '4.1.10'
+      - name: Start Cassandra (docker)
         run: |
-          wget -q https://dlcdn.apache.org/cassandra/$CASS_VER/apache-cassandra-$CASS_VER-bin.tar.gz -O cassandra.tar.gz
-          tar xzf cassandra.tar.gz
-          CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
-          echo "Cassandra home: $CASS_HOME"
-          # Try to select a Java 11 alternative if available, then set JAVA_HOME.
-          # This uses update-java-alternatives when a 11 JVM is present, else falls back
-          # to whatever `java` is on PATH.
-          if command -v update-java-alternatives >/dev/null 2>&1; then
-            # pick the first alternative name that contains '11'
-            alt=$(update-java-alternatives -l 2>/dev/null | awk '/11/ {print $1; exit}') || true
-            if [ -n "$alt" ]; then
-              sudo update-java-alternatives -s "$alt" || true
-            fi
-          fi
-          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
-          echo "Using JAVA_HOME=$JAVA_HOME"
-          nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
-          # wait for CQL port using nc
+          # Run Cassandra in Docker for consistent startup and dependencies
+          docker run -d --name reddit_cassandra -p 9042:9042 cassandra:4.1.10
+          # wait for CQL port
           for i in $(seq 1 180); do
             nc -z 127.0.0.1 9042 && { echo 'cassandra up'; break; } || sleep 1
           done
           if ! nc -z 127.0.0.1 9042; then
             echo 'timed out waiting for cassandra'
+            docker logs reddit_cassandra || true
+            docker rm -f reddit_cassandra || true
             exit 2
           fi
-          # ensure cqlsh's python deps are available (six is required by the bundled driver)
-          # Try system package first (installed above), then pip user/sudo as fallback
-          pip3 install --user six || sudo pip3 install six || true
-          echo "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};" | "$CASS_HOME/bin/cqlsh" 127.0.0.1 9042
+          # create keyspace via docker exec cqlsh
+          docker exec reddit_cassandra cqlsh 127.0.0.1 9042 -e "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};"
 
       - name: Install Python dependencies
         run: |
