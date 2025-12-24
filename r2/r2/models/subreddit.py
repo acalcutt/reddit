@@ -20,69 +20,61 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from __future__ import with_statement
 
-import base64
+
 import collections
 import datetime
 import itertools
 import json
+import random
 import re
-import struct
 
+import pycassa
 from pycassa import types
+from pycassa.system_manager import ASCII_TYPE, DATE_TYPE, UTF8_TYPE
 from pycassa.util import convert_uuid_to_time
-from pycassa.system_manager import ASCII_TYPE, DATE_TYPE, FLOAT_TYPE, UTF8_TYPE
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _, N_
+from pylons.i18n import N_, _
 from thrift.protocol.TProtocol import TProtocolException
 from thrift.Thrift import TApplicationException
 from thrift.transport.TTransport import TTransportException
 
-from r2.config import feature
-from r2.lib.db.thing import Thing, Relation, NotFound
-from account import (
-    Account,
-    FakeAccount,
-    QuarantinedSubredditOptInsByAccount,
-)
-from printable import Printable
-from r2.lib.db.userrel import UserRel, MigratingUserRel
-from r2.lib.db.operators import lower, or_, and_, not_, desc
+from r2.lib import hooks
+from r2.lib.cache import MemcachedError
+from r2.lib.db import tdb_cassandra
+from r2.lib.db.operators import desc, lower, not_
+from r2.lib.db.tdb_sql import CreationError
+from r2.lib.db.thing import NotFound, Relation, Thing
+from r2.lib.db.userrel import UserRel
 from r2.lib.errors import RedditError
+from r2.lib.filters import _force_unicode
 from r2.lib.geoip import get_request_location
 from r2.lib.memoize import memoize
 from r2.lib.permissions import ModeratorPermissionSet
+from r2.lib.sgm import sgm
+from r2.lib.strings import Score
 from r2.lib.utils import (
     UrlParser,
     in_chunks,
     summarize_markdown,
-    timeago,
     to36,
     tup,
     unicode_title_to_ascii,
 )
-from r2.lib.cache import MemcachedError
-from r2.lib.sgm import sgm
-from r2.lib.strings import strings, Score
-from r2.lib.filters import _force_unicode
-from r2.lib.db import tdb_cassandra
-from r2.lib.db.tdb_sql import CreationError
-from r2.models.wiki import WikiPage, ImagesByWikiPage
-from r2.models.trylater import TryLater, TryLaterBySubject
-from r2.lib.merge import ConflictException
-from r2.lib.cache import CL_ONE
-from r2.lib import hooks
+from r2.models.keyvalue import NamedGlobals
 from r2.models.query_cache import MergedCachedQuery
 from r2.models.rules import SubredditRules
-import pycassa
+from r2.models.trylater import TryLaterBySubject
+from r2.models.wiki import ImagesByWikiPage, WikiPage
 
-from r2.models.keyvalue import NamedGlobals
-from r2.models.wiki import WikiPage
-import os.path
-import random
+from .account import (
+    Account,
+    FakeAccount,
+    QuarantinedSubredditOptInsByAccount,
+)
+from .printable import Printable
 
 trylater_hooks = hooks.HookRegistrar()
 
@@ -116,7 +108,7 @@ language_subreddit_rx = re.compile(r"\A[a-z]{2}\Z")
 time_subreddit_rx = re.compile(r"\At:[A-Za-z0-9][A-Za-z0-9_]{2,22}\Z")
 
 
-class BaseSite(object):
+class BaseSite:
     _defaults = dict(
         static_path=g.static_path,
         header=None,
@@ -451,7 +443,7 @@ class Subreddit(Thing, Printable, BaseSite):
         if to_fetch:
             if not _update:
                 srids_by_name = g.gencache.get_multi(
-                    to_fetch.keys(), prefix='srid:', stale=True)
+                    list(to_fetch.keys()), prefix='srid:', stale=True)
             else:
                 srids_by_name = {}
 
@@ -485,7 +477,7 @@ class Subreddit(Thing, Printable, BaseSite):
                         pass
 
             srs = {}
-            srids = [v for v in srids_by_name.itervalues() if v != cls.SRNAME_NOTFOUND]
+            srids = [v for v in srids_by_name.values() if v != cls.SRNAME_NOTFOUND]
             if srids:
                 srs = cls._byID(srids, data=True, return_dict=False, stale=stale)
 
@@ -493,9 +485,9 @@ class Subreddit(Thing, Printable, BaseSite):
                 ret[to_fetch[sr.name.lower()]] = sr
 
         if ret and single:
-            return ret.values()[0]
+            return list(ret.values())[0]
         elif not ret and single:
-            raise NotFound, 'Subreddit %s' % name
+            raise NotFound('Subreddit %s' % name)
         else:
             return ret
 
@@ -520,8 +512,8 @@ class Subreddit(Thing, Printable, BaseSite):
     @property
     def allowed_types(self):
         if self.link_type == "any":
-            return set(("link", "self"))
-        return set((self.link_type,))
+            return {"link", "self"}
+        return {self.link_type}
 
     @property
     def allows_referrers(self):
@@ -543,13 +535,13 @@ class Subreddit(Thing, Printable, BaseSite):
         hook = hooks.get_hook("subreddit.add_moderator")
         hook.call(subreddit=self, user=user)
 
-        return super(Subreddit, self).add_moderator(user, **kwargs)
+        return super().add_moderator(user, **kwargs)
 
     def remove_moderator(self, user, **kwargs):
         hook = hooks.get_hook("subreddit.remove_moderator")
         hook.call(subreddit=self, user=user)
 
-        ret = super(Subreddit, self).remove_moderator(user, **kwargs)
+        ret = super().remove_moderator(user, **kwargs)
 
         is_mod_somewhere = bool(Subreddit.reverse_moderator_ids(user))
         if not is_mod_somewhere:
@@ -655,7 +647,7 @@ class Subreddit(Thing, Printable, BaseSite):
             try:
                 sr_props = {srs[sr_name]: {} for sr_name in related_subreddits}
             except KeyError as e:
-                raise NotFound, 'Subreddit %s' % e.args[0]
+                raise NotFound('Subreddit %s' % e.args[0])
 
             multi.clear_srs()
             multi.add_srs(sr_props)
@@ -722,7 +714,7 @@ class Subreddit(Thing, Printable, BaseSite):
         if self.type == 'employees_only':
             return user.employee
         else:
-            return super(Subreddit, self).is_contributor(user)
+            return super().is_contributor(user)
 
     def can_comment(self, user):
         if c.user_is_admin:
@@ -821,11 +813,11 @@ class Subreddit(Thing, Printable, BaseSite):
         images = ImagesByWikiPage.get_images(self, "config/stylesheet")
 
         if self.quarantine:
-            images = {name: static('blank.png') for name, url in images.iteritems()}
+            images = {name: static('blank.png') for name, url in images.items()}
 
         protocol_relative_images = {
             name: make_url_protocol_relative(url)
-            for name, url in images.iteritems()}
+            for name, url in images.items()}
         parsed, errors = cssfilter.validate_css(
             content,
             protocol_relative_images,
@@ -834,8 +826,8 @@ class Subreddit(Thing, Printable, BaseSite):
         return (errors, parsed)
 
     def change_css(self, content, parsed, prev=None, reason=None, author=None, force=False):
-        from r2.models import ModAction
         from r2.lib.media import upload_stylesheet
+        from r2.models import ModAction
 
         if not author:
             author = c.user
@@ -956,18 +948,18 @@ class Subreddit(Thing, Printable, BaseSite):
     def load_subreddits(cls, links, return_dict = True, stale=False):
         """returns the subreddits for a list of links. it also preloads the
         permissions for the current user."""
-        srids = set(l.sr_id for l in links
-                    if getattr(l, "sr_id", None) is not None)
+        srids = {l.sr_id for l in links
+                    if getattr(l, "sr_id", None) is not None}
         subreddits = {}
         if srids:
             subreddits = cls._byID(srids, data=True, stale=stale)
 
         if subreddits and c.user_is_loggedin:
             # dict( {Subreddit,Account,name} -> Relationship )
-            SRMember._fast_query(subreddits.values(), (c.user,), ('moderator',),
+            SRMember._fast_query(list(subreddits.values()), (c.user,), ('moderator',),
                                  data=True)
 
-        return subreddits if return_dict else subreddits.values()
+        return subreddits if return_dict else list(subreddits.values())
 
     def keep_for_rising(self, sr_id):
         """Return whether or not to keep a thing in rising for this SR."""
@@ -997,7 +989,7 @@ class Subreddit(Thing, Printable, BaseSite):
             )
             # _fast_query returns a dict of {(t1, t2, name): rel}, with rel of
             # None if the relation doesn't exist
-            rels = [rel for rel in res.itervalues() if rel]
+            rels = [rel for rel in res.values() if rel]
             for rel in rels:
                 rel_name = rel._name
                 sr_id = rel._thing1_id
@@ -1083,7 +1075,7 @@ class Subreddit(Thing, Printable, BaseSite):
         srids = LocalizedDefaultSubreddits.get_defaults(location)
 
         srs = Subreddit._byID(srids, data=True, return_dict=False, stale=True)
-        srs = filter(lambda sr: sr.allow_top, srs)
+        srs = [sr for sr in srs if sr.allow_top]
 
         if ids:
             return [sr._id for sr in srs]
@@ -1097,7 +1089,7 @@ class Subreddit(Thing, Printable, BaseSite):
         srids = LocalizedFeaturedSubreddits.get_featured(location)
 
         srs = Subreddit._byID(srids, data=True, return_dict=False, stale=True)
-        srs = filter(lambda sr: sr.discoverable, srs)
+        srs = [sr for sr in srs if sr.discoverable]
 
         return srs
 
@@ -1129,8 +1121,8 @@ class Subreddit(Thing, Printable, BaseSite):
         # if the user is subscribed to them, the automatic subreddits should
         # always be in the front page set and not count towards the limit
         if g.automatic_reddits:
-            automatics = Subreddit._by_name(
-                g.automatic_reddits, stale=True).values()
+            automatics = list(Subreddit._by_name(
+                g.automatic_reddits, stale=True).values())
             automatic_ids = [sr._id for sr in automatics if sr._id in sr_ids]
             sr_ids = [sr_id for sr_id in sr_ids if sr_id not in automatic_ids]
         else:
@@ -1520,6 +1512,7 @@ class SubscriptionsByDay(tdb_cassandra.View):
     @classmethod
     def write_counts(cls, days_ago=1):
         from sqlalchemy.orm import scoped_session, sessionmaker
+
         from r2.models.traffic import SubscriptionsBySubreddit, engine
 
         Session = scoped_session(sessionmaker(bind=engine))
@@ -1532,7 +1525,7 @@ class SubscriptionsByDay(tdb_cassandra.View):
             microsecond=0,
             tzinfo=None,
         )
-        print "writing subscribers for %s" % date
+        print("writing subscribers for %s" % date)
 
         num_srs = 0
         num_subscribers = 0
@@ -1547,7 +1540,7 @@ class SubscriptionsByDay(tdb_cassandra.View):
             Session.commit()
             num_srs += 1
             num_subscribers += count
-        print "%s subscribers in %s subreddits" % (num_subscribers, num_srs)
+        print("{} subscribers in {} subreddits".format(num_subscribers, num_srs))
         Session.remove()
 
 
@@ -1676,8 +1669,8 @@ class AllSR(FakeSubreddit):
         return True
 
     def get_links(self, sort, time):
-        from r2.models import Link
         from r2.lib.db import queries
+        from r2.models import Link
         q = Link._query(
             sort=queries.db_sort(sort),
             read_cache=True,
@@ -1700,7 +1693,6 @@ class AllSR(FakeSubreddit):
 
     def get_reported(self, include_links=True, include_comments=True):
         from r2.lib.db import queries
-        from r2.lib.db.thing import Merge
         qs = []
 
         if include_links:
@@ -1734,14 +1726,13 @@ class AllMinus(AllSR):
 
     def get_links(self, sort, time):
         from r2.models import Link
-        from r2.lib.db.operators import not_
         q = AllSR.get_links(self, sort, time)
         if c.user.gold and self.exclude_sr_ids:
             q._filter(not_(Link.c.sr_id.in_(self.exclude_sr_ids)))
         return q
 
 
-class Filtered(object):
+class Filtered:
     unfiltered_path = None
 
     @property
@@ -1758,7 +1749,7 @@ class Filtered(object):
 
     @property
     def multi_path(self):
-        return ('/user/%s/f/%s' % (c.user.name, self.filtername)).lower()
+        return ('/user/{}/f/{}'.format(c.user.name, self.filtername)).lower()
 
     def _get_filtered_subreddits(self):
         try:
@@ -1951,7 +1942,7 @@ class MultiReddit(FakeSubreddit):
         # if a relation doesn't exist there will be a None entry in the
         # returned dict
         mod_rels = SRMember._fast_query(self.srs, user, 'moderator', data=True)
-        if None in mod_rels.values():
+        if None in list(mod_rels.values()):
             return False
         else:
             return FakeSRMember(ModeratorPermissionSet)
@@ -2022,7 +2013,7 @@ class BaseLocalizedSubreddits(tdb_cassandra.View):
             ret = {}
             for key in keys:
                 columns = rows[key] if key in rows else {}
-                id36s = columns.keys()
+                id36s = list(columns.keys())
                 ret[key] = id36s
             return ret
 
@@ -2036,7 +2027,7 @@ class BaseLocalizedSubreddits(tdb_cassandra.View):
             ignore_set_errors=True,
         )
         ids_by_location = {location: [int(id36, 36) for id36 in id36s]
-                           for location, id36s in id36s_by_location.iteritems()}
+                           for location, id36s in id36s_by_location.items()}
         return ids_by_location
 
     @classmethod
@@ -2055,7 +2046,7 @@ class BaseLocalizedSubreddits(tdb_cassandra.View):
         cls._remove(rowkey, removed_srid36s)
 
         # update cache
-        id36s = columns.keys()
+        id36s = list(columns.keys())
         g.gencache.set_multi({rowkey: id36s}, prefix=cls.CACHE_PREFIX)
 
     @classmethod
@@ -2081,7 +2072,7 @@ class BaseLocalizedSubreddits(tdb_cassandra.View):
     def get_localized_srs(cls, location):
         location_key = cls._rowkey(location) if location else None
         global_key = cls._rowkey(cls.GLOBAL)
-        keys = filter(None, [location_key, global_key])
+        keys = [_f for _f in [location_key, global_key] if _f]
 
         ids_by_location = cls.lookup(keys)
 
@@ -2183,7 +2174,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
         # some objects are being loaded for the first time and need basic setup
         never_loaded = [t for t in things if not t._owner]
         if never_loaded:
-            owner_fullnames = set(t.owner_fullname for t in never_loaded)
+            owner_fullnames = {t.owner_fullname for t in never_loaded}
             owners = Thing._by_fullname(
                 owner_fullnames, data=True, return_dict=True)
             for t in things:
@@ -2222,7 +2213,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
 
     @property
     def sr_ids(self):
-        return self.sr_props.keys()
+        return list(self.sr_props.keys())
 
     @property
     def srs(self):
@@ -2256,7 +2247,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
 
         remaining = self.MAX_SR_COUNT + 10
         sr_columns = {}
-        for k, v in self._t.iteritems():
+        for k, v in self._t.items():
             if not k.startswith(self.SR_PREFIX):
                 continue
 
@@ -2278,22 +2269,22 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
     @property
     def path(self):
         if isinstance(self.owner, Account):
-            return '/user/%(username)s/%(kind)s/%(multiname)s' % {
-                'username': self.owner.name,
-                'kind': self.kind,
-                'multiname': self.name,
-            }
+            return '/user/{username}/{kind}/{multiname}'.format(
+                username=self.owner.name,
+                kind=self.kind,
+                multiname=self.name,
+            )
         if isinstance(self.owner, Subreddit):
-            return '/r/%(srname)s/%(kind)s/%(multiname)s' % {
-                'srname': self.owner.name,
-                'kind': self.kind,
-                'multiname': self.name,
-            }
+            return '/r/{srname}/{kind}/{multiname}'.format(
+                srname=self.owner.name,
+                kind=self.kind,
+                multiname=self.name,
+            )
 
     @property
     def user_path(self):
         if self.owner == c.user:
-            return '/me/%s/%s' % (self.kind, self.name)
+            return '/me/{}/{}'.format(self.kind, self.name)
         else:
             return self.path
 
@@ -2311,7 +2302,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
     def allows_referrers(self):
         if not self.is_public():
             return False
-        return super(LabeledMulti, self).allows_referrers
+        return super().allows_referrers
 
     @property
     def title(self):
@@ -2381,7 +2372,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
     @classmethod
     def by_owner(cls, owner, kinds=None, load_subreddits=True):
         try:
-            multi_ids = LabeledMultiByOwner._byID(owner._fullname)._t.keys()
+            multi_ids = list(LabeledMultiByOwner._byID(owner._fullname)._t.keys())
         except tdb_cassandra.NotFound:
             return []
 
@@ -2402,8 +2393,8 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
     def copy(cls, path, multi, owner, symlink=False):
         if symlink:
             # remove all the sr_ids from the properties
-            props = {k: v for k, v in multi._t.iteritems()
-                     if k not in multi.sr_columns.keys()}
+            props = {k: v for k, v in multi._t.items()
+                     if k not in list(multi.sr_columns.keys())}
             props["is_symlink"] = True
         else:
             props = multi._t
@@ -2429,7 +2420,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
             prefix = "/user/" + owner.name + "/" + type_ + "/"
         new_path = prefix + slug
         try:
-            existing = LabeledMultiByOwner._byID(owner._fullname)._t.keys()
+            existing = list(LabeledMultiByOwner._byID(owner._fullname)._t.keys())
         except tdb_cassandra.NotFound:
             existing = []
         count = 0
@@ -2442,7 +2433,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
     def sr_props_to_columns(cls, sr_props):
         columns = {}
         sr_ids = []
-        for sr_id, props in sr_props.iteritems():
+        for sr_id, props in sr_props.items():
             if isinstance(sr_id, BaseSite):
                 sr_id = sr_id._id
             sr_ids.append(sr_id)
@@ -2452,8 +2443,8 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
     @classmethod
     def columns_to_sr_props(cls, columns):
         ret = {}
-        for s, sr_prop_dump in columns.iteritems():
-            sr_id = long(s.strip(cls.SR_PREFIX))
+        for s, sr_prop_dump in columns.items():
+            sr_id = int(s.strip(cls.SR_PREFIX))
             sr_props = json.loads(sr_prop_dump)
             ret[sr_id] = sr_props
         return ret
@@ -2469,7 +2460,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
         self._srs = self.srs
         sr_props = dict.fromkeys(self.srs, {})
         sr_ids, sr_columns = self.sr_props_to_columns(sr_props)
-        for attr, val in sr_columns.iteritems():
+        for attr, val in sr_columns.items():
             self.__setattr__(attr, val)
 
         self.is_symlink = False
@@ -2488,7 +2479,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
             new_sr_ids, data=True, return_dict=False, stale=True)
         self._srs.extend(new_srs)
 
-        for attr, val in sr_columns.iteritems():
+        for attr, val in sr_columns.items():
             self.__setattr__(attr, val)
 
     def del_srs(self, sr_ids):
@@ -2499,7 +2490,7 @@ class LabeledMulti(tdb_cassandra.Thing, MultiReddit):
         sr_props = dict.fromkeys(tup(sr_ids), {})
         sr_ids, sr_columns = self.sr_props_to_columns(sr_props)
 
-        for key in sr_columns.iterkeys():
+        for key in sr_columns.keys():
             self.__delitem__(key)
 
         self._srs = [sr for sr in self._srs if sr._id not in sr_ids]
@@ -2586,8 +2577,8 @@ class ModMinus(ModSR):
 
     @property
     def sr_ids(self):
-        sr_ids = super(ModMinus, self).sr_ids
-        return [sr_id for sr_id in sr_ids if not sr_id in self.exclude_sr_ids]
+        sr_ids = super().sr_ids
+        return [sr_id for sr_id in sr_ids if sr_id not in self.exclude_sr_ids]
 
     @property
     def name(self):
@@ -2745,7 +2736,7 @@ class SRMember(Relation(Subreddit, Account)):
         perm_set = self._permission_class.loads(self.encoded_permissions)
         if perm_set is None:
             perm_set = self._permission_class()
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             if v is None:
                 if k in perm_set:
                     del perm_set[k]
@@ -2806,7 +2797,7 @@ def remove_legacy_subscriber(sr, user):
         rel._delete()
 
 
-class SubredditTempBan(object):
+class SubredditTempBan:
     def __init__(self, sr, kind, victim, banner, duration):
         self.sr = sr._id36
         self._srname = sr.name
@@ -2831,7 +2822,7 @@ class SubredditTempBan(object):
             duration,
             trylater_rowkey=cls.schedule_rowkey(),
         )
-        return {victim.name: result.keys()[0]}
+        return {victim.name: list(result.keys())[0]}
 
     @classmethod
     def cancel_colkey(cls, name):
@@ -2839,7 +2830,7 @@ class SubredditTempBan(object):
 
     @classmethod
     def cancel_rowkey(cls, name, type):
-        return "srunban:%s:%s" % (name, type)
+        return "srunban:{}:{}".format(name, type)
 
     @classmethod
     def schedule_rowkey(cls):
@@ -2855,7 +2846,7 @@ class SubredditTempBan(object):
                                                    g.tz)
         return {
             name: convert_uuid_to_datetime(uu)
-                for name, uu in results.iteritems()
+                for name, uu in results.items()
         }
 
     @classmethod
@@ -2870,7 +2861,7 @@ class SubredditTempBan(object):
 @trylater_hooks.on('trylater.srunban')
 def on_subreddit_unban(data):
     from r2.models.modaction import ModAction
-    for blob in data.itervalues():
+    for blob in data.values():
         baninfo = json.loads(blob)
         container = Subreddit._byID36(baninfo['sr'], data=True)
         victim = Account._byID36(baninfo['who'], data=True)
@@ -2889,13 +2880,13 @@ def on_subreddit_unban(data):
                              description="was temporary")
 
 
-class MutedAccountsBySubreddit(object):
+class MutedAccountsBySubreddit:
     @classmethod
     def mute(cls, sr, user, muter, parent_message=None):
         NUM_HOURS = 72
 
         from r2.lib.db import queries
-        from r2.models import Message, ModAction
+        from r2.models import Message
         info = {
             'sr': sr._id36,
             'who': user._id36,
@@ -2932,7 +2923,7 @@ class MutedAccountsBySubreddit(object):
                 request.ip, parent=parent_message, sr=sr, from_sr=True)
             queries.new_message(item, inbox_rel, update_modmail=True)
 
-        return {user.name: result.keys()[0]}
+        return {user.name: list(result.keys())[0]}
 
     @classmethod
     def cancel_colkey(cls, user):
@@ -2954,7 +2945,7 @@ class MutedAccountsBySubreddit(object):
         return {
             name: datetime.datetime.fromtimestamp(convert_uuid_to_time(uu),
                     g.tz)
-                for name, uu in results.iteritems()
+                for name, uu in results.items()
         }
 
     @classmethod
@@ -2974,7 +2965,7 @@ class MutedAccountsBySubreddit(object):
 
 @trylater_hooks.on('trylater.srmute')
 def unmute_hook(data):
-    for blob in data.itervalues():
+    for blob in data.values():
         muteinfo = json.loads(blob)
         subreddit = Subreddit._byID36(muteinfo['sr'], data=True)
         user = Account._byID36(muteinfo['who'], data=True)
@@ -3027,4 +3018,4 @@ class SubredditsActiveForFrontPage(tdb_cassandra.View):
         num_filtered = len(subreddit_ids) - len(results)
         g.stats.simple_event("frontpage.filter_inactive", delta=num_filtered)
 
-        return [int(sr_id36, 36) for sr_id36 in results.keys()]
+        return [int(sr_id36, 36) for sr_id36 in list(results.keys())]

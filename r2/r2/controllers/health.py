@@ -24,12 +24,12 @@ import json
 import os
 
 import pylibmc
-from pylons import request, response
 from pylons import app_globals as g
+from pylons import request, response
 from pylons.controllers.util import abort
 
 from r2.controllers.reddit_base import MinimalController
-from r2.lib import promote, cache
+from r2.lib import cache, promote
 
 
 class HealthController(MinimalController):

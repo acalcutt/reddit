@@ -1,15 +1,14 @@
 from datetime import datetime
-import math
+
+import pytz
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.controllers.util import abort
-import pytz
 
 from r2.controllers.reddit_base import UnloggedUser
 from r2.lib import js
 from r2.models import Account, NotFound
-from r2.models.subreddit import Subreddit
 
 # Note: This template is shared between python and javascript. See underscore
 # templating in embed.js for more info. (Specific note: Only %()s is supported
@@ -31,7 +30,7 @@ def get_inject_template(omitscript=False):
     template = _COMMENT_EMBED_TEMPLATE
     if not omitscript:
         script_urls = js.src("comment-embed", absolute=True, mangle_name=False)
-        scripts = "".join('<script%s src="%s"></script>' % (
+        scripts = "".join('<script{} src="{}"></script>'.format(
             ' async' if len(script_urls) == 1 else '',
             script_url
         ) for script_url in script_urls)

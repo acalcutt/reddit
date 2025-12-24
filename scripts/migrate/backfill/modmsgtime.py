@@ -30,7 +30,6 @@ from r2.lib.db.operators import desc
 from r2.lib.utils import fetch_things2, progress
 from r2.models import Account, Subreddit
 
-
 all_accounts = Account._query(sort=desc("_date"))
 for account in progress(fetch_things2(all_accounts)):
     is_moderator_somewhere = bool(Subreddit.reverse_moderator_ids(account))

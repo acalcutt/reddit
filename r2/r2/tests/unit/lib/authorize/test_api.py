@@ -21,25 +21,27 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from mock import MagicMock, Mock, patch
 from unittest import TestCase
+from unittest.mock import MagicMock, Mock, patch
 
-from r2.lib.authorize.api import (TRANSACTION_NOT_FOUND,
-                                  TRANSACTION_ERROR,
-                                  TRANSACTION_DUPLICATE,
-                                  AuthorizationHoldNotFound,
-                                  AuthorizeNetException,
-                                  DuplicateTransactionError,
-                                  TransactionError,
-                                  create_customer_profile,
-                                  get_customer_profile,
-                                  create_payment_profile,
-                                  update_payment_profile,
-                                  delete_payment_profile,
-                                  create_authorization_hold,
-                                  capture_authorization_hold,
-                                  void_authorization_hold,
-                                  refund_transaction)
+from r2.lib.authorize.api import (
+    TRANSACTION_DUPLICATE,
+    TRANSACTION_ERROR,
+    TRANSACTION_NOT_FOUND,
+    AuthorizationHoldNotFound,
+    AuthorizeNetException,
+    DuplicateTransactionError,
+    TransactionError,
+    capture_authorization_hold,
+    create_authorization_hold,
+    create_customer_profile,
+    create_payment_profile,
+    delete_payment_profile,
+    get_customer_profile,
+    refund_transaction,
+    update_payment_profile,
+    void_authorization_hold,
+)
 from r2.tests import RedditTestCase
 
 
@@ -78,8 +80,9 @@ class SimpleXMLObjectTest(RedditTestCase):
                          '<cat breed="calico" demenor="evil">Jini</cat>')
 
     def test_from_xml(self):
-        from r2.lib.authorize.api import SimpleXMLObject
         from BeautifulSoup import BeautifulStoneSoup
+
+        from r2.lib.authorize.api import SimpleXMLObject
         class TestXML(SimpleXMLObject):
             _keys = ["color", "breed"]
 

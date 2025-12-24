@@ -20,24 +20,20 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from os.path import normpath
-from functools import wraps
 import datetime
 import re
+from os.path import normpath
 
+from pylons import app_globals as g
+from pylons import tmpl_context as c
 from pylons.i18n import _
 
-from pylons import request
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-
-from r2.models.wiki import WikiPage, WikiRevision, WikiBadRevision
+from r2.lib.db import tdb_cassandra
 from r2.lib.validator import (
     Validator,
     VSrModerator,
-    set_api_docs,
 )
-from r2.lib.db import tdb_cassandra
+from r2.models.wiki import WikiBadRevision, WikiPage, WikiRevision
 
 MAX_PAGE_NAME_LENGTH = g.wiki_max_page_name_length
 

@@ -23,6 +23,7 @@ from r2.lib.db.operators import asc
 from r2.lib.utils import fetch_things2
 from r2.models import ModAction, ModActionBySRActionMod, Subreddit
 
+
 def backfill(after=None):
     q = Subreddit._query(sort=asc('_date'))
     if after:
@@ -34,7 +35,7 @@ def backfill(after=None):
 
 
 def backfill_sr(sr):
-    print "processing %s" % sr.name
+    print("processing %s" % sr.name)
     after = None
     count = 100
     q = ModAction.get_actions(sr, after=after, count=count)

@@ -20,16 +20,15 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from __future__ import with_statement
-from time import sleep
+import os
+import random
+import socket
 from datetime import datetime
 from threading import local
-from pylons import app_globals as g
-import os
-import socket
-import random
+from time import sleep
 
 from _pylibmc import MemcachedError
+from pylons import app_globals as g
 
 from r2.lib.utils import simple_traceback
 
@@ -41,7 +40,7 @@ reddit_pid  = os.getpid()
 
 class TimeoutExpired(Exception): pass
 
-class MemcacheLock(object):
+class MemcacheLock:
     """A simple global lock based on the memcache 'add' command. We
     attempt to grab a lock by 'adding' the lock name. If the response
     is True, we have the lock. If it's False, someone else has it."""

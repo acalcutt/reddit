@@ -1,10 +1,9 @@
 from datetime import datetime
 
 from pylons import app_globals as g
-
 from r2.models import (
-    CommentSortsCache,
     CommentScoresByLink,
+    CommentSortsCache,
 )
 
 # estimate 93,233,408 rows in CommentSortsCache
@@ -25,7 +24,7 @@ def run():
             float_columns = {k: float(v) for k, v in columns}
         else:
             # convert str column values to floats
-            float_columns = {k: float(v) for k, v in columns.iteritems()}
+            float_columns = {k: float(v) for k, v in columns.items()}
 
         # write with a timestamp to not overwrite any writes since our read
         CommentScoresByLink._cf.insert(
@@ -33,4 +32,4 @@ def run():
 
         count += 1
         if count % 1000 == 0:
-            print "processed %s rows, last seen was %s" % (count, rowkey)
+            print("processed {} rows, last seen was {}".format(count, rowkey))

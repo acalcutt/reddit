@@ -23,12 +23,12 @@
 import collections
 import itertools
 import math
-from mock import MagicMock
 
 from pylons import app_globals as g
 
 from r2.config.feature.state import FeatureState
-from . feature_test import TestFeatureBase, MockAccount
+
+from .feature_test import MockAccount, TestFeatureBase
 
 
 class TestExperiment(TestFeatureBase):
@@ -38,7 +38,7 @@ class TestExperiment(TestFeatureBase):
     longMessage = True
 
     def setUp(self):
-        super(TestExperiment, self).setUp()
+        super().setUp()
         # for the purposes of this test, logged in users will be generated as
         # MockAccount objects and logged out users will be None.  This is in
         # keeping with how c.user is treated in the default unlogged-in case.
@@ -49,13 +49,13 @@ class TestExperiment(TestFeatureBase):
 
     def get_loggedin_users(self, num_users):
         users = []
-        for i in xrange(num_users):
+        for i in range(num_users):
             users.append(MockAccount(name=str(i), _fullname="t2_%s" % str(i)))
         return users
 
     @staticmethod
     def get_loggedout_users(num_users):
-        return [None for _ in xrange(num_users)]
+        return [None for _ in range(num_users)]
 
     def test_calculate_bucket(self):
         """Test FeatureState's _calculate_bucket function."""
@@ -65,7 +65,7 @@ class TestExperiment(TestFeatureBase):
         # precision when checking amounts per bucket.
         NUM_USERS = FeatureState.NUM_BUCKETS * 2000
         fullnames = []
-        for i in xrange(NUM_USERS):
+        for i in range(NUM_USERS):
             fullnames.append("t2_%s" % str(i))
 
         counter = collections.Counter()
@@ -75,7 +75,7 @@ class TestExperiment(TestFeatureBase):
             # Ensure bucketing is deterministic.
             self.assertEqual(bucket, feature_state._calculate_bucket(fullname))
 
-        for bucket in xrange(FeatureState.NUM_BUCKETS):
+        for bucket in range(FeatureState.NUM_BUCKETS):
             # We want an even distribution across buckets.
             expected = NUM_USERS / FeatureState.NUM_BUCKETS
             actual = counter[bucket]
@@ -100,7 +100,7 @@ class TestExperiment(TestFeatureBase):
         }
 
         counters = collections.defaultdict(collections.Counter)
-        for bucket in xrange(FeatureState.NUM_BUCKETS):
+        for bucket in range(FeatureState.NUM_BUCKETS):
             variant = FeatureState._choose_variant(bucket, no_variants)
             if variant:
                 counters['no_variants'][variant] += 1
@@ -131,18 +131,18 @@ class TestExperiment(TestFeatureBase):
                 self.assertEqual(variant, previous_variant)
 
         # Only controls chosen in the no-variant case.
-        for variant, percentage in FeatureState.DEFAULT_CONTROL_GROUPS.items():
+        for variant, percentage in list(FeatureState.DEFAULT_CONTROL_GROUPS.items()):
             count = counters['no_variants'][variant]
             # The variant percentage is expressed as a part of 100, so we need
             # to calculate the fraction-of-1 percentage and scale it
             # accordingly.
             scaled_percentage = float(count) / (FeatureState.NUM_BUCKETS / 100)
             self.assertEqual(scaled_percentage, percentage)
-        for variant, percentage in three_variants.items():
+        for variant, percentage in list(three_variants.items()):
             count = counters['three_variants'][variant]
             scaled_percentage = float(count) / (FeatureState.NUM_BUCKETS / 100)
             self.assertEqual(scaled_percentage, percentage)
-        for variant, percentage in three_variants_more.items():
+        for variant, percentage in list(three_variants_more.items()):
             count = counters['three_variants_more'][variant]
             scaled_percentage = float(count) / (FeatureState.NUM_BUCKETS / 100)
             self.assertEqual(scaled_percentage, percentage)
@@ -157,7 +157,7 @@ class TestExperiment(TestFeatureBase):
             'control_1': 49,
             'control_2': 51,
         }
-        for bucket in xrange(FeatureState.NUM_BUCKETS):
+        for bucket in range(FeatureState.NUM_BUCKETS):
             variant = FeatureState._choose_variant(bucket, fifty_fifty)
             counters['fifty_fifty'][variant] += 1
             variant = FeatureState._choose_variant(bucket, almost_fifty_fifty)
@@ -200,7 +200,7 @@ class TestExperiment(TestFeatureBase):
         # this test will still probabilistically fail, but we can mitigate
         # the likeliness of that happening
         error_bar_percent = 100. / math.sqrt(num_users)
-        for variant, percent in cfg['experiment']['variants'].items():
+        for variant, percent in list(cfg['experiment']['variants'].items()):
             # Our actual percentage should be within our expected percent
             # (expressed as a part of 100 rather than a fraction of 1)
             # +- 1%.

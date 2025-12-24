@@ -23,24 +23,24 @@ from pylons import request
 from pylons import tmpl_context as c
 
 from r2.config.extensions import set_extension
-from r2.controllers.reddit_base import RedditController, generate_modhash
 from r2.controllers.login import handle_login, handle_register
+from r2.controllers.reddit_base import RedditController, generate_modhash
 from r2.lib.csrf import csrf_exempt
 from r2.lib.validator import (
-    json_validate,
     ValidEmail,
     VPasswordChange,
     VRatelimit,
     VSigned,
     VThrottledLogin,
     VUname,
+    json_validate,
 )
 
 
 class APIv1LoginController(RedditController):
 
     def pre(self):
-        super(APIv1LoginController, self).pre()
+        super().pre()
         c.extension = "json"
         set_extension(request.environ, "json")
 

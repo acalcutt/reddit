@@ -21,23 +21,22 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import unittest
-from r2.tests import RedditTestCase
-
 from datetime import datetime as dt
-from mock import MagicMock, patch
-from pylons import tmpl_context as c
+from unittest.mock import patch
+
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 from webob.exc import HTTPForbidden
 
-from r2.lib.errors import errors, ErrorSet
+from r2.lib.errors import ErrorSet, errors
 from r2.lib.validator import (
+    ValidEmail,
     VByName,
     VSubmitParent,
     VSubredditName,
-    ValidEmail,
 )
 from r2.models import Account, Comment, Link, Message, Subreddit
+from r2.tests import RedditTestCase
 
 
 class ValidatorTests(RedditTestCase):
@@ -59,7 +58,7 @@ class ValidatorTests(RedditTestCase):
 
 class TestVSubmitParent(ValidatorTests):
     def setUp(self):
-        super(TestVSubmitParent, self).setUp()
+        super().setUp()
         # Reset the validator state and errors before every test.
         self.validator = VSubmitParent(None)
         c.errors = ErrorSet()
@@ -271,7 +270,7 @@ class TestVSubredditName(ValidatorTests):
         c.errors = ErrorSet()
 
     def _test_failure(self, input, error=errors.BAD_SR_NAME):
-        super(TestVSubredditName, self)._test_failure(input, error)
+        super()._test_failure(input, error)
 
     # Most of this validator's logic is already covered in `IsValidNameTest`.
 
@@ -306,7 +305,7 @@ class TestValidEmail(ValidatorTests):
         self._test_success('test+foo@example.com')
 
     def _test_failure(self, email, error=errors.BAD_EMAIL):
-        super(TestValidEmail, self)._test_failure(email, error)
+        super()._test_failure(email, error)
 
     def test_blank_email(self):
         self._test_failure('', errors.NO_EMAIL)

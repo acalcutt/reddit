@@ -21,11 +21,12 @@
 ###############################################################################
 
 
-import snappy
 import struct
 
+import snappy
 
-class HadoopStreamDecompressor(object):
+
+class HadoopStreamDecompressor:
     """This class implements the decompressor-side of the hadoop framing
     format.
 

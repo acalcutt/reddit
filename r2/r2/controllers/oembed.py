@@ -22,19 +22,19 @@
 
 from datetime import datetime
 
-from pylons import response
 from pylons import app_globals as g
+from pylons import response
 from pylons import tmpl_context as c
 from pylons.i18n import _
 
 from r2.controllers.reddit_base import MinimalController
 from r2.lib import embeds
 from r2.lib.base import abort
-from r2.lib.errors import errors, ForbiddenError
-from r2.lib.filters import scriptsafe_dumps, websafe, _force_unicode
-from r2.lib.utils import url_to_thing, UrlParser
+from r2.lib.errors import ForbiddenError, errors
+from r2.lib.filters import _force_unicode, scriptsafe_dumps, websafe
 from r2.lib.template_helpers import format_html, make_url_https
-from r2.lib.validator import can_view_link_comments, validate, VBoolean, VUrl
+from r2.lib.utils import UrlParser, url_to_thing
+from r2.lib.validator import VBoolean, VUrl, can_view_link_comments, validate
 from r2.models import Comment, Link, Subreddit
 
 _OEMBED_BASE = {

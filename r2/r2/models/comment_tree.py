@@ -25,9 +25,8 @@ from collections import defaultdict
 from pylons import app_globals as g
 
 from r2.lib.utils import SimpleSillyStub
-from r2.lib.utils.comment_tree_utils import get_tree_details, calc_num_children
+from r2.lib.utils.comment_tree_utils import calc_num_children, get_tree_details
 from r2.models.link import Comment
-
 
 """Storage for comment trees
 
@@ -64,7 +63,7 @@ time periods and generally insufficient regular-case performance.
 """
 
 
-class CommentTreePermacache(object):
+class CommentTreePermacache:
     @classmethod
     def _permacache_key(cls, link):
         return 'comments_' + str(link._id)

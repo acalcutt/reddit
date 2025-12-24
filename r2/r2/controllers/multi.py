@@ -20,46 +20,43 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from pylons import app_globals as g
 from pylons import request, response
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.i18n import _
 
 from r2.config.extensions import set_extension
 from r2.controllers.api_docs import api_doc, api_section
-from r2.controllers.reddit_base import RedditController, abort_with_error
 from r2.controllers.oauth2 import require_oauth2_scope
-from r2.models.account import Account
-from r2.models.subreddit import (
-    FakeSubreddit,
-    Subreddit,
-    LabeledMulti,
-    TooManySubredditsError,
-)
+from r2.controllers.reddit_base import RedditController, abort_with_error
 from r2.lib.db import tdb_cassandra
+from r2.lib.errors import RedditError
+from r2.lib.jsontemplates import (
+    LabeledMultiDescriptionJsonTemplate,
+    LabeledMultiJsonTemplate,
+)
 from r2.lib.validator import (
-    validate,
     VAccountByName,
     VBoolean,
     VColor,
     VLength,
     VMarkdownLength,
     VModhash,
-    VMultiPath,
     VMultiByPath,
+    VMultiPath,
     VOneOf,
-    VSubredditName,
     VSRByName,
+    VSubredditName,
     VUser,
     VValidatedJSON,
+    validate,
 )
-from r2.lib.pages.things import wrap_things
-from r2.lib.jsontemplates import (
-    LabeledMultiJsonTemplate,
-    LabeledMultiDescriptionJsonTemplate,
+from r2.models.subreddit import (
+    FakeSubreddit,
+    LabeledMulti,
+    Subreddit,
+    TooManySubredditsError,
 )
-from r2.lib.errors import RedditError
-
 
 multi_sr_data_json_spec = VValidatedJSON.Object({
     'name': VSubredditName('name', allow_language_srs=True),
@@ -147,7 +144,7 @@ class MultiApiController(RedditController):
     def _add_multi_srs(self, multi, sr_datas):
         srs = Subreddit._by_name(sr_data['name'] for sr_data in sr_datas)
 
-        for sr in srs.itervalues():
+        for sr in srs.values():
             if isinstance(sr, FakeSubreddit):
                 raise RedditError('MULTI_SPECIAL_SUBREDDIT',
                                   msg_params={'path': sr.path},
@@ -167,7 +164,7 @@ class MultiApiController(RedditController):
 
         try:
             multi.add_srs(sr_props)
-        except TooManySubredditsError as e:
+        except TooManySubredditsError:
             raise RedditError('MULTI_TOO_MANY_SUBREDDITS', code=409)
 
         return sr_props
@@ -189,7 +186,7 @@ class MultiApiController(RedditController):
                 multi._revert()
                 raise
 
-        for key, val in data.iteritems():
+        for key, val in data.items():
             if key in WRITABLE_MULTI_FIELDS:
                 setattr(multi, key, val)
 
@@ -322,7 +319,7 @@ class MultiApiController(RedditController):
             to_multi.description_md += '\n\n'
         to_multi.description_md += _('copied from %(source)s') % {
             # force markdown linking since /user/foo is not autolinked
-            'source': '[%s](%s)' % (from_path, from_path)
+            'source': '[{}]({})'.format(from_path, from_path)
         }
         to_multi.visibility = 'private'
         if display_name:
@@ -399,7 +396,7 @@ class MultiApiController(RedditController):
 
         data['name'] = sr_name
         sr_props = self._add_multi_srs(multi, [data])
-        sr = sr_props.items()[0][0]
+        sr = list(sr_props.items())[0][0]
         multi._commit()
 
         if new:

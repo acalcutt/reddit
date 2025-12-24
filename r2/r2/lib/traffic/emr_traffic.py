@@ -20,23 +20,22 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from copy import copy
-from pylons import app_globals as g
 import os
-from time import time, sleep
+from copy import copy
+from time import sleep, time
 
-from boto.emr.step import InstallPigStep, PigStep
 from boto.emr.bootstrap_action import BootstrapAction
+from boto.emr.step import InstallPigStep, PigStep
+from pylons import app_globals as g
 
 from r2.lib.emr_helpers import (
+    COMPLETED,
+    LIVE_STATES,
+    PENDING,
     EmrException,
     EmrJob,
     get_live_clusters,
     get_step_state,
-    LIVE_STATES,
-    COMPLETED,
-    PENDING,
-    NOTFOUND,
 )
 
 
@@ -89,7 +88,7 @@ class PigProcessHour(PigStep):
     def __init__(self, log_path, output_path):
         self.log_path = log_path
         self.output_path = output_path
-        self.name = '%s (%s)' % (self.STEP_NAME, self.log_path)
+        self.name = '{} ({})'.format(self.STEP_NAME, self.log_path)
         pig_args = ['-p', 'OUTPUT=%s' % self.output_path,
                     '-p', 'LOGFILE=%s' % self.log_path]
         PigStep.__init__(self, self.name, self.PIG_FILE, pig_args=pig_args)
@@ -102,7 +101,7 @@ class PigAggregate(PigStep):
     def __init__(self, input_path, output_path):
         self.input_path = input_path
         self.output_path = output_path
-        self.name = '%s (%s)' % (self.STEP_NAME, self.input_path)
+        self.name = '{} ({})'.format(self.STEP_NAME, self.input_path)
         pig_args = ['-p', 'INPUT=%s' % self.input_path,
                     '-p', 'OUTPUT=%s' % self.output_path]
         PigStep.__init__(self, self.name, self.PIG_FILE, pig_args=pig_args)
@@ -115,7 +114,7 @@ class PigCoalesce(PigStep):
     def __init__(self, input_path, output_path):
         self.input_path = input_path
         self.output_path = output_path
-        self.name = '%s (%s)' % (self.STEP_NAME, self.input_path)
+        self.name = '{} ({})'.format(self.STEP_NAME, self.input_path)
         pig_args = ['-p', 'INPUT=%s' % self.input_path,
                     '-p', 'OUTPUT=%s' % self.output_path]
         PigStep.__init__(self, self.name, self.PIG_FILE, pig_args=pig_args)
@@ -140,14 +139,14 @@ def _add_step(emr_connection, step, jobflow_name, **jobflow_kw):
         if cluster.name == jobflow_name:
             jobflowid = cluster.id
             emr_connection.add_jobflow_steps(jobflowid, step)
-            print 'Added %s to jobflow %s' % (step.name, jobflowid)
+            print('Added {} to jobflow {}'.format(step.name, jobflowid))
             break
     else:
         base = TrafficBase(emr_connection, jobflow_name, steps=[step],
                            **jobflow_kw)
         base.run()
         jobflowid = base.jobflowid
-        print 'Added %s to new jobflow %s' % (step.name, jobflowid)
+        print('Added {} to new jobflow {}'.format(step.name, jobflowid))
 
     return jobflowid
 
@@ -162,7 +161,7 @@ def _wait_for_step(emr_connection, step, jobflowid, sleeptime):
         sleep(sleeptime)
         step_state = get_step_state(emr_connection, jobflowid, step.name)
     end = time()
-    print '%s took %0.2fs (exit: %s)' % (step.name, end - start, step_state)
+    print('{} took {:0.2f}s (exit: {})'.format(step.name, end - start, step_state))
     return step_state
 
 
@@ -189,7 +188,7 @@ def run_traffic_step(emr_connection, step, jobflow_name,
         attempts += 1
 
     if exit_state != COMPLETED:
-        msg = '%s failed (exit: %s)' % (step.name, exit_state)
+        msg = '{} failed (exit: {})'.format(step.name, exit_state)
         if retries:
             msg += 'retried %s times' % retries
         raise EmrException(msg)

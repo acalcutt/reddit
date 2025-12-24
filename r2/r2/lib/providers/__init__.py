@@ -38,9 +38,9 @@ def select_provider(config_parser, working_set, type, name):
     """
 
     try:
-        entry_point = working_set.iter_entry_points(type, name).next()
+        entry_point = next(working_set.iter_entry_points(type, name))
     except StopIteration:
-        raise Exception("unknown %s provider: %r" % (type, name))
+        raise Exception("unknown {} provider: {!r}".format(type, name))
     else:
         provider_cls = entry_point.load()
 

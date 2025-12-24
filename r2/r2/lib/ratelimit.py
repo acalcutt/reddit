@@ -37,8 +37,8 @@ import collections
 import time
 
 import pylibmc
-
 from pylons import app_globals as g
+
 
 # AKA, a half open interval.
 class TimeSlice(collections.namedtuple("TimeSlice", ["beginning", "end"])):
@@ -190,7 +190,7 @@ def get_usage_multi(prefix_slices):
         raise RatelimitError(e)
 
 
-class RateLimit(object):
+class RateLimit:
     """A general purpose whole system rate limit.
 
     This class takes several basically-static properties for configuring the

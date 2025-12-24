@@ -21,7 +21,7 @@
 ###############################################################################
 import contextlib
 import unittest
-from mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from pylons import app_globals as g
 
@@ -29,7 +29,7 @@ from r2.lib.validator import VThrottledLogin, VUname, validator
 from r2.models import Account, NotFound
 
 
-class LoginRegBase(object):
+class LoginRegBase:
     """Mixin for login-centered controller tests.
 
     This class is (purposely) not a test case that'll be picked up by nose

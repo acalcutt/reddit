@@ -28,7 +28,6 @@ import time
 from pylons import app_globals as g
 from pylons import request
 
-from r2.config import feature
 from r2.controllers.reddit_base import RedditController
 from r2.lib.base import abort
 from r2.lib.csrf import csrf_exempt
@@ -45,7 +44,6 @@ from r2.models import (
     Message,
     Subreddit,
 )
-
 
 MAX_TIMESTAMP_DEVIATION = 600
 ZENDESK_PREFIX = "##- Please type your reply above this line -##"
@@ -132,7 +130,7 @@ class MailgunWebhookController(RedditController):
             message_subject = "re: " + message_subject
 
         # from_ is like '"NAME (GROUP)" <something@domain.zendesk.com>'
-        match = re.search("\"(?P<name>\w+) [\w ()]*\"", from_)
+        match = re.search("\"(?P<name>\\w+) [\\w ()]*\"", from_)
         from_sr = True
         author = Account.system_user()
 

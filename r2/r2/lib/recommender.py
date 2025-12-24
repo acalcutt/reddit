@@ -20,29 +20,29 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from itertools import chain
 import math
 import random
 from collections import defaultdict
 from datetime import timedelta
+from itertools import chain
 from operator import itemgetter
+
 from pycassa.types import LongType
+from pylons import app_globals as g
+from pylons.i18n import _
 
 from r2.lib import rising
 from r2.lib.db import operators, tdb_cassandra
-from r2.lib.pages import ExploreItem
 from r2.lib.normalized_hot import normalized_hot
-from r2.lib.utils import roundrobin, tup, to36
+from r2.lib.pages import ExploreItem
+from r2.lib.utils import roundrobin, to36, tup
 from r2.models import Link, Subreddit
 from r2.models.builder import CommentBuilder
 from r2.models.listing import NestedListing
 from r2.models.recommend import (
-    AccountSRPrefs,
     AccountSRFeedback,
+    AccountSRPrefs,
 )
-
-from pylons import app_globals as g
-from pylons.i18n import _
 
 # recommendation sources
 SRC_MULTIREDDITS = 'mr'
@@ -172,7 +172,7 @@ def get_recommended_content(prefs, src, settings):
         discovery_items = get_hot_items(discovery_srs, TYPE_DISCOVERY, 'disc')
     if settings.rising:
         # grab some (non-personalized) rising items
-        omit_sr_ids = set(int(id36, 36) for id36 in omit_srid36s)
+        omit_sr_ids = {int(id36, 36) for id36 in omit_srid36s}
         rising_items = get_rising_items(omit_sr_ids, count=num_rising)
     # combine all items and randomize order to get a mix of types
     all_recs = list(chain(rising_items,
@@ -248,7 +248,7 @@ def get_comment_items(srs, src, count=4):
 def get_discovery_srid36s():
     """Get list of srs that help people discover other srs."""
     srs = Subreddit._by_name(g.live_config['discovery_srs'])
-    return [sr._id36 for sr in srs.itervalues()]
+    return [sr._id36 for sr in srs.values()]
 
 
 def random_sample(items, count):
@@ -286,7 +286,7 @@ class SRRecommendation(tdb_cassandra.View):
         srid36s = tup(srid36)
         to_omit = set(to_omit)
         to_omit.update(srid36s)  # don't show the originals
-        rowkeys = ['%s.%s' % (source, srid36) for srid36 in srid36s]
+        rowkeys = ['{}.{}'.format(source, srid36) for srid36 in srid36s]
 
         # fetch multiple sets of recommendations, one for each input srid36
         rows = cls._byID(rowkeys, return_dict=False)
@@ -318,7 +318,7 @@ class SRRecommendation(tdb_cassandra.View):
         Returns a list of id36s.
 
         """
-        return roundrobin(*[row._values().itervalues() for row in rows])
+        return roundrobin(*[iter(row._values().values()) for row in rows])
 
     @classmethod
     def _merge_and_sort_by_count(cls, rows):
@@ -330,13 +330,13 @@ class SRRecommendation(tdb_cassandra.View):
 
         """
         # combine recs from all input srs
-        rank_id36_pairs = chain.from_iterable(row._values().iteritems()
+        rank_id36_pairs = chain.from_iterable(iter(row._values().items())
                                               for row in rows)
         ranks = defaultdict(list)
         for rank, id36 in rank_id36_pairs:
             ranks[id36].append(rank)
         recs = [(id36, len(ranks), max(ranks))
-                for id36, ranks in ranks.iteritems()]
+                for id36, ranks in ranks.items()]
         # first, sort ascending by rank
         recs = sorted(recs, key=itemgetter(2))
         # next, sort descending by number of times the rec appeared. since

@@ -1,16 +1,16 @@
 import datetime
-import dateutil
 import json
-import pytz
 import time
 
+import dateutil
+import pytz
 from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from pylons import app_globals as g
 
 from r2.lib.s3_helpers import parse_s3_path
-from r2.lib.sitemaps.store import store_sitemaps_in_s3
 from r2.lib.sitemaps.data import find_all_subreddits
+from r2.lib.sitemaps.store import store_sitemaps_in_s3
 
 """Watch for SQS messages informing us to read, generate, and store sitemaps.
 

@@ -1,4 +1,3 @@
-
 # The contents of this file are subject to the Common Public Attribution
 # License Version 1.0. (the "License"); you may not use this file except in
 # compliance with the License. You may obtain a copy of the License at
@@ -21,16 +20,16 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import urllib2
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from pylons import app_globals as g
-
 from r2.lib.db.operators import desc
-from r2.lib.utils import fetch_things2
 from r2.lib.media import upload_media
+from r2.lib.utils import fetch_things2
 from r2.models.subreddit import Subreddit
-from r2.models.wiki import WikiPage, ImagesByWikiPage
-
+from r2.models.wiki import ImagesByWikiPage, WikiPage
 
 all_subreddits = Subreddit._query(sort=desc("_date"))
 for sr in fetch_things2(all_subreddits):
@@ -40,17 +39,17 @@ for sr in fetch_things2(all_subreddits):
     if not images:
         continue
 
-    print 'Processing /r/%s (id36: %s)' % (sr.name, sr._id36)
+    print('Processing /r/{} (id36: {})'.format(sr.name, sr._id36))
 
     # upgrade old-style image ids to urls
-    for name, image_url in images.items():
+    for name, image_url in list(images.items()):
         if not isinstance(image_url, int):
             continue
 
-        print "  upgrading image %r" % image_url
+        print("  upgrading image %r" % image_url)
         url = "http://%s/%s_%d.png" % (g.s3_old_thumb_bucket,
                                        sr._fullname, image_url)
-        image_data = urllib2.urlopen(url).read()
+        image_data = urllib.request.urlopen(url).read()
         new_url = upload_media(image_data, file_type=".png")
         images[name] = new_url
 

@@ -21,22 +21,21 @@
 ###############################################################################
 
 
-from collections import defaultdict, OrderedDict
-from datetime import datetime, timedelta
 import re
-
+from collections import defaultdict
+from datetime import timedelta
 from itertools import chain
+
 from sqlalchemy import func
 
 from r2.lib.inventory_optimization import get_maximized_pageviews
-from r2.lib.memoize import memoize
 from r2.lib.utils import to_date, tup
 from r2.models import (
+    NO_TRANSACTION,
     Bid,
     FakeSubreddit,
     LocalizedDefaultSubreddits,
     Location,
-    NO_TRANSACTION,
     PromoCampaign,
     PromotionWeights,
     Subreddit,
@@ -69,7 +68,7 @@ def update_prediction_data():
         min_daily_by_sr[fp] = min_daily_by_sr.get(fp, 0) + min_daily_by_sr['']
         del min_daily_by_sr['']
 
-    filtered = {sr_name: num for sr_name, num in min_daily_by_sr.iteritems()
+    filtered = {sr_name: num for sr_name, num in min_daily_by_sr.items()
                 if num > 100}
     PromoMetrics.set(MIN_DAILY_CASS_KEY, filtered)
 
@@ -99,8 +98,8 @@ def _min_daily_pageviews_by_sr(ndays=NDAYS_TO_QUERY, end_date=None):
 
 
 def get_date_range(start, end):
-    start, end = map(to_date, [start, end])
-    dates = [start + timedelta(i) for i in xrange((end - start).days)]
+    start, end = list(map(to_date, [start, end]))
+    dates = [start + timedelta(i) for i in range((end - start).days)]
     return dates
 
 
@@ -115,7 +114,7 @@ def get_campaigns_by_date(srs, start, end, ignore=None):
 
     # filter out deleted campaigns that didn't have their PromotionWeights
     # deleted
-    campaigns = filter(lambda camp: not camp._deleted, campaigns)
+    campaigns = [camp for camp in campaigns if not camp._deleted]
 
     transaction_ids = {camp.trans_id for camp in campaigns
                                      if camp.trans_id != NO_TRANSACTION}
@@ -211,7 +210,7 @@ def find_campaigns(srs, start, end, ignore):
         all_sr_names |= {sr.name for sr in srs}
         new_campaigns_by_date = get_campaigns_by_date(srs, start, end, ignore)
         new_campaigns = set(chain.from_iterable(
-            new_campaigns_by_date.itervalues()))
+            iter(new_campaigns_by_date.values())))
         all_campaigns.update(new_campaigns)
         new_sr_names = set(chain.from_iterable(
             campaign.target.subreddit_names for campaign in new_campaigns
@@ -255,11 +254,11 @@ def get_available_pageviews(targets, start, end, location=None, datestr=False,
     all_campaigns = find_campaigns(target_srs, start, end, ignore)
 
     # get predicted pageviews for each subreddit and location
-    all_sr_names = set(sr.name for sr in target_srs)
+    all_sr_names = {sr.name for sr in target_srs}
     all_sr_names |= set(chain.from_iterable(
         campaign.target.subreddit_names for campaign in all_campaigns
     ))
-    all_srs = Subreddit._by_name(all_sr_names).values()
+    all_srs = list(Subreddit._by_name(all_sr_names).values())
     pageviews_dict = {location: get_predicted_pageviews(all_srs, location)
                           for location in locations}
 
@@ -321,7 +320,7 @@ def get_oversold(target, start, end, daily_request, ignore=None, location=None):
     available_by_date = get_available_pageviews(target, start, end, location,
                                                 datestr=True, ignore=ignore)
     oversold = {}
-    for datestr, available in available_by_date.iteritems():
+    for datestr, available in available_by_date.items():
         if available < daily_request:
             oversold[datestr] = available
     return oversold

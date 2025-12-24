@@ -20,37 +20,35 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import bcrypt
-from collections import Counter, OrderedDict
-from datetime import datetime, timedelta
 import hashlib
 import hmac
 import time
+from collections import Counter, OrderedDict
+from datetime import datetime, timedelta
 
+import bcrypt
+from pycassa.system_manager import ASCII_TYPE, DATE_TYPE, UTF8_TYPE
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pycassa.system_manager import ASCII_TYPE, DATE_TYPE, UTF8_TYPE
 
 from r2.config import feature
 from r2.lib import amqp, filters, hooks
-from r2.lib.db.thing import Thing, Relation, NotFound
-from r2.lib.db.operators import lower
-from r2.lib.db.userrel import UserRel
 from r2.lib.db import tdb_cassandra
+from r2.lib.db.operators import lower
+from r2.lib.db.thing import NotFound, Relation, Thing
+from r2.lib.db.userrel import UserRel
 from r2.lib.memoize import memoize
 from r2.lib.utils import (
-    randstr,
     UrlParser,
-    constant_time_compare,
     canonicalize_email,
-    tup,
+    constant_time_compare,
+    randstr,
 )
 from r2.models.bans import TempTimeout
 from r2.models.last_modified import LastModified
 from r2.models.modaction import ModAction
 from r2.models.trylater import TryLater
-
 
 trylater_hooks = hooks.HookRegistrar()
 COOKIE_TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%S'
@@ -159,7 +157,7 @@ class Account(Thing):
                      has_used_mobile_app=False,
                      disable_karma=False,
                      )
-    _preference_attrs = tuple(k for k in _defaults.keys()
+    _preference_attrs = tuple(k for k in list(_defaults.keys())
                               if k.startswith("pref_"))
 
     @classmethod
@@ -192,7 +190,7 @@ class Account(Thing):
         #if no sr, return the sum
         if sr is None:
             total = 0
-            for k, v in self._t.iteritems():
+            for k, v in self._t.items():
                 if k.endswith(suffix):
                     total += v
 
@@ -229,10 +227,10 @@ class Account(Thing):
             return
 
         if sr.name.startswith('_'):
-            g.log.info("Ignoring karma increase for subreddit %r" % (sr.name,))
+            g.log.info("Ignoring karma increase for subreddit {!r}".format(sr.name))
             return
 
-        prop = '%s_%s_karma' % (sr.name, kind)
+        prop = '{}_{}_karma'.format(sr.name, kind)
         if hasattr(self, prop):
             return self._incr(prop, amt)
         else:
@@ -263,7 +261,7 @@ class Account(Thing):
         link_karmas = Counter()
         combined_karmas = Counter()
 
-        for key, value in self._t.iteritems():
+        for key, value in self._t.items():
             if key.endswith(link_suffix):
                 sr_name = key[:-len(link_suffix)]
                 link_karmas[sr_name] += value
@@ -294,7 +292,7 @@ class Account(Thing):
         return all_karmas
 
     def update_last_visit(self, current_time):
-        from admintools import apply_updates
+        from .admintools import apply_updates
 
         timer = g.stats.get_timer("account.update_last_visit")
         timer.start()
@@ -391,7 +389,7 @@ class Account(Thing):
         if uid:
             return cls._byID(uid, data=True)
         else:
-            raise NotFound, 'Account %s' % name
+            raise NotFound('Account %s' % name)
 
     @classmethod
     def _names_to_ids(cls, names, ignore_missing=False, allow_deleted=False,
@@ -466,7 +464,7 @@ class Account(Thing):
             if sorted_1 != sorted_2:
                 self.friend_ids(_update=True)
                 return self.friend_rels(_update=True)
-        return dict((r._thing2_id, r) for r in rels)
+        return {r._thing2_id: r for r in rels}
 
     def add_friend_note(self, friend, note):
         rels = self.friend_rels()
@@ -533,8 +531,7 @@ class Account(Thing):
             change_password(self, 'banned')
 
             # deauthorize all access tokens
-            from r2.models.token import OAuth2AccessToken
-            from r2.models.token import OAuth2RefreshToken
+            from r2.models.token import OAuth2AccessToken, OAuth2RefreshToken
 
             OAuth2AccessToken.revoke_all_by_user(self)
             OAuth2RefreshToken.revoke_all_by_user(self)
@@ -550,13 +547,13 @@ class Account(Thing):
 
     @property
     def subreddits(self):
-        from subreddit import Subreddit
+        from .subreddit import Subreddit
         return Subreddit.user_subreddits(self)
 
     def special_distinguish(self):
         if self._t.get("special_distinguish_name"):
-            return dict((k, self._t.get("special_distinguish_"+k, None))
-                        for k in ("name", "kind", "symbol", "cssclass", "label", "link"))
+            return {k: self._t.get("special_distinguish_"+k, None)
+                        for k in ("name", "kind", "symbol", "cssclass", "label", "link")}
         else:
             return None
 
@@ -896,7 +893,7 @@ def bcrypt_password(password):
 def passhash(username, password, salt = ''):
     if salt is True:
         salt = randstr(3)
-    tohash = '%s%s %s' % (salt, username, password)
+    tohash = '{}{} {}'.format(salt, username, password)
     return salt + hashlib.sha1(tohash).hexdigest()
 
 def change_password(user, newpassword):
@@ -997,9 +994,8 @@ def deleted_account_cleanup(data):
     from r2.models import Subreddit
     from r2.models.admin_notes import AdminNotesBySystem
     from r2.models.flair import Flair
-    from r2.models.token import OAuth2Client
 
-    for account_id36 in data.itervalues():
+    for account_id36 in data.values():
         account = Account._byID36(account_id36, data=True)
 
         if not account._deleted:
@@ -1025,7 +1021,7 @@ def deleted_account_cleanup(data):
         if account.has_subscribed:
             rel_removal_descriptions["subscriber"] = "Unsubscribed"
 
-        for rel_type, description in rel_removal_descriptions.iteritems():
+        for rel_type, description in rel_removal_descriptions.items():
             try:
                 ids_fn = getattr(Subreddit, "reverse_%s_ids" % rel_type)
                 sr_ids = ids_fn(account)
@@ -1039,9 +1035,9 @@ def deleted_account_cleanup(data):
 
                 if description and sr_names:
                     sr_list = ", ".join(sr_names)
-                    notes += "* %s from %s\n" % (description, sr_list)
+                    notes += "* {} from {}\n".format(description, sr_list)
             except Exception as e:
-                notes += "* Error cleaning up %s rels: %s\n" % (rel_type, e)
+                notes += "* Error cleaning up {} rels: {}\n".format(rel_type, e)
 
         # silent rel removals, no record left in the usernotes
         rel_classes = {
@@ -1050,7 +1046,7 @@ def deleted_account_cleanup(data):
             "enemy": Friend,
         }
 
-        for rel_name, rel_cls in rel_classes.iteritems():
+        for rel_name, rel_cls in rel_classes.items():
             try:
                 rels = rel_cls._query(
                     rel_cls.c._thing2_id == account._id,
@@ -1061,7 +1057,7 @@ def deleted_account_cleanup(data):
                     remove_fn = getattr(rel._thing1, "remove_" + rel_name)
                     remove_fn(account)
             except Exception as e:
-                notes += "* Error cleaning up %s rels: %s\n" % (rel_name, e)
+                notes += "* Error cleaning up {} rels: {}\n".format(rel_name, e)
 
         # add the note with info about the major changes to the account
         if notes:
@@ -1076,9 +1072,7 @@ def deleted_account_cleanup(data):
         account._commit()
 
 
-class AccountsByCanonicalEmail(tdb_cassandra.View):
-    __metaclass__ = tdb_cassandra.ThingMeta
-
+class AccountsByCanonicalEmail(tdb_cassandra.View, metaclass=tdb_cassandra.ThingMeta):
     _use_db = True
     _compare_with = UTF8_TYPE
     _extra_schema_creation_args = dict(
@@ -1087,7 +1081,7 @@ class AccountsByCanonicalEmail(tdb_cassandra.View):
 
     @classmethod
     def update_email(cls, account, old, new):
-        old, new = map(canonicalize_email, (old, new))
+        old, new = list(map(canonicalize_email, (old, new)))
 
         if old == new:
             return
@@ -1103,7 +1097,7 @@ class AccountsByCanonicalEmail(tdb_cassandra.View):
         canonical = canonicalize_email(email_address)
         if not canonical:
             return []
-        account_id36s = cls.get_time_sorted_columns(canonical).keys()
+        account_id36s = list(cls.get_time_sorted_columns(canonical).keys())
         return Account._byID36(account_id36s, data=True, return_dict=False)
 
 

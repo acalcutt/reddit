@@ -20,10 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import sqlalchemy as sa
-import cPickle as pickle
+import pickle as pickle
 
-class tdb_lite(object):
+import sqlalchemy as sa
+
+
+class tdb_lite:
     def __init__(self, gc):
         self.gc = gc
 
@@ -54,9 +56,9 @@ class tdb_lite(object):
         if isinstance(val, bool):
             val = 't' if val else 'f'
             kind = 'bool'
-        elif isinstance(val, (str, unicode)):
+        elif isinstance(val, str):
             kind = 'str'
-        elif isinstance(val, (int, float, long)):
+        elif isinstance(val, (int, float)):
             kind = 'num'
         elif val is None:
             kind = 'none'
@@ -71,7 +73,7 @@ class tdb_lite(object):
 
     def db2py(self, val, kind):
         if kind == 'bool':
-            val = True if val is 't' else False
+            val = True if val == 't' else False
         elif kind == 'num':
             try:
                 val = int(val)

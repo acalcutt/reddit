@@ -20,7 +20,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-class EmailProvider(object):
+class EmailProvider:
     """Provider for sending emails.
 
     """

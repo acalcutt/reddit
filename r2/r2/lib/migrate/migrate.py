@@ -25,11 +25,12 @@ One-time use functions to migrate from one reddit-version to another
 """
 from r2.lib.promote import *
 
+
 def add_allow_top_to_srs():
     "Add the allow_top property to all stored subreddits"
-    from r2.models import Subreddit
     from r2.lib.db.operators import desc
     from r2.lib.utils import fetch_things2
+    from r2.models import Subreddit
 
     q = Subreddit._query(Subreddit.c._spam == (True,False),
                          sort = desc('_date'))
@@ -38,14 +39,14 @@ def add_allow_top_to_srs():
 
 def subscribe_to_blog_and_annoucements(filename):
     import re
-    from time import sleep
+
     from r2.models import Account, Subreddit
 
     r_blog = Subreddit._by_name("blog")
     r_announcements = Subreddit._by_name("announcements")
 
     contents = file(filename).read()
-    numbers = [ int(s) for s in re.findall("\d+", contents) ]
+    numbers = [ int(s) for s in re.findall(r"\d+", contents) ]
 
 #    d = Account._byID(numbers, data=True)
 
@@ -56,14 +57,14 @@ def subscribe_to_blog_and_annoucements(filename):
         for sr in r_blog, r_announcements:
             if sr.add_subscriber(account):
                 sr._incr("_ups", 1)
-                print ("%d: subscribed %s to %s" % (i, account.name, sr.name))
+                print("%d: subscribed %s to %s" % (i, account.name, sr.name))
             else:
-                print ("%d: didn't subscribe %s to %s" % (i, account.name, sr.name))
+                print("%d: didn't subscribe %s to %s" % (i, account.name, sr.name))
 
 
 def recompute_unread(min_date = None):
-    from r2.models import Inbox, Account, Comment, Message
     from r2.lib.db import queries
+    from r2.models import Account, Comment, Inbox, Message
 
     def load_accounts(inbox_rel):
         accounts = set()
@@ -80,7 +81,7 @@ def recompute_unread(min_date = None):
     accounts_m = load_accounts(Inbox.rel(Account, Message))
     for i, a in enumerate(accounts_m):
         a = Account._byID(a)
-        print "%s / %s : %s" % (i, len(accounts_m), a)
+        print("{} / {} : {}".format(i, len(accounts_m), a))
         queries.get_unread_messages(a).update()
         queries.get_unread_comments(a).update()
         queries.get_unread_selfreply(a).update()
@@ -88,7 +89,7 @@ def recompute_unread(min_date = None):
     accounts = load_accounts(Inbox.rel(Account, Comment)) - accounts_m
     for i, a in enumerate(accounts):
         a = Account._byID(a)
-        print "%s / %s : %s" % (i, len(accounts), a)
+        print("{} / {} : {}".format(i, len(accounts), a))
         queries.get_unread_comments(a).update()
         queries.get_unread_selfreply(a).update()
 
@@ -99,15 +100,15 @@ def pushup_permacache(verbosity=1000):
        push everything up into the rest of the chain, so this is
        everything that uses the permacache, as of that check-in."""
     from pylons import app_globals as g
-    from r2.models import Link, Subreddit, Account
-    from r2.lib.db.operators import desc
+
+    from r2.lib.cache import CassandraCacheChain
     from r2.lib.comment_tree import comments_key, messages_key
-    from r2.lib.utils import fetch_things2, in_chunks
-    from r2.lib.utils import last_modified_key
+    from r2.lib.db import queries
+    from r2.lib.db.operators import desc
     from r2.lib.promote import promoted_memo_key
     from r2.lib.subreddit_search import load_all_reddits
-    from r2.lib.db import queries
-    from r2.lib.cache import CassandraCacheChain
+    from r2.lib.utils import fetch_things2, in_chunks, last_modified_key
+    from r2.models import Account, Link, Subreddit
 
     authority = g.permacache.caches[-1]
     nonauthority = CassandraCacheChain(g.permacache.caches[1:-1])
@@ -181,16 +182,14 @@ def pushup_permacache(verbosity=1000):
     for keys in in_chunks(gen_keys(), verbosity):
         g.reset_caches()
         done += len(keys)
-        print 'Done %d: %r' % (done, keys[-1])
+        print('Done %d: %r' % (done, keys[-1]))
         populate(keys)
 
 
 def port_cassaurls(after_id=None, estimate=15231317):
-    from r2.models import Link, LinksByUrlAndSubreddit
-    from r2.lib.db import tdb_cassandra
     from r2.lib.db.operators import desc
-    from r2.lib.db.tdb_cassandra import CL
     from r2.lib.utils import fetch_things2, in_chunks, progress
+    from r2.models import Link, LinksByUrlAndSubreddit
 
     q = Link._query(Link.c._spam == (True, False),
                     sort=desc('_date'), data=True)
@@ -208,11 +207,11 @@ def port_cassaurls(after_id=None, estimate=15231317):
             LinksByUrlAndSubreddit.add_link(l)
 
 def port_deleted_links(after_id=None):
-    from r2.models import Link
     from r2.lib.db.operators import desc
-    from r2.models.query_cache import CachedQueryMutator
     from r2.lib.db.queries import get_deleted_links
     from r2.lib.utils import fetch_things2, in_chunks, progress
+    from r2.models import Link
+    from r2.models.query_cache import CachedQueryMutator
 
     q = Link._query(Link.c._deleted == True,
                     Link.c._spam == (True, False),
@@ -227,23 +226,28 @@ def port_deleted_links(after_id=None):
                 m.insert(query, [link])
 
 def convert_query_cache_to_json():
-    import cPickle
-    from r2.models.query_cache import json, UserQueryCache
+    import pickle
+
+    from r2.models.query_cache import UserQueryCache, json
 
     with UserQueryCache._cf.batch() as m:
         for key, columns in UserQueryCache._cf.get_range():
             out = {}
-            for ckey, cvalue in columns.iteritems():
+            for ckey, cvalue in columns.items():
                 try:
-                    raw = cPickle.loads(cvalue)
-                except cPickle.UnpicklingError:
+                    raw = pickle.loads(cvalue)
+                except pickle.UnpicklingError:
                     continue
                 out[ckey] = json.dumps(raw)
             m.insert(key, out)
 
 def populate_spam_filtered():
-    from r2.lib.db.queries import get_spam_links, get_spam_comments
-    from r2.lib.db.queries import get_spam_filtered_links, get_spam_filtered_comments
+    from r2.lib.db.queries import (
+        get_spam_comments,
+        get_spam_filtered_comments,
+        get_spam_filtered_links,
+        get_spam_links,
+    )
     from r2.models.query_cache import CachedQueryMutator
 
     def was_filtered(thing):
@@ -255,7 +259,7 @@ def populate_spam_filtered():
 
     q = Subreddit._query(sort = asc('_date'))
     for sr in fetch_things2(q):
-        print 'Processing %s' % sr.name
+        print('Processing %s' % sr.name)
         links = Thing._by_fullname(get_spam_links(sr), data=True,
                                    return_dict=False)
         comments = Thing._by_fullname(get_spam_comments(sr), data=True,

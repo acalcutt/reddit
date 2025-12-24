@@ -32,78 +32,78 @@ class TestCSSFilter(unittest.TestCase):
         self.assertNotEqual(errors, [])
 
     def test_offsite_url(self):
-        testcase = u"*{background-image:url('http://foobar/')}"
+        testcase = "*{background-image:url('http://foobar/')}"
         self.assertInvalid(testcase)
 
     def test_nested_url(self):
-        testcase = u"*{background-image:calc(url('http://foobar/'))}"
+        testcase = "*{background-image:calc(url('http://foobar/'))}"
         self.assertInvalid(testcase)
 
     def test_url_prelude(self):
-        testcase = u"*[foo=url('http://foobar/')]{color:red;}"
+        testcase = "*[foo=url('http://foobar/')]{color:red;}"
         self.assertInvalid(testcase)
 
     def test_invalid_property(self):
-        testcase = u"*{foo: red;}"
+        testcase = "*{foo: red;}"
         self.assertInvalid(testcase)
 
     def test_import(self):
-        testcase = u"@import 'foobar'; *{}"
+        testcase = "@import 'foobar'; *{}"
         self.assertInvalid(testcase)
 
     def test_import_rule(self):
-        testcase = u"*{ @import 'foobar'; }"
+        testcase = "*{ @import 'foobar'; }"
         self.assertInvalid(testcase)
 
     # IE<8 XSS
     def test_invalid_function(self):
-        testcase = u"*{color:expression(alert(1));}"
+        testcase = "*{color:expression(alert(1));}"
         self.assertInvalid(testcase)
 
     def test_invalid_function_prelude(self):
-        testcase = u"*[foo=expression(alert(1))]{color:red;}"
+        testcase = "*[foo=expression(alert(1))]{color:red;}"
         self.assertInvalid(testcase)
 
     # Safari 5.x parser resynchronization issues
     def test_semicolon_function(self):
-        testcase = u"*{color: calc(;color:red;);}"
+        testcase = "*{color: calc(;color:red;);}"
         self.assertInvalid(testcase)
 
     def test_semicolon_block(self):
-        testcase = u"*{color: [;color:red;];}"
+        testcase = "*{color: [;color:red;];}"
         self.assertInvalid(testcase)
 
     # Safari 5.x prelude escape
     def test_escape_prelude(self):
-        testcase = u"*[foo=bar{}*{color:blue}]{color:red;}"
+        testcase = "*[foo=bar{}*{color:blue}]{color:red;}"
         self.assertInvalid(testcase)
 
     # Multi-browser url() escape via spaces inside quotes
     def test_escape_url(self):
-        testcase = u"*{background-image: url('foo bar');}"
+        testcase = "*{background-image: url('foo bar');}"
         self.assertInvalid(testcase)
 
     # Control chars break out of quotes in multiple browsers
     def test_control_chars(self):
-        testcase = u"*{font-family:'foobar\x03;color:red;';}"
+        testcase = "*{font-family:'foobar\x03;color:red;';}"
         self.assertInvalid(testcase)
 
     def test_embedded_nulls(self):
-        testcase = u"*{font-family:'foo\x00bar'}"
+        testcase = "*{font-family:'foo\x00bar'}"
         self.assertInvalid(testcase)
 
     # Firefox allows backslashes in function names
     def test_escaped_url(self):
-        testcase = u"*{background-image:\\u\\r\\l('http://foobar/')}"
+        testcase = "*{background-image:\\u\\r\\l('http://foobar/')}"
         self.assertInvalid(testcase)
 
     # IE<8 allows backslash escapes in place of pretty much any char
     def test_escape_function_obfuscation(self):
-        testcase = u"*{color: expression\\28 alert\\28 1 \\29 \\29 }"
+        testcase = "*{color: expression\\28 alert\\28 1 \\29 \\29 }"
         self.assertInvalid(testcase)
 
     # This is purely speculative, and may never affect actual browsers
     # https://developer.mozilla.org/en-US/docs/Web/CSS/attr
     def test_attr_url(self):
-        testcase = u"*{background-image:attr(foobar url);}"
+        testcase = "*{background-image:attr(foobar url);}"
         self.assertInvalid(testcase)

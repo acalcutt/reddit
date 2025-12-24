@@ -20,24 +20,26 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import json
 from collections import defaultdict
 from datetime import datetime
-import json
 
-from pylons import tmpl_context as c, app_globals as g, request
+from pylons import app_globals as g
+from pylons import request
+from pylons import tmpl_context as c
 
 from r2.lib import amqp, hooks
 from r2.lib.eventcollector import Event
-from r2.lib.utils import epoch_timestamp, is_subdomain, UrlParser
+from r2.lib.geoip import organization_by_ips
+from r2.lib.utils import UrlParser, epoch_timestamp
 from r2.models import Account, Comment, Link, Subreddit
 from r2.models.last_modified import LastModified
 from r2.models.query_cache import CachedQueryMutator
 from r2.models.vote import Vote, VotesByAccount
 
-from r2.lib.geoip import organization_by_ips
 
 def prequeued_vote_key(user, item):
-    return 'queuedvote:%s_%s' % (user._id36, item._fullname)
+    return 'queuedvote:{}_{}'.format(user._id36, item._fullname)
 
 
 def update_vote_lookups(user, thing, direction):
@@ -91,7 +93,7 @@ def cast_vote(user, thing, direction, **data):
     try:
         vote_dump = json.dumps(vote_data)
     except UnicodeDecodeError:
-        g.log.error("Got weird unicode in the vote data: %r", vote_data)
+        g.log.error("Got weird str in the vote data: %r", vote_data)
         return
 
     if isinstance(thing, Link):
@@ -128,10 +130,10 @@ def consume_link_vote_queue(qname="vote_link_q"):
         hook = hooks.get_hook('vote.validate_vote_data')
         if hook.call_until_return(msg=msg, vote_data=vote_data) is False:
             # Corrupt records in the queue. Ignore them.
-            print "Ignoring invalid vote by %s on %s %s" % (
+            print("Ignoring invalid vote by {} on {} {}".format(
                     vote_data.get('user_id', '<unknown>'),
                     vote_data.get('thing_fullname', '<unknown>'),
-                    vote_data)
+                    vote_data))
             return
 
         timer = g.stats.get_timer("link_vote_processor")
@@ -142,9 +144,9 @@ def consume_link_vote_queue(qname="vote_link_q"):
 
         # create the vote and update the voter's liked/disliked under lock so
         # that the vote state and cached query are consistent
-        lock_key = "vote-%s-%s" % (user._id36, link._fullname)
+        lock_key = "vote-{}-{}".format(user._id36, link._fullname)
         with g.make_lock("voting", lock_key, timeout=5):
-            print "Processing vote by %s on %s %s" % (user, link, vote_data)
+            print("Processing vote by {} on {} {}".format(user, link, vote_data))
 
             try:
                 vote = Vote(
@@ -210,15 +212,15 @@ def consume_author_query_queue(qname="author_query_q", limit=1000):
 
         link_names = {msg.body for msg in msgs}
         links = Link._by_fullname(link_names, return_dict=False)
-        print 'Processing %r' % (links,)
+        print('Processing {!r}'.format(links))
 
         links_by_author_id = defaultdict(list)
         for link in links:
             links_by_author_id[link.author_id].append(link)
 
-        authors_by_id = Account._byID(links_by_author_id.keys())
+        authors_by_id = Account._byID(list(links_by_author_id.keys()))
 
-        for author_id, links in links_by_author_id.iteritems():
+        for author_id, links in links_by_author_id.items():
             with g.stats.get_timer("link_vote_processor.author_queries"):
                 author = authors_by_id[author_id]
                 add_queries(
@@ -256,15 +258,15 @@ def consume_subreddit_query_queue(qname="subreddit_query_q", limit=1000):
 
         link_names = {msg.body for msg in msgs}
         links = Link._by_fullname(link_names, return_dict=False)
-        print 'Processing %r' % (links,)
+        print('Processing {!r}'.format(links))
 
         links_by_sr_id = defaultdict(list)
         for link in links:
             links_by_sr_id[link.sr_id].append(link)
 
-        srs_by_id = Subreddit._byID(links_by_sr_id.keys(), stale=True)
+        srs_by_id = Subreddit._byID(list(links_by_sr_id.keys()), stale=True)
 
-        for sr_id, links in links_by_sr_id.iteritems():
+        for sr_id, links in links_by_sr_id.items():
             with g.stats.get_timer("link_vote_processor.subreddit_queries"):
                 sr = srs_by_id[sr_id]
                 add_queries(
@@ -306,7 +308,7 @@ def consume_domain_query_queue(qname="domain_query_q", limit=1000):
 
         link_names = {msg.body for msg in msgs}
         links = Link._by_fullname(link_names, return_dict=False)
-        print 'Processing %r' % (links,)
+        print('Processing {!r}'.format(links))
 
         links_by_domain = defaultdict(list)
         for link in links:
@@ -316,7 +318,7 @@ def consume_domain_query_queue(qname="domain_query_q", limit=1000):
             for domain in parsed.domain_permutations():
                 links_by_domain[domain].append(link)
 
-        for d, links in links_by_domain.iteritems():
+        for d, links in links_by_domain.items():
             with g.stats.get_timer("link_vote_processor.domain_queries"):
                 add_queries(
                     queries=[
@@ -342,10 +344,10 @@ def consume_comment_vote_queue(qname="vote_comment_q"):
         hook = hooks.get_hook('vote.validate_vote_data')
         if hook.call_until_return(msg=msg, vote_data=vote_data) is False:
             # Corrupt records in the queue. Ignore them.
-            print "Ignoring invalid vote by %s on %s %s" % (
+            print("Ignoring invalid vote by {} on {} {}".format(
                     vote_data.get('user_id', '<unknown>'),
                     vote_data.get('thing_fullname', '<unknown>'),
-                    vote_data)
+                    vote_data))
             return
 
         timer = g.stats.get_timer("comment_vote_processor")
@@ -354,7 +356,7 @@ def consume_comment_vote_queue(qname="vote_comment_q"):
         user = Account._byID(vote_data.pop("user_id"))
         comment = Comment._by_fullname(vote_data.pop("thing_fullname"))
 
-        print "Processing vote by %s on %s %s" % (user, comment, vote_data)
+        print("Processing vote by {} on {} {}".format(user, comment, vote_data))
 
         try:
             vote = Vote(

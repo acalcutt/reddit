@@ -20,11 +20,11 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import sys
 import multiprocessing
+import sys
 
-from r2.lib.mr_tools._mr_tools import mr_map, mr_reduce, format_dataspec
-from r2.lib.mr_tools._mr_tools import stdin, emit
+from r2.lib.mr_tools._mr_tools import emit, format_dataspec, mr_map, mr_reduce, stdin
+
 
 def join_things(fields, deleted=False, spam=True):
     """A reducer that joins thing table dumps and data table dumps"""
@@ -80,15 +80,15 @@ def join_things(fields, deleted=False, spam=True):
     mr_reduce(process)
     # Print to stderr to avoid getting this caught up in the pipe of
     # compute_time_listings.
-    print >> sys.stderr, '%s items processed, %s skipped' % (
-                         counters['processed'], counters['skipped'])
+    print('{} items processed, {} skipped'.format(
+                         counters['processed'], counters['skipped']), file=sys.stderr)
 
-class Mapper(object):
+class Mapper:
     def __init__(self):
         pass
 
     def process(self, values):
-        raise NotImplemented
+        raise NotImplementedError
 
     def __call__(self, line):
         line = line.strip('\n')
@@ -117,13 +117,13 @@ def test():
     from r2.lib.mr_tools._mr_tools import keyiter
 
     for key, vals in keyiter():
-        print key, vals
+        print(key, vals)
         for val in vals:
-            print '\t', val
+            print('\t', val)
 
 class UpperMapper(Mapper):
     def process(self, values):
-        yield map(str.upper, values)
+        yield list(map(str.upper, values))
 
 def test_parallel():
     return mr_map_parallel(UpperMapper())

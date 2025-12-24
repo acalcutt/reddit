@@ -20,25 +20,26 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from email import encoders
-from email.MIMEBase import MIMEBase
-from email.MIMEText import MIMEText
-from email.MIMEMultipart import MIMEMultipart
-from email.errors import HeaderParseError
 import datetime
-import traceback, sys, smtplib
+import smtplib
+import sys
+import traceback
+from email import encoders
+from email.errors import HeaderParseError
+from email.MIMEBase import MIMEBase
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
 
-from pylons import tmpl_context as c
-from pylons import app_globals as g
 import simplejson as json
+from pylons import app_globals as g
+from pylons import tmpl_context as c
 
 from r2.config import feature
 from r2.lib import hooks
 from r2.lib.ratelimit import SimpleRateLimit
 from r2.lib.utils import timeago
-from r2.models import Comment, Email, DefaultSR, Account, Award
+from r2.models import Account, Award, Comment, DefaultSR, Email
 from r2.models.token import EmailVerificationToken, PasswordResetToken
-
 
 trylater_hooks = hooks.HookRegistrar()
 
@@ -148,7 +149,7 @@ def message_notification_email(data):
     # If our counter's expired, initialize it again.
     g.cache.add(MESSAGE_THROTTLE_KEY, 0, time=24*60*60)
 
-    for datum in data.itervalues():
+    for datum in data.values():
         datum = json.loads(datum)
         user = Account._byID36(datum['to'], data=True)
         comment = Comment._by_fullname(datum['comment'], data=True)
@@ -167,7 +168,7 @@ def message_notification_email(data):
                 datum['to'], user_email=user.email,
                 user_password_hash=user.password)
         base = g.https_endpoint or g.origin
-        unsubscribe_link = base + '/mail/unsubscribe/%s/%s' % (datum['to'], mac)
+        unsubscribe_link = base + '/mail/unsubscribe/{}/{}'.format(datum['to'], mac)
 
         templateData = {
             'sender_username': datum.get('from', ''),
@@ -248,7 +249,7 @@ def send_queued_mail(test = False):
     """sends mail from the mail queue to smtplib for delivery.  Also,
     on successes, empties the mail queue and adds all emails to the
     sent_mail list."""
-    from r2.lib.pages import Share, Mail_Opt
+    from r2.lib.pages import Mail_Opt, Share
     now = datetime.datetime.now(g.tz)
     if not c.site:
         c.site = DefaultSR()
@@ -260,10 +261,10 @@ def send_queued_mail(test = False):
         try:
             mimetext = email.to_MIMEText()
             if mimetext is None:
-                print ("Got None mimetext for email from %r and to %r"
+                print("Got None mimetext for email from %r and to %r"
                        % (email.fr_addr, email.to_addr))
             if test:
-                print mimetext.as_string()
+                print(mimetext.as_string())
             else:
                 session.sendmail(email.fr_addr, email.to_addr,
                                  mimetext.as_string())
@@ -272,7 +273,7 @@ def send_queued_mail(test = False):
         except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused,
                 UnicodeDecodeError, AttributeError, HeaderParseError):
             # handle error and print, but don't stall the rest of the queue
-            print "Handled error sending mail (traceback to follow)"
+            print("Handled error sending mail (traceback to follow)")
             traceback.print_exc(file = sys.stdout)
             email.set_sent(rejected = True)
 
@@ -300,7 +301,7 @@ def send_queued_mail(test = False):
                                       leave = False).render(style = "email")
             # handle unknown types here
             elif not email.body:
-                print ("Rejecting email with an empty body from %r and to %r"
+                print("Rejecting email with an empty body from %r and to %r"
                        % (email.fr_addr, email.to_addr))
                 email.set_sent(rejected = True)
                 continue

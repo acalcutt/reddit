@@ -24,8 +24,8 @@ import re
 
 from pylons import app_globals as g
 
-from r2.models.keyvalue import NamedGlobals
 from r2.models import NotFound, Subreddit, Thing
+from r2.models.keyvalue import NamedGlobals
 
 _SUBREDDIT_RE = re.compile(r'/r/(\w+)')
 TRENDING_SUBREDDITS_KEY = 'trending_subreddits'

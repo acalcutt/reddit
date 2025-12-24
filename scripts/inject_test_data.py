@@ -20,22 +20,20 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from __future__ import division
+
 
 import collections
-import HTMLParser
+import html.parser
 import itertools
 import random
 import string
 import time
 
 import requests
-
 from pylons import app_globals as g
-
-from r2.lib.db import queries
 from r2.lib import amqp
-from r2.lib.utils import weighted_lottery, get_requests_resp_json
+from r2.lib.db import queries
+from r2.lib.utils import get_requests_resp_json, weighted_lottery
 from r2.lib.voting import cast_vote
 from r2.models import (
     Account,
@@ -44,16 +42,15 @@ from r2.models import (
     LocalizedDefaultSubreddits,
     LocalizedFeaturedSubreddits,
     NotFound,
-    register,
     Subreddit,
     Vote,
+    register,
 )
 
+unescape_htmlentities = html.parser.HTMLParser().unescape
 
-unescape_htmlentities = HTMLParser.HTMLParser().unescape
 
-
-class TextGenerator(object):
+class TextGenerator:
     """A Markov Chain based text mimicker."""
 
     def __init__(self, order=8):
@@ -62,15 +59,15 @@ class TextGenerator(object):
         self.start_lengths = collections.defaultdict(collections.Counter)
         self.models = [
             collections.defaultdict(collections.Counter)
-            for i in xrange(self.order)]
+            for i in range(self.order)]
 
     @staticmethod
     def _in_groups(input_iterable, n):
         iterables = itertools.tee(input_iterable, n)
         for offset, iterable in enumerate(iterables):
-            for _ in xrange(offset):
+            for _ in range(offset):
                 next(iterable, None)
-        return itertools.izip(*iterables)
+        return zip(*iterables)
 
     def add_sample(self, sample):
         """Add a sample to the model of text for this generator."""
@@ -128,7 +125,7 @@ def fetch_listing(path, limit=1000, batch_size=100):
         if after:
             params["after"] = after
 
-        print "> {}-{}".format(count, count+batch_size)
+        print("> {}-{}".format(count, count+batch_size))
         response = session.get(base_url, params=params)
         response.raise_for_status()
 
@@ -146,7 +143,7 @@ def fetch_listing(path, limit=1000, batch_size=100):
         time.sleep(2)
 
 
-class Modeler(object):
+class Modeler:
     def __init__(self):
         self.usernames = TextGenerator(order=2)
 
@@ -154,9 +151,9 @@ class Modeler(object):
         """Return a model of links and comments in a given subreddit."""
 
         subreddit_path = "/r/{}".format(subreddit_name)
-        print ">>>", subreddit_path
+        print(">>>", subreddit_path)
 
-        print ">> Links"
+        print(">> Links")
         titles = TextGenerator(order=5)
         selfposts = TextGenerator(order=8)
         link_count = self_count = 0
@@ -172,7 +169,7 @@ class Modeler(object):
             link_count += 1
         self_frequency = self_count / link_count
 
-        print ">> Comments"
+        print(">> Comments")
         comments = TextGenerator(order=8)
         for comment in fetch_listing(subreddit_path + "/comments"):
             self.usernames.add_sample(comment["author"])
@@ -186,7 +183,7 @@ class Modeler(object):
         return self.usernames.generate()
 
 
-class SubredditModel(object):
+class SubredditModel:
     """A snapshot of a subreddit's links and comments."""
 
     def __init__(self, name, titles, selfposts, urls, comments, self_frequency):
@@ -230,10 +227,10 @@ def ensure_account(name):
     """Look up or register an account and return it."""
     try:
         account = Account._by_name(name)
-        print ">> found /u/{}".format(name)
+        print(">> found /u/{}".format(name))
         return account
     except NotFound:
-        print ">> registering /u/{}".format(name)
+        print(">> registering /u/{}".format(name))
         return register(name, "password", "127.0.0.1")
 
 
@@ -241,10 +238,10 @@ def ensure_subreddit(name, author):
     """Look up or create a subreddit and return it."""
     try:
         sr = Subreddit._by_name(name)
-        print ">> found /r/{}".format(name)
+        print(">> found /r/{}".format(name))
         return sr
     except NotFound:
-        print ">> creating /r/{}".format(name)
+        print(">> creating /r/{}".format(name))
         sr = Subreddit._new(
             name=name,
             title="/r/{}".format(name),
@@ -259,7 +256,7 @@ def ensure_subreddit(name, author):
 def inject_test_data(num_links=25, num_comments=25, num_votes=5):
     """Flood your reddit install with test data based on reddit.com."""
 
-    print ">>>> Ensuring configured objects exist"
+    print(">>>> Ensuring configured objects exist")
     system_user = ensure_account(g.system_user)
     ensure_account(g.automoderator_account)
     ensure_subreddit(g.default_sr, system_user)
@@ -267,10 +264,10 @@ def inject_test_data(num_links=25, num_comments=25, num_votes=5):
     ensure_subreddit(g.beta_sr, system_user)
     ensure_subreddit(g.promo_sr_name, system_user)
 
-    print
-    print
+    print()
+    print()
 
-    print ">>>> Fetching real data from reddit.com"
+    print(">>>> Fetching real data from reddit.com")
     modeler = Modeler()
     subreddits = [
         modeler.model_subreddit("pics"),
@@ -286,18 +283,18 @@ def inject_test_data(num_links=25, num_comments=25, num_votes=5):
         },
     }
 
-    print
-    print
+    print()
+    print()
 
-    print ">>>> Generating test data"
-    print ">>> Accounts"
+    print(">>>> Generating test data")
+    print(">>> Accounts")
     account_query = Account._query(sort="_date", limit=500, data=True)
     accounts = [a for a in account_query if a.name != g.system_user]
     accounts.extend(
         ensure_account(modeler.generate_username())
-        for i in xrange(50 - len(accounts)))
+        for i in range(50 - len(accounts)))
 
-    print ">>> Content"
+    print(">>> Content")
     things = []
     for sr_model in subreddits:
         sr_author = random.choice(accounts)
@@ -308,11 +305,11 @@ def inject_test_data(num_links=25, num_comments=25, num_votes=5):
             sr._incr("_ups", 1)
 
         # apply any custom config we need for this sr
-        for setting, value in extra_settings.get(sr.name, {}).iteritems():
+        for setting, value in extra_settings.get(sr.name, {}).items():
             setattr(sr, setting, value)
         sr._commit()
 
-        for i in xrange(num_links):
+        for i in range(num_links):
             link_author = random.choice(accounts)
             url = sr_model.generate_link_url()
             is_self = (url == "self")
@@ -329,7 +326,7 @@ def inject_test_data(num_links=25, num_comments=25, num_votes=5):
             things.append(link)
 
             comments = [None]
-            for i in xrange(fuzz_number(num_comments)):
+            for i in range(fuzz_number(num_comments)):
                 comment_author = random.choice(accounts)
                 comment, inbox_rel = Comment._new(
                     comment_author,
@@ -343,7 +340,7 @@ def inject_test_data(num_links=25, num_comments=25, num_votes=5):
                 things.append(comment)
 
     for thing in things:
-        for i in xrange(fuzz_number(num_votes)):
+        for i in range(fuzz_number(num_votes)):
             direction = random.choice([
                 Vote.DIRECTIONS.up,
                 Vote.DIRECTIONS.unvote,

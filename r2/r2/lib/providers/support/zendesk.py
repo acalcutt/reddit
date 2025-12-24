@@ -22,18 +22,18 @@
 
 import json
 import re
-import requests
 
+import requests
 from pylons import app_globals as g
 
-from r2.lib.configparse import ConfigValue
 from r2.lib.providers.support import TicketProvider
+
 
 class ZenDeskProvider(TicketProvider):
     """A provider that interfaces with ZenDesk for managing tickets."""
 
     def build_ticket_url_from_id(self, ticket_id):
-        return '%sagent/tickets/%s' % (
+        return '{}agent/tickets/{}'.format(
             g.live_config['ticket_base_url'], 
             ticket_id,
         )
@@ -93,7 +93,7 @@ class ZenDeskProvider(TicketProvider):
     
     def get_ticket_id_from_url(self, ticket_url):
         """Extracts the ticket ID from a URL."""
-        r = re.compile('(\d).*')
+        r = re.compile(r'(\d).*')
         numbers_in_url = r.findall(ticket_url)
         if not numbers_in_url:
             raise Exception('No digits in request_url')
@@ -105,7 +105,7 @@ class ZenDeskProvider(TicketProvider):
         timer = g.stats.get_timer("providers.zendesk.ticket_get")
         timer.start()
         response = requests.get(
-            '%s/api/v2/tickets/%s.json' % (
+            '{}/api/v2/tickets/{}.json'.format(
                 g.live_config['ticket_base_url'], 
                 ticket_id
             ),
@@ -150,7 +150,7 @@ class ZenDeskProvider(TicketProvider):
         timer = g.stats.get_timer("providers.zendesk.ticket_update")
         timer.start()
         response = requests.put(
-            '%s/api/v2/tickets/%s.json' % (
+            '{}/api/v2/tickets/{}.json'.format(
                 g.live_config['ticket_base_url'], 
                 ticket['id']
             ),

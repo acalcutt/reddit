@@ -23,11 +23,11 @@
 from pylons import request
 from pylons import tmpl_context as c
 
-from r2.lib.strings import Score
 from r2.lib import hooks
+from r2.lib.strings import Score
 
 
-class Printable(object):
+class Printable:
     show_spam = False
     show_reports = False
     is_special = False
@@ -39,7 +39,7 @@ class Printable(object):
     margin = 0
     is_focal = False
     childlisting = None
-    cache_ignore = set(['c', 'author', 'score_fmt', 'child',
+    cache_ignore = {'c', 'author', 'score_fmt', 'child',
                         # displayed score is cachable, so remove score
                         # related fields.
                         'voting_score', 'display_score',
@@ -54,7 +54,7 @@ class Printable(object):
                         'upvote_ratio',
                         'should_incr_counts',
                         'keep_item',
-                        ])
+                        }
 
     @classmethod
     def update_nofollow(cls, user, wrapped):
@@ -71,13 +71,13 @@ class Printable(object):
             item.childlisting = CachedVariable("childlisting")
 
             score_fmt = getattr(item, "score_fmt", Score.number_only)
-            item.display_score = map(score_fmt, item.voting_score)
+            item.display_score = list(map(score_fmt, item.voting_score))
 
             if item.cachable:
                 item.render_score  = item.display_score
-                item.display_score = map(CachedVariable,
+                item.display_score = list(map(CachedVariable,
                                          ["scoredislikes", "scoreunvoted",
-                                          "scorelikes"])
+                                          "scorelikes"]))
 
         hooks.get_hook("add_props").call(items=wrapped)
 
@@ -101,7 +101,7 @@ class Printable(object):
 
         if style == 'htmllite':
             s.extend([c.bgcolor, c.bordercolor, 
-                      request.GET.has_key('style'),
+                      'style' in request.GET,
                       request.GET.get("expanded"),
                       getattr(wrapped, 'embed_voting_style', None)])
         return s

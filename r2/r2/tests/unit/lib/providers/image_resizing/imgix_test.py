@@ -21,12 +21,10 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from r2.tests import RedditTestCase
-
 from r2.lib.providers.image_resizing import NotLargeEnough
 from r2.lib.providers.image_resizing.imgix import ImgixImageResizingProvider
 from r2.lib.utils import UrlParser
-
+from r2.tests import RedditTestCase
 
 URLENCODED_COMMA = '%2C'
 

@@ -22,34 +22,33 @@
 from pylons import response
 from pylons import tmpl_context as c
 
+import r2.lib.errors as errors
+import r2.lib.validator.preferences as vprefs
 from r2.controllers.api_docs import api_doc, api_section
 from r2.controllers.oauth2 import require_oauth2_scope
 from r2.controllers.reddit_base import OAuth2OnlyController
 from r2.lib.jsontemplates import (
     FriendTableItemJsonTemplate,
-    get_usertrophies,
     IdentityJsonTemplate,
     KarmaListJsonTemplate,
     PrefsJsonTemplate,
+    get_usertrophies,
 )
 from r2.lib.pages import FriendTableItem
 from r2.lib.validator import (
-    validate,
     VAccountByName,
     VFriendOfMine,
     VLength,
     VList,
     VUser,
     VValidatedJSON,
+    validate,
 )
-from r2.models import Account, Trophy
-import r2.lib.errors as errors
-import r2.lib.validator.preferences as vprefs
-
+from r2.models import Account
 
 PREFS_JSON_SPEC = VValidatedJSON.PartialObject({
     k[len("pref_"):]: v for k, v in
-    vprefs.PREFS_VALIDATORS.iteritems()
+    vprefs.PREFS_VALIDATORS.items()
 })
 
 
@@ -69,7 +68,7 @@ class APIv1UserController(OAuth2OnlyController):
         VUser(),
         fields=VList(
             "fields",
-            choices=PREFS_JSON_SPEC.spec.keys(),
+            choices=list(PREFS_JSON_SPEC.spec.keys()),
             error=errors.errors.NON_PREFERENCE,
         ),
     )
@@ -129,7 +128,7 @@ class APIv1UserController(OAuth2OnlyController):
              uri='/api/v1/me/prefs')
     def PATCH_prefs(self, validated_prefs):
         user_prefs = c.user.preferences()
-        for short_name, new_value in validated_prefs.iteritems():
+        for short_name, new_value in validated_prefs.items():
             pref_name = "pref_" + short_name
             user_prefs[pref_name] = new_value
         vprefs.filter_prefs(user_prefs, c.user)

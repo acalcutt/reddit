@@ -20,31 +20,37 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import json
+
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
+from pylons.i18n import _
 
-from reddit_base import RedditController
+from r2.config import extensions
+from r2.config.extensions import set_extension
+from r2.controllers.api_docs import api_doc, api_section
 from r2.controllers.oauth2 import require_oauth2_scope
-from r2.lib.utils import url_links_builder
-from reddit_base import paginated_listing
-from r2.models.wiki import (
-    ContentLengthError,
-    modactions,
-    WikiPage,
-    WikiPageExists,
-    WikiRevision,
+from r2.lib.automoderator import Ruleset
+from r2.lib.base import abort
+from r2.lib.errors import reddit_http_error
+from r2.lib.merge import ConflictException, make_htmldiff
+from r2.lib.pages import BoringPage, CssError
+from r2.lib.pages.things import default_thing_wrapper
+from r2.lib.pages.wiki import (
+    WikiCreate,
+    WikiDiscussions,
+    WikiEdit,
+    WikiListing,
+    WikiNotFound,
+    WikiPageView,
+    WikiRecent,
+    WikiRevisions,
+    WikiSettings,
 )
-from r2.models.subreddit import Subreddit
-from r2.models.modaction import ModAction
-from r2.models.builder import WikiRevisionBuilder, WikiRecentRevisionBuilder
-
-from r2.lib.template_helpers import join_urls
-
-
+from r2.lib.template_helpers import add_sr, join_urls
+from r2.lib.utils import timesince, url_links_builder
 from r2.lib.validator import (
-    nop,
-    validate,
     VAdmin,
     VBoolean,
     VExistingUname,
@@ -54,42 +60,31 @@ from r2.lib.validator import (
     VNotInTimeout,
     VOneOf,
     VPrintable,
-    VRatelimit,
+    nop,
+    validate,
 )
-
 from r2.lib.validator.wiki import (
+    VWikiModerator,
     VWikiPage,
     VWikiPageAndVersion,
-    VWikiModerator,
+    VWikiPageName,
     VWikiPageRevise,
     this_may_revise,
     this_may_view,
-    VWikiPageName,
 )
-from r2.controllers.api_docs import api_doc, api_section
-from r2.lib.pages.wiki import (WikiPageView, WikiNotFound, WikiRevisions,
-                              WikiEdit, WikiSettings, WikiRecent,
-                              WikiListing, WikiDiscussions,
-                              WikiCreate)
-
-from r2.config.extensions import set_extension
-from r2.lib.template_helpers import add_sr
-from r2.lib.db import tdb_cassandra
+from r2.models import DefaultSR, LinkListing
+from r2.models.builder import WikiRecentRevisionBuilder, WikiRevisionBuilder
 from r2.models.listing import WikiRevisionListing
-from r2.lib.pages.things import default_thing_wrapper
-from r2.lib.pages import BoringPage, CssError
-from reddit_base import base_listing
-from r2.models import IDBuilder, LinkListing, DefaultSR
-from r2.lib.merge import ConflictException, make_htmldiff
-from pylons.i18n import _
-from r2.lib.pages import PaneStack
-from r2.lib.utils import timesince
-from r2.config import extensions
-from r2.lib.base import abort
-from r2.lib.errors import reddit_http_error
-from r2.lib.automoderator import Ruleset
+from r2.models.modaction import ModAction
+from r2.models.wiki import (
+    ContentLengthError,
+    WikiPage,
+    WikiPageExists,
+    WikiRevision,
+    modactions,
+)
 
-import json
+from .reddit_base import RedditController, base_listing, paginated_listing
 
 page_descriptions = {
     "config/stylesheet": _("This page is the subreddit stylesheet, changes here apply to the subreddit css"),
@@ -270,7 +265,7 @@ class WikiController(RedditController):
         return WikiListing(pages, linear_pages).render()
 
     def GET_wiki_redirect(self, page='index'):
-        return self.redirect(str("%s/%s" % (c.wiki_base_url, page)), code=301)
+        return self.redirect(str("{}/{}".format(c.wiki_base_url, page)), code=301)
 
     @require_oauth2_scope("wikiread")
     @api_doc(api_section.wiki, uri='/wiki/discussions/{page}', uses_site=True)
@@ -278,7 +273,7 @@ class WikiController(RedditController):
     @validate(page=VWikiPage('page', restricted=True))
     def GET_wiki_discussions(self, page, num, after, reverse, count):
         """Retrieve a list of discussions about this wiki `page`"""
-        page_url = add_sr("%s/%s" % (c.wiki_base_url, page.name))
+        page_url = add_sr("{}/{}".format(c.wiki_base_url, page.name))
         builder = url_links_builder(page_url, num=num, after=after,
                                     reverse=reverse, count=count)
         listing = LinkListing(builder).listing()
@@ -328,11 +323,11 @@ class WikiController(RedditController):
             page.listed = listed
             page._commit()
             verb = 'Relisted' if listed else 'Delisted'
-            description = '%s page %s' % (verb, page.name)
+            description = '{} page {}'.format(verb, page.name)
             ModAction.create(c.site, c.user, 'wikipagelisted',
                              description=description)
         if oldpermlevel != permlevel:
-            description = 'Page: %s, Changed from %s to %s' % (
+            description = 'Page: {}, Changed from {} to {}'.format(
                 page.name, oldpermlevel, permlevel
             )
             ModAction.create(c.site, c.user, 'wikipermlevel',
@@ -381,7 +376,7 @@ class WikiApiController(WikiController):
     @require_oauth2_scope("wikiedit")
     @validate(VModhash(),
               pageandprevious=VWikiPageRevise(('page', 'previous'), restricted=True),
-              content=nop(('content')),
+              content=nop('content'),
               page_name=VWikiPageName('page'),
               reason=VPrintable('reason', 256, empty_error=None))
     @api_doc(api_section.wiki, uri='/api/wiki/edit', uses_site=True)

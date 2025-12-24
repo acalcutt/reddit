@@ -20,12 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 
 
-class World(object):
+class World:
     """A World is the proxy to the app/request state for Features.
 
     Proxying through World allows for easy testing and caching if needed.
@@ -116,7 +116,7 @@ class World(object):
 
     def live_config_iteritems(self):
         live = self.stacked_proxy_safe_get(g, 'live_config', {})
-        return live.iteritems()
+        return iter(live.items())
 
     def simple_event(self, name):
         stats = self.stacked_proxy_safe_get(g, 'stats', None)

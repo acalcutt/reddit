@@ -20,30 +20,25 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import hashlib
-import hmac
 import json
-import re
 
+from pylons import app_globals as g
 from pylons import request, response
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _
 
 from r2.controllers.reddit_base import RedditController, abort_with_error
 from r2.lib.base import abort
 from r2.lib.cache_poisoning import make_poisoning_report_mac
 from r2.lib.csrf import csrf_exempt
-from r2.lib.utils import constant_time_compare, UrlParser, is_subdomain
+from r2.lib.utils import UrlParser, constant_time_compare, is_subdomain
 from r2.lib.validator import (
-    nop,
-    validate,
-    VFloat,
     VInt,
     VOneOf,
     VPrintable,
     VRatelimit,
     VValidatedJSON,
+    nop,
+    validate,
 )
 
 
@@ -176,10 +171,10 @@ class WebLogController(RedditController):
                 # Verify this is a JSON map of `header_name => [value, ...]`
                 if not isinstance(resp_headers, dict):
                     abort(400)
-                for hdr_name, hdr_vals in resp_headers.iteritems():
-                    if not isinstance(hdr_name, basestring):
+                for hdr_name, hdr_vals in resp_headers.items():
+                    if not isinstance(hdr_name, str):
                         abort(400)
-                    if not all(isinstance(h, basestring) for h in hdr_vals):
+                    if not all(isinstance(h, str) for h in hdr_vals):
                         abort(400)
             except ValueError:
                 abort(400)
@@ -200,7 +195,7 @@ class WebLogController(RedditController):
         )
 
         # For immediate feedback when tracking the effects of caching changes
-        g.stats.simple_event("cache.poisoning.%s.%s" % (source, cache_policy))
+        g.stats.simple_event("cache.poisoning.{}.{}".format(source, cache_policy))
         # For longer-term diagnosing of caching issues
         g.events.cache_poisoning_event(poison_info, request=request, context=c)
 

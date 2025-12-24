@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from pylons import app_globals as g
 
 from r2.lib.db.sorts import epoch_seconds
-from r2.lib.db.tdb_cassandra import write_consistency_level
 from r2.lib.utils import in_chunks
 from r2.models.vote import VoteDetailsByComment, VoteDetailsByLink, VoterIPByThing
 
@@ -32,10 +31,10 @@ def backfill_vote_details(cls):
                             oneweek = ""
                             if ttl < 3600 * 24 * 7:
                                 oneweek = "(<= one week left)"
-                            print "Inserting %s with IP ttl %d %s" % (redacted, ttl, oneweek)
+                            print("Inserting %s with IP ttl %d %s" % (redacted, ttl, oneweek))
                             detail_chunk[thing_id36][voter_id36] = json.dumps(redacted)
                             if ttl <= 0:
-                                print "Skipping bogus ttl for %s: %d" % (redacted, ttl)
+                                print("Skipping bogus ttl for %s: %d" % (redacted, ttl))
                                 continue
                             b.insert(thing_fullname, {voter_id36: ip}, ttl=ttl)
         except Exception:
@@ -45,7 +44,7 @@ def backfill_vote_details(cls):
             # Just going to brute-force this through.  We might lose 100 here and there
             # but mostly it'll be intact.
             pass
-        for votee_id36, valuedict in detail_chunk.iteritems():
+        for votee_id36, valuedict in detail_chunk.items():
             cls._set_values(votee_id36, valuedict)
 
 

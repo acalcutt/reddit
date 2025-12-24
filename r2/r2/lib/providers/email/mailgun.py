@@ -53,7 +53,7 @@ class MailgunEmailProvider(EmailProvider):
             raise TypeError(msg)
 
         # pick out the mailgun domain from the from_address field domain
-        from_domain_match = re.search("@([\w.]+)", from_address)
+        from_domain_match = re.search(r"@([\w.]+)", from_address)
 
         if from_domain_match is None:
             raise ValueError("from address is malformed")

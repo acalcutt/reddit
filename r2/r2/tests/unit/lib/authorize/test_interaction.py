@@ -21,23 +21,26 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from mock import MagicMock, Mock, patch
-from unittest import TestCase
+from unittest.mock import MagicMock, Mock, patch
 
-from r2.lib.authorize.api import (AuthorizationHoldNotFound,
-                                  DuplicateTransactionError,
-                                  TRANSACTION_NOT_FOUND,
-                                  TransactionError,)
-from r2.lib.authorize.interaction import (get_or_create_customer_profile,
-                                          add_payment_method,
-                                          update_payment_method,
-                                          delete_payment_method,
-                                          add_or_update_payment_method,
-                                          auth_freebie_transaction,
-                                          auth_transaction,
-                                          charge_transaction,
-                                          void_transaction,
-                                          refund_transaction,)
+from r2.lib.authorize.api import (
+    TRANSACTION_NOT_FOUND,
+    AuthorizationHoldNotFound,
+    DuplicateTransactionError,
+    TransactionError,
+)
+from r2.lib.authorize.interaction import (
+    add_or_update_payment_method,
+    add_payment_method,
+    auth_freebie_transaction,
+    auth_transaction,
+    charge_transaction,
+    delete_payment_method,
+    get_or_create_customer_profile,
+    refund_transaction,
+    update_payment_method,
+    void_transaction,
+)
 from r2.lib.db.thing import NotFound
 from r2.models import Account, Link
 from r2.tests import RedditTestCase

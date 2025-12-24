@@ -22,22 +22,26 @@
 
 """Pylons middleware initialization"""
 import importlib
-import re
-import urllib
-import tempfile
-import urlparse
-from threading import Lock
 import itertools
+import re
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+from threading import Lock
+
 import simplejson
 
+# patch in WebOb support for HTTP 429 "Too Many Requests"
+import webob.exc
+import webob.util
 from paste.cascade import Cascade
+from paste.deploy.converters import asbool
 from paste.errordocument import StatusBasedForward
 from paste.recursive import RecursiveMiddleware
 from paste.registry import RegistryManager
-from paste.urlparser import StaticURLParser
-from paste.deploy.converters import asbool
 from paste.request import path_info_split
-from pylons import response
+from paste.urlparser import StaticURLParser
 from pylons.middleware import ErrorHandler
 from pylons.wsgiapp import PylonsApp
 from routes.middleware import RoutesMiddleware
@@ -45,13 +49,9 @@ from routes.middleware import RoutesMiddleware
 from r2.config import hooks
 from r2.config.environment import load_environment
 from r2.config.extensions import extension_mapping, set_extension
-from r2.lib.utils import is_subdomain, is_language_subdomain
 from r2.lib import csrf, filters
+from r2.lib.utils import is_language_subdomain, is_subdomain
 
-
-# patch in WebOb support for HTTP 429 "Too Many Requests"
-import webob.exc
-import webob.util
 
 class HTTPTooManyRequests(webob.exc.HTTPClientError):
     code = 429
@@ -110,9 +110,9 @@ def error_mapper(code, message, environ, global_conf=None, **kw):
 
         extension = environ.get("extension")
         if extension:
-            url = '/error/document/.%s?%s' % (extension, urllib.urlencode(d))
+            url = '/error/document/.{}?{}'.format(extension, urllib.parse.urlencode(d))
         else:
-            url = '/error/document/?%s' % (urllib.urlencode(d))
+            url = '/error/document/?%s' % (urllib.parse.urlencode(d))
         return url
 
 
@@ -128,7 +128,7 @@ def ErrorDocuments(app, global_conf, mapper, **kw):
         app, global_conf=global_conf, mapper=mapper, **kw))
 
 
-class ProfilingMiddleware(object):
+class ProfilingMiddleware:
     def __init__(self, app, directory):
         self.app = app
         self.directory = directory
@@ -150,7 +150,7 @@ class ProfilingMiddleware(object):
             tmpfile.close()
 
 
-class DomainMiddleware(object):
+class DomainMiddleware:
 
     def __init__(self, app, config):
         self.app = app
@@ -218,7 +218,7 @@ class DomainMiddleware(object):
             if not subdomains and g.domain_prefix:
                 subdomains.append(g.domain_prefix)
             subdomains.append(g.domain)
-            redir = "%s/r/%s/%s" % ('.'.join(subdomains),
+            redir = "{}/r/{}/{}".format('.'.join(subdomains),
                                     sr_redirect, environ['FULLPATH'])
             redir = g.default_scheme + "://" + redir.replace('//', '/')
 
@@ -228,7 +228,7 @@ class DomainMiddleware(object):
         return self.app(environ, start_response)
 
 
-class SubredditMiddleware(object):
+class SubredditMiddleware:
     sr_pattern = re.compile(r'^/r/([^/]{2,})')
 
     def __init__(self, app):
@@ -243,12 +243,12 @@ class SubredditMiddleware(object):
         return self.app(environ, start_response)
 
 
-class DomainListingMiddleware(object):
+class DomainListingMiddleware:
     def __init__(self, app):
         self.app = app
 
     def __call__(self, environ, start_response):
-        if not environ.has_key('subreddit'):
+        if 'subreddit' not in environ:
             path = environ['PATH_INFO']
             domain, rest = path_info_split(path)
             if domain == "domain" and rest:
@@ -258,7 +258,7 @@ class DomainListingMiddleware(object):
         return self.app(environ, start_response)
 
 
-class ExtensionMiddleware(object):
+class ExtensionMiddleware:
     ext_pattern = re.compile(r'\.([^/]+)\Z')
 
     def __init__(self, app):
@@ -285,7 +285,7 @@ class ExtensionMiddleware(object):
 
         return self.app(environ, start_response)
 
-class FullPathMiddleware(object):
+class FullPathMiddleware:
     # Debt: we have a lot of middleware which (unfortunately) modify the
     # global URL PATH_INFO string. To work with the original request URL, we
     # save it to a different location here.
@@ -299,7 +299,7 @@ class FullPathMiddleware(object):
             environ['FULLPATH'] += '?' + qs
         return self.app(environ, start_response)
 
-class StaticTestMiddleware(object):
+class StaticTestMiddleware:
     def __init__(self, app, static_path, domain):
         self.app = app
         self.static_path = static_path
@@ -317,7 +317,7 @@ def _wsgi_json(start_response, status_int, message=""):
     message = message or status_message
 
     start_response(
-        "%s %s" % (status_int, status_message),
+        "{} {}".format(status_int, status_message),
         [("Content-Type", "application/json")])
 
     data = simplejson.dumps({
@@ -327,7 +327,7 @@ def _wsgi_json(start_response, status_int, message=""):
     return [filters.websafe_json(data).encode("utf-8")]
 
 
-class LimitUploadSize(object):
+class LimitUploadSize:
     """
     Middleware for restricting the size of uploaded files (such as
     image files for the CSS editing capability).
@@ -381,7 +381,7 @@ class LimitUploadSize(object):
 # TODO CleanupMiddleware seems to exist because cookie headers are being duplicated
 # somewhere in the response processing chain. It should be removed as soon as we
 # find the underlying issue.
-class CleanupMiddleware(object):
+class CleanupMiddleware:
     """
     Put anything here that should be called after every other bit of
     middleware. This currently includes the code for removing
@@ -405,7 +405,7 @@ class CleanupMiddleware(object):
         return self.app(environ, custom_start_response)
 
 
-class SafetyMiddleware(object):
+class SafetyMiddleware:
     """Clean up any attempts at response splitting in headers."""
 
     has_bad_characters = re.compile("[\r\n]")
@@ -430,7 +430,7 @@ class RedditApp(PylonsApp):
     test_mode = False
 
     def __init__(self, *args, **kwargs):
-        super(RedditApp, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._loading_lock = Lock()
         self._controllers = None
         self._hooks_registered = False
@@ -447,13 +447,14 @@ class RedditApp(PylonsApp):
                 self.register_hooks()
 
     def _check_csrf_prevention(self):
-        from r2 import controllers
         from pylons import app_globals as g
+
+        from r2 import controllers
 
         if not g.running_as_script:
             controllers_iter = itertools.chain(
-                controllers._reddit_controllers.itervalues(),
-                controllers._plugin_controllers.itervalues(),
+                iter(controllers._reddit_controllers.values()),
+                iter(controllers._plugin_controllers.values()),
             )
             for controller in controllers_iter:
                 csrf.check_controller_csrf_prevention(controller)

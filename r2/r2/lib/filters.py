@@ -20,24 +20,18 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import cgi
 import json
 import re
-
 from collections import Counter
 
 import snudown
-
 from BeautifulSoup import BeautifulSoup, Tag
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 
 from r2.lib.souptest import (
     souptest_fragment,
-    SoupError,
-    SoupUnsupportedEntityError,
 )
-from r2.lib.unicode import _force_utf8, _force_unicode
+from r2.lib.str import _force_unicode, _force_utf8
 
 SC_OFF = "<!-- SC_OFF -->"
 SC_ON = "<!-- SC_ON -->"
@@ -57,20 +51,21 @@ def python_websafe_json(text):
     return text.replace('&', "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 try:
-    from Cfilters import uwebsafe as c_websafe, uspace_compress, \
-        uwebsafe_json as c_websafe_json
+    from Cfilters import uspace_compress
+    from Cfilters import uwebsafe as c_websafe
+    from Cfilters import uwebsafe_json as c_websafe_json
     def spaceCompress(text):
         try:
-            text = unicode(text, 'utf-8')
+            text = str(text, 'utf-8')
         except TypeError:
-            text = unicode(text)
+            text = str(text)
         return uspace_compress(text)
 except ImportError:
     c_websafe      = python_websafe
     c_websafe_json = python_websafe_json
     _between_tags1 = re.compile('> +')
     _between_tags2 = re.compile(' +<')
-    _spaces = re.compile('[\s]+')
+    _spaces = re.compile(r'[\s]+')
     _ignore = re.compile('(' + SC_OFF + '|' + SC_ON + ')', re.S | re.I)
     def spaceCompress(content):
         res = ''
@@ -91,10 +86,10 @@ except ImportError:
         return res
 
 
-class _Unsafe(unicode):
+class _Unsafe(str):
     # Necessary so Wrapped instances with these can get cached
     def cache_key(self, style):
-        return unicode(self)
+        return str(self)
 
 
 def unsafe(text=''):
@@ -108,7 +103,7 @@ def double_websafe(text=""):
     return unsafe(python_websafe(python_websafe(text)))
 
 def conditional_websafe(text = ''):
-    from wrapped import Templated, CacheStub
+    from wrapped import CacheStub, Templated
 
     if text.__class__ == _Unsafe:
         return text
@@ -118,7 +113,7 @@ def conditional_websafe(text = ''):
         return _Unsafe(text)
     elif text is None:
         return ""
-    elif text.__class__ != unicode:
+    elif text.__class__ != str:
         text = _force_unicode(text)
     return c_websafe(text)
 
@@ -129,7 +124,7 @@ def mako_websafe(text=''):
 
 
 def websafe(text=''):
-    if text.__class__ != unicode:
+    if text.__class__ != str:
         text = _force_unicode(text)
     #wrap the response in _Unsafe so make_websafe doesn't unescape it
     return _Unsafe(c_websafe(text))
@@ -137,34 +132,34 @@ def websafe(text=''):
 
 # From https://github.com/django/django/blob/master/django/utils/html.py
 _js_escapes = {
-    ord('\\'): u'\\u005C',
-    ord('\''): u'\\u0027',
-    ord('"'): u'\\u0022',
-    ord('>'): u'\\u003E',
-    ord('<'): u'\\u003C',
-    ord('&'): u'\\u0026',
-    ord('='): u'\\u003D',
-    ord('-'): u'\\u002D',
-    ord(';'): u'\\u003B',
-    ord(u'\u2028'): u'\\u2028',
-    ord(u'\u2029'): u'\\u2029',
+    ord('\\'): '\\u005C',
+    ord('\''): '\\u0027',
+    ord('"'): '\\u0022',
+    ord('>'): '\\u003E',
+    ord('<'): '\\u003C',
+    ord('&'): '\\u0026',
+    ord('='): '\\u003D',
+    ord('-'): '\\u002D',
+    ord(';'): '\\u003B',
+    ord('\\u2028'): '\\u2028',
+    ord('\\u2029'): '\\u2029',
 }
 # Escape every ASCII character with a value less than 32.
-_js_escapes.update((ord('%c' % z), u'\\u%04X' % z) for z in range(32))
+_js_escapes.update((ord('%c' % z), '\\u%04X' % z) for z in range(32))
 
 
-def jssafe(text=u''):
+def jssafe(text=''):
     """Prevents text from breaking outside of string literals in JS"""
-    if text.__class__ != unicode:
+    if text.__class__ != str:
         text = _force_unicode(text)
     # wrap the response in _Unsafe so conditional_websafe doesn't touch it
     return _Unsafe(text.translate(_js_escapes))
 
 
 _json_escapes = {
-    ord('>'): u'\\u003E',
-    ord('<'): u'\\u003C',
-    ord('&'): u'\\u0026',
+    ord('>'): '\\u003E',
+    ord('<'): '\\u003C',
+    ord('&'): '\\u0026',
 }
 
 
@@ -215,13 +210,12 @@ def safemarkdown(text, nofollow=False, wrap=True, **kwargs):
         return SC_OFF + text + SC_ON
 
 def wikimarkdown(text, include_toc=True, target=None):
-    from r2.lib.template_helpers import make_url_protocol_relative
+    from r2.lib.template_helpers import add_sr, make_url_protocol_relative
+    from r2.lib.utils import UrlParser
 
     # this hard codes the stylesheet page for now, but should be parameterized
     # in the future to allow per-page images.
     from r2.models.wiki import ImagesByWikiPage
-    from r2.lib.utils import UrlParser
-    from r2.lib.template_helpers import add_sr
     page_images = ImagesByWikiPage.get_images(c.site, "config/stylesheet")
     
     def img_swap(tag):
@@ -265,7 +259,7 @@ def wikimarkdown(text, include_toc=True, target=None):
     
     return SC_OFF + WIKI_MD_START + text + WIKI_MD_END + SC_ON
 
-title_re = re.compile('[^\w.-]')
+title_re = re.compile(r'[^\w.-]')
 header_re = re.compile('^h[1-6]$')
 def generate_table_of_contents(soup, prefix):
     header_ids = Counter()
@@ -279,16 +273,16 @@ def generate_table_of_contents(soup, prefix):
     level = 0
     previous = 0
     for header in headers:
-        contents = u''.join(header.findAll(text=True))
+        contents = ''.join(header.findAll(text=True))
         
         # In the event of an empty header, skip
         if not contents:
             continue
         
         # Convert html entities to avoid ugly header ids
-        aid = unicode(BeautifulSoup(contents, convertEntities=BeautifulSoup.XML_ENTITIES))
+        aid = str(BeautifulSoup(contents, convertEntities=BeautifulSoup.XML_ENTITIES))
         # Prefix with PREFIX_ to avoid ID conflict with the rest of the page
-        aid = u'%s_%s' % (prefix, aid.replace(" ", "_").lower())
+        aid = '{}_{}'.format(prefix, aid.replace(" ", "_").lower())
         # Convert down to ascii replacing special characters with hex
         aid = str(title_re.sub(lambda c: '.%X' % ord(c.group()), aid))
         

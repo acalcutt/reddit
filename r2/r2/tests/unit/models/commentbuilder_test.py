@@ -21,17 +21,15 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from collections import namedtuple, defaultdict
-from mock import MagicMock
+from collections import defaultdict, namedtuple
+from unittest.mock import MagicMock
 
-from r2.lib.utils.comment_tree_utils import get_tree_details, calc_num_children
 from r2.lib.db import operators
-from r2.models import builder
-from r2.models import Comment
+from r2.lib.utils.comment_tree_utils import calc_num_children, get_tree_details
+from r2.models import Comment, builder
 from r2.models.builder import CommentBuilder
 from r2.models.comment_tree import CommentTree
 from r2.tests import RedditTestCase
-
 
 CommentTreeElement = namedtuple(
     "CommentTreeElement", ["id", "score", "children"])

@@ -27,7 +27,7 @@ from r2.lib.db.thing import CreationError
 from r2.lib.memoize import memoize
 
 
-class UserRelManager(object):
+class UserRelManager:
     """Manages access to a relation between a type of thing and users."""
 
     def __init__(self, name, relation, permission_class):
@@ -68,7 +68,7 @@ class UserRelManager(object):
     def mutate(self, thing, user, **attrs):
         r = self.get(thing, user)
         if r:
-            for k, v in attrs.iteritems():
+            for k, v in attrs.items():
                 setattr(r, k, v)
             r._commit()
             r._permission_class = self.permission_class
@@ -111,7 +111,7 @@ class MemoizedUserRelManager(UserRelManager):
 
     def __init__(self, name, relation, permission_class,
                  disable_ids_fn=False, disable_reverse_ids_fn=False):
-        super(MemoizedUserRelManager, self).__init__(
+        super().__init__(
             name, relation, permission_class)
 
         self.disable_ids_fn = disable_ids_fn
@@ -119,7 +119,7 @@ class MemoizedUserRelManager(UserRelManager):
         self.ids_fn_name = self.name + '_ids'
         self.reverse_ids_fn_name = 'reverse_' + self.name + '_ids'
 
-        sup = super(MemoizedUserRelManager, self)
+        sup = super()
         self.ids = memoize(self.ids_fn_name)(sup.ids)
         self.reverse_ids = memoize(self.reverse_ids_fn_name)(sup.reverse_ids)
         self.add = self._update_caches_on_success(sup.add)

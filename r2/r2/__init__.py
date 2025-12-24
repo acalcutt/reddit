@@ -32,6 +32,7 @@ This file loads the finished app from r2.config.middleware.
 # http://code.google.com/p/modwsgi/wiki/ApplicationIssues
 import _strptime
 
+
 # defer the (hefty) import until it's actually needed. this allows
 # modules below r2 to be imported before cython files are built, also
 # provides a hefty speed boost to said imports when they don't need

@@ -22,7 +22,7 @@
 
 import cProfile
 import pstats
-from functools import wraps, partial
+from functools import wraps
 
 
 def profile(fn):

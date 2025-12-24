@@ -20,18 +20,19 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 import base64
 import hashlib
-import urllib
+import urllib.error
+import urllib.parse
+import urllib.request
 
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 
 from r2.lib.filters import _force_utf8
-
 
 KEY_SIZE = 16  # AES-128
 SALT_SIZE = KEY_SIZE * 2  # backwards compatibility
@@ -106,7 +107,7 @@ def _encrypt(salt, plaintext, secret):
     ciphertext = cipher.encrypt(padded)
     encoded = base64.b64encode(ciphertext)
 
-    return urllib.quote_plus(salt + encoded, safe="")
+    return urllib.parse.quote_plus(salt + encoded, safe="")
 
 
 def decrypt(encrypted):
@@ -120,7 +121,7 @@ def decrypt(encrypted):
 
 
 def _decrypt(encrypted, secret):
-    encrypted = urllib.unquote_plus(encrypted)
+    encrypted = urllib.parse.unquote_plus(encrypted)
     salt, encoded = encrypted[:SALT_SIZE], encrypted[SALT_SIZE:]
     ciphertext = base64.b64decode(encoded)
     cipher = _make_cipher(salt, secret)
@@ -174,6 +175,6 @@ def get_impression_pixel_url(codename):
     # TODO: use HMAC here
     mac = codename + hashlib.sha1(codename + g.tracking_secret).hexdigest()
     v_param = "?v=%s&" % _get_encrypted_user_slug()
-    hash_and_id_params = urllib.urlencode({"hash": mac,
+    hash_and_id_params = urllib.parse.urlencode({"hash": mac,
                                            "id": codename,})
     return g.adframetracker_url + v_param + hash_and_id_params

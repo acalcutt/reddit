@@ -20,21 +20,20 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 import contextlib
-
-from r2.tests import RedditControllerTestCase
-from mock import patch, MagicMock
-from r2.lib.validator import VByName, VUser, VModhash
-
-from r2.models import Link, Message, Account
+from unittest.mock import MagicMock, patch
 
 from pylons import app_globals as g
+
+from r2.lib.validator import VByName, VModhash, VUser
+from r2.models import Account, Link, Message
+from r2.tests import RedditControllerTestCase
 
 
 class DelMsgTest(RedditControllerTestCase):
     CONTROLLER = "api"
 
     def setUp(self):
-        super(DelMsgTest, self).setUp()
+        super().setUp()
 
         self.id = 1
 

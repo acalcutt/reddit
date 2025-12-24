@@ -21,12 +21,11 @@
 ###############################################################################
 
 from pylons import request
-from pylons.i18n import _, N_
+from pylons.i18n import N_
 
-from r2.models import Account, Message
 from r2.lib.db import queries
 from r2.lib.utils import blockquote_text
-
+from r2.models import Account, Message
 
 user_added_messages = {
     "moderator": {
@@ -76,7 +75,7 @@ def notify_user_added(rel_type, author, user, target):
     srname = target.path.rstrip("/")
     d = {
         "url": srname,
-        "title": "%s: %s" % (srname, target.title),
+        "title": "{}: {}".format(srname, target.title),
         "author": "/u/" + author.name,
         "user": "/u/" + user.name,
     }

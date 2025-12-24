@@ -1,6 +1,5 @@
 #!/usr/bin/env python2.7
 
-from Queue import Queue
 import argparse
 import logging
 import multiprocessing
@@ -10,6 +9,7 @@ import string
 import subprocess
 import sys
 import threading
+from queue import Queue
 
 
 def parse_size(s):
@@ -26,7 +26,7 @@ def parse_size(s):
         return mult(1024*1024)
     if s.endswith('g'):
         return mult(1024*1024*1024)
-    raise Exception("Can't parse %r" % (s,))
+    raise Exception("Can't parse {!r}".format(s))
 
 
 class JobInputter(threading.Thread):
@@ -37,10 +37,10 @@ class JobInputter(threading.Thread):
         self.job_name = job_name
         self.popen = popen
         self.iq = iq
-        super(JobInputter, self).__init__()
+        super().__init__()
 
     def __repr__(self):
-        return "<%s %s>" % (self.__class__.__name__, self.job_name)
+        return "<{} {}>".format(self.__class__.__name__, self.job_name)
 
     def run(self):
         while True:
@@ -56,7 +56,7 @@ class JobInputter(threading.Thread):
                 self.popen.stdin.write(item)
                 self.popen.stdin.flush()
                 self.iq.task_done()
-            except IOError:
+            except OSError:
                 logging.exception("exception writing to popen %r", self.popen)
                 return os._exit(1)
 
@@ -70,10 +70,10 @@ class JobOutputter(threading.Thread):
         self.popen = popen
         self.out_fd = out_fd
         self.lock = lock
-        super(JobOutputter, self).__init__()
+        super().__init__()
 
     def __repr__(self):
-        return "<%s %s>" % (self.__class__.__name__, self.job_name)
+        return "<{} {}>".format(self.__class__.__name__, self.job_name)
 
     def run(self):
         for line in self.popen.stdout:
@@ -81,7 +81,7 @@ class JobOutputter(threading.Thread):
             with self.lock:
                 try:
                     self.out_fd.write(line)
-                except IOError as e:
+                except OSError as e:
                     if e.errno != errno.EPIPE:
                         logging.exception("exception writing to output %r", self.out_fd)
                     return os._exit(1)

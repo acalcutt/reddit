@@ -135,7 +135,7 @@ def replace_placeholders(string, data, matches):
                 "{{media_author_url}}": oembed.get("author_url", ""),
             })
 
-    for placeholder, replacement in replacements.iteritems():
+    for placeholder, replacement in replacements.items():
         string = string.replace(placeholder, _force_unicode(replacement))
 
     # do the {{match-XX}} and {{match-field-XX}} replacements
@@ -167,7 +167,7 @@ def replace_placeholders(string, data, matches):
 
             field_replacements[placeholder.group(0)] = replacement
 
-    for placeholder, replacement in field_replacements.iteritems():
+    for placeholder, replacement in field_replacements.items():
         string = string.replace(placeholder, _force_unicode(replacement))
 
     return string
@@ -249,7 +249,7 @@ class Ruleset(object):
                     continue
 
                 standard_values = None
-                if isinstance(standard_name, basestring):
+                if isinstance(standard_name, str):
                     standard_values = standard_rules.get(standard_name, None)
                 if not standard_values:
                     raise AutoModeratorSyntaxError(
@@ -401,12 +401,12 @@ class RuleTarget(object):
 
     # valid options for changing how a field value is searched for a match
     _match_regexes = {
-        "full-exact": u"^%s$",
-        "full-text": ur"^\W*%s\W*$",
-        "includes": u"%s",
-        "includes-word": ur"(?:^|\W|\b)%s(?:$|\W|\b)",
-        "starts-with": u"^%s",
-        "ends-with": u"%s$",
+        "full-exact": "^%s$",
+        "full-text": urrr"^\W*%s\W*$",
+        "includes": "%s",
+        "includes-word": ur"(?:^|\\W|\b)%s(?:$|\\W|\b)",
+        "starts-with": "^%s",
+        "ends-with": "%s$",
     }
 
     # full list of modifiers that can be applied to a match
@@ -483,12 +483,12 @@ class RuleTarget(object):
             component_type="action",
         ),
         "action_reason": RuleComponent(
-            valid_types=basestring,
+            valid_types=str,
             valid_targets=(Link, Comment),
             aliases=["report_reason"],
         ),
         "set_flair": RuleComponent(
-            valid_types=(basestring, list),
+            valid_types=(str, list),
             valid_targets=(Link, Account),
             component_type="action",
         ),
@@ -616,7 +616,7 @@ class RuleTarget(object):
         self.checks = set()
         self.actions = set()
 
-        for key, component in self._potential_components.iteritems():
+        for key, component in self._potential_components.items():
             if self.target_type in component.valid_targets:
                 # pop the key and all aliases out of the values
                 # but only keep the first value we find
@@ -653,7 +653,7 @@ class RuleTarget(object):
 
         # special handling for set_flair
         if self.set_flair is not None:
-            if isinstance(self.set_flair, basestring):
+            if isinstance(self.set_flair, str):
                 self.set_flair = [self.set_flair, ""]
 
             # handle 0 or 1 item lists
@@ -736,13 +736,13 @@ class RuleTarget(object):
             if not isinstance(match_values, list):
                 match_values = list((match_values,))
             # cast all values to strings in case any numbers were included
-            match_values = [unicode(val) for val in match_values]
+            match_values = [str(val) for val in match_values]
 
             # escape regex special chars unless this is a regex
             if "regex" not in parsed_key["modifiers"]:
                 match_values = [re.escape(val) for val in match_values]
 
-            value_str = u"(%s)" % "|".join(match_values)
+            value_str = "(%s)" % "|".join(match_values)
 
             for mod in parsed_key["modifiers"]:
                 if mod in self._match_regexes:
@@ -753,7 +753,7 @@ class RuleTarget(object):
                     field = list(parsed_key["fields"])[0]
                     # default to handling subdomains for checks against domain only
                     if field == "domain":
-                        value_str = ur"(?:.*?\.)?" + value_str
+                        value_str = urrr"(?:.*?\.)?" + value_str
                     match_mod = self._match_field_defaults.get(
                         field, "includes-word")
                 else:
@@ -884,7 +884,7 @@ class RuleTarget(object):
         if account._spam:
             return False
 
-        for check, compare_value in checks.iteritems():
+        for check, compare_value in checks.items():
             match = re.match(self._operator_regex, compare_value)
             if match:
                 operator = match.group(1)
@@ -933,7 +933,7 @@ class RuleTarget(object):
 
         self.matches = {}
         checked_anything = False
-        for key, match_pattern in self.match_patterns.iteritems():
+        for key, match_pattern in self.match_patterns.items():
             match = None
             parsed_key = self.parse_match_fields_key(key)
 
@@ -1190,16 +1190,16 @@ class Rule(object):
         ),
         "priority": RuleComponent(valid_types=int, default=0),
         "moderators_exempt": RuleComponent(valid_types=bool),
-        "comment": RuleComponent(valid_types=basestring, component_type="action"),
+        "comment": RuleComponent(valid_types=str, component_type="action"),
         "comment_stickied": RuleComponent(valid_types=bool, default=False),
-        "modmail": RuleComponent(valid_types=basestring, component_type="action"),
+        "modmail": RuleComponent(valid_types=str, component_type="action"),
         "modmail_subject": RuleComponent(
-            valid_types=basestring,
+            valid_types=str,
             default="AutoModerator notification",
         ),
-        "message": RuleComponent(valid_types=basestring, component_type="action"),
+        "message": RuleComponent(valid_types=str, component_type="action"),
         "message_subject": RuleComponent(
-            valid_types=basestring,
+            valid_types=str,
             default="AutoModerator notification",
         ),
     }
@@ -1218,7 +1218,7 @@ class Rule(object):
         self.actions = set()
 
         # pop off the values that are special for the top level
-        for key, component in self._valid_components.iteritems():
+        for key, component in self._valid_components.items():
             if key in values:
                 value = values.pop(key)
                 if not component.validate(value):
@@ -1243,14 +1243,14 @@ class Rule(object):
         if not isinstance(author, dict):
             # if they just specified string(s) for author
             # that's the same as checking against name
-            if isinstance(author, (list, basestring)):
+            if isinstance(author, (list, str)):
                 author = {"name": author}
             else:
                 author = {}
 
         # support string(s) for ~author as well
         not_author = values.pop("~author", None)
-        if isinstance(not_author, (list, basestring)):
+        if isinstance(not_author, (list, str)):
             author["~name"] = not_author
 
         approve_banned = False
@@ -1408,7 +1408,7 @@ class Rule(object):
 
         g.stats.simple_event("automoderator.check_rule")
 
-        for key, target in self.targets.iteritems():
+        for key, target in self.targets.items():
             target_item = self.get_target_item(item, data, key)
             if not target.check_item(target_item, data):
                 return False
@@ -1417,7 +1417,7 @@ class Rule(object):
 
     def perform_actions(self, item, data):
         """Execute all the rule's actions against the item."""
-        for key, target in self.targets.iteritems():
+        for key, target in self.targets.items():
             target_item = self.get_target_item(item, data, key)
             target.perform_actions(target_item, data)
 

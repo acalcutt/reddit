@@ -20,54 +20,53 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons.i18n import _, ungettext
+import random as rand
+import re
+from urllib.parse import quote_plus
+
+from pylons import app_globals as g
+from pylons import request
+from pylons import tmpl_context as c
+from pylons.i18n import _
+
+import r2.lib.db.thing as thing
+from r2.config import feature
+from r2.config.extensions import API_TYPES, RSS_TYPES, is_api
+from r2.controllers.ipn import GoldException, generate_blob, validate_blob
 from r2.controllers.reddit_base import (
+    RedditController,
     base_listing,
     disable_subreddit_css,
     paginated_listing,
-    RedditController,
     require_https,
 )
-from r2 import config
+from r2.lib import embeds, hooks, pages, recommender
+from r2.lib.csrf import csrf_exempt
+from r2.lib.emailer import Email, generate_notification_email_unsubscribe_token
+from r2.lib.errors import ForbiddenError, errors
+from r2.lib.filters import _force_utf8
+from r2.lib.menus import *
+from r2.lib.pages import *
+from r2.lib.pages import trafficpages
+from r2.lib.pages.things import hot_links_by_url_listing
+from r2.lib.strings import strings
+from r2.lib.utils import (
+    UrlParser,
+    query_string,
+    sanitize_url,
+    title_to_url,
+    to36,
+    url_links_builder,
+)
+from r2.lib.validator import *
 from r2.models import *
 from r2.models.recommend import ExploreSettings
-from r2.config import feature
-from r2.config.extensions import is_api, API_TYPES, RSS_TYPES
-from r2.lib import hooks, recommender, embeds, pages
-from r2.lib.pages import *
-from r2.lib.pages.things import hot_links_by_url_listing
-from r2.lib.pages import trafficpages
-from r2.lib.menus import *
-from r2.lib.csrf import csrf_exempt
-from r2.lib.utils import to36, sanitize_url, title_to_url
-from r2.lib.utils import query_string, UrlParser, url_links_builder
-from r2.lib.template_helpers import get_domain
-from r2.lib.filters import unsafe, _force_unicode, _force_utf8
-from r2.lib.emailer import Email, generate_notification_email_unsubscribe_token
-from r2.lib.db.operators import desc
-from r2.lib.db import queries
-from r2.lib.db.tdb_cassandra import MultiColumnQuery
-from r2.lib.strings import strings
-from r2.lib.validator import *
-from r2.lib import jsontemplates
-import r2.lib.db.thing as thing
-from r2.lib.errors import errors, ForbiddenError
-from listingcontroller import ListingController
-from oauth2 import require_oauth2_scope
-from api_docs import api_doc, api_section
-
-from pylons import request
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-
 from r2.models.token import EmailVerificationToken
-from r2.controllers.ipn import generate_blob, validate_blob, GoldException
 
-from operator import attrgetter
-import string
-import random as rand
-import re
-from urllib import quote_plus
+from .api_docs import api_doc, api_section
+from .listingcontroller import ListingController
+from .oauth2 import require_oauth2_scope
+
 
 class FrontController(RedditController):
 
@@ -96,7 +95,7 @@ class FrontController(RedditController):
     def GET_oldinfo(self, article, type, dest, rest=None, comment=''):
         """Legacy: supporting permalink pages from '06,
            and non-search-engine-friendly links"""
-        if not (dest in ('comments','details')):
+        if dest not in ('comments','details'):
                 dest = 'comments'
         if type == 'ancient':
             #this could go in config, but it should never change
@@ -111,7 +110,7 @@ class FrontController(RedditController):
                       (dest, article._id36,
                        quote_plus(title_to_url(article.title).encode('utf-8')))
             if not c.default_sr:
-                new_url = "/r/%s%s" % (c.site.name, new_url)
+                new_url = "/r/{}{}".format(c.site.name, new_url)
             if comment:
                 new_url = new_url + "/%s" % comment._id36
             if c.extension:
@@ -681,7 +680,7 @@ class FrontController(RedditController):
         # add a choice for the automoderator account if it's not a mod
         if (g.automoderator_account and
                 all(mod.name != g.automoderator_account
-                    for mod in mods.values())):
+                    for mod in list(mods.values()))):
             automod_button = QueryButton(
                 g.automoderator_account,
                 g.automoderator_account,
@@ -1206,7 +1205,7 @@ class FrontController(RedditController):
                 # InvalidQuery exception. If the cleaned search boils down
                 # to an empty string, the search code is expected to bail
                 # out early with an empty result set.
-                cleaned = re.sub("[^\w\s]+", " ", query)
+                cleaned = re.sub(r"[^\w\s]+", " ", query)
                 cleaned = cleaned.lower().strip()
 
                 q = g.search.SearchQuery(cleaned, site, sort=sort,
@@ -1759,7 +1758,7 @@ class FormsController(RedditController):
     def GET_adminon(self, dest):
         """Enable admin interaction with site"""
         #check like this because c.user_is_admin is still false
-        if not c.user.name in g.admins:
+        if c.user.name not in g.admins:
             return self.abort404()
 
         return InterstitialPage(
@@ -1770,7 +1769,7 @@ class FormsController(RedditController):
               dest=VDestination())
     def GET_adminoff(self, dest):
         """disable admin interaction with site."""
-        if not c.user.name in g.admins:
+        if c.user.name not in g.admins:
             return self.abort404()
         self.disable_admin_mode(c.user)
         return self.redirect(dest)

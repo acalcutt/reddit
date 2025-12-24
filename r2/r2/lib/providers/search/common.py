@@ -20,16 +20,17 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from datetime import datetime
-from pylons import tmpl_context as c
-from pylons import app_globals as g
 import collections
-import httplib
-import time
+import http.client
 import re
+import time
+from datetime import datetime
+
+from pylons import app_globals as g
+from pylons import tmpl_context as c
 
 import r2.lib.utils as r2utils
-from r2.models import (Link, NotFound, Subreddit)
+from r2.models import NotFound, Subreddit
 
 
 class InvalidQuery(Exception):
@@ -40,25 +41,25 @@ class SearchError(Exception):
     pass
 
 
-class SearchHTTPError(httplib.HTTPException):
+class SearchHTTPError(http.client.HTTPException):
     pass
 
 
 def safe_xml_str(s, use_encoding="utf-8"):
-    '''Replace invalid-in-XML unicode control characters with '\uFFFD'.
-    Also, coerces result to unicode
+    '''Replace invalid-in-XML str control characters with '\\uFFFD'.
+    Also, coerces result to str
     
     '''
-    illegal_xml = re.compile(u'[\x00-\x08\x0b\x0c\x0e-\x1F\uD800-\uDFFF\uFFFE\uFFFF]')
+    illegal_xml = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1F\\uD800-\\uDFFF\\uFFFE\\uFFFF]')
 
-    if not isinstance(s, unicode):
+    if not isinstance(s, str):
         if isinstance(s, str):
-            s = unicode(s, use_encoding, errors="replace")
+            s = str(s, use_encoding, errors="replace")
         else:
             # ints will raise TypeError if the "errors" kwarg
             # is passed, but since it's not a str no problem
-            s = unicode(s)
-    s = illegal_xml.sub(u"\uFFFD", s)
+            s = str(s)
+    s = illegal_xml.sub("\\uFFFD", s)
     return s
 
 
@@ -74,7 +75,7 @@ def safe_get(get_fn, ids, return_dict=True, **kw):
     if return_dict:
         return items
     else:
-        return items.values()
+        return list(items.values())
 
 
 
@@ -101,7 +102,7 @@ def field(name=None, cloudsearch_type=str, lucene_type=SAME_AS_CLOUDSEARCH):
         function = None
 
     def field_inner(fn):
-        fn.field = Field(name or fn.func_name, cloudsearch_type,
+        fn.field = Field(name or fn.__name__, cloudsearch_type,
                          lucene_type, fn)
         return fn
 
@@ -115,15 +116,13 @@ class FieldsMeta(type):
     def __init__(cls, name, bases, attrs):
         type.__init__(cls, name, bases, attrs)
         fields = []
-        for attr in attrs.itervalues():
+        for attr in attrs.values():
             if hasattr(attr, "field"):
                 fields.append(attr.field)
         cls._fields = tuple(fields)
 
 
-class FieldsBase(object):
-    __metaclass__ = FieldsMeta
-
+class FieldsBase(metaclass=FieldsMeta):
     def fields(self):
         data = {}
         for field in self._fields:
@@ -320,7 +319,7 @@ class SubredditFields(FieldsBase):
         return self.sr._type_id
 
 
-class Results(object):
+class Results:
     def __init__(self, docs, hits, facets):
         self.docs = docs
         self.hits = hits
@@ -328,7 +327,7 @@ class Results(object):
         self._subreddits = []
 
     def __repr__(self):
-        return '%s(%r, %r, %r)' % (self.__class__.__name__,
+        return '{}({!r}, {!r}, {!r})'.format(self.__class__.__name__,
                                    self.docs,
                                    self.hits,
                                    self._facets)

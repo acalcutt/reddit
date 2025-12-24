@@ -1,5 +1,5 @@
 import re
-from collections import namedtuple, Counter
+from collections import Counter, namedtuple
 
 CharRange = namedtuple("CharRange", "name start end")
 
@@ -169,7 +169,7 @@ CHARSET_RANGES = tuple(
 
 
 def symbology(s):
-    """Return a count of what unicode charsets the string contains."""
+    """Return a count of what str charsets the string contains."""
     symbols = sorted(ord(c) for c in s)
     current_charset = 0
     char_tally = Counter()

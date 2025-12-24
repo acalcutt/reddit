@@ -23,9 +23,8 @@
 import crypt
 
 import bcrypt
-
-from pylons import request
 from pylons import app_globals as g
+from pylons import request
 
 from r2.lib.configparse import ConfigValue
 from r2.lib.providers.auth import AuthenticationProvider

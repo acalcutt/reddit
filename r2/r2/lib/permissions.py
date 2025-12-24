@@ -29,14 +29,14 @@ class PermissionSet(dict):
     info = None
 
     def __init__(self, *args, **kwargs):
-        super(PermissionSet, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def loads(cls, encoded, validate=False):
         if not encoded:
             return cls()
-        result = cls(((term[1:], term[0] == '+')
-                     for term in encoded.split(',')))
+        result = cls((term[1:], term[0] == '+')
+                     for term in encoded.split(','))
         if result.get(cls.ALL) == False:
             del result[cls.ALL]
         if validate and not result.is_valid():
@@ -46,10 +46,10 @@ class PermissionSet(dict):
     def dumps(self):
         if self.is_superuser():
             return '+all'
-        return ','.join('-+'[bool(v)] + k for k, v in sorted(self.iteritems()))
+        return ','.join('-+'[bool(v)] + k for k, v in sorted(self.items()))
 
     def is_superuser(self):
-        return bool(super(PermissionSet, self).get(self.ALL))
+        return bool(super().get(self.ALL))
 
     def is_valid(self):
         if not self.info:
@@ -62,12 +62,12 @@ class PermissionSet(dict):
     def get(self, key, default=None):
         if self.info and self.is_superuser():
             return True if key in self.info else default
-        return super(PermissionSet, self).get(key, default)
+        return super().get(key, default)
 
     def __getitem__(self, key):
         if self.info and self.is_superuser():
             return key == self.ALL or key in self.info
-        return super(PermissionSet, self).get(key, False)
+        return super().get(key, False)
 
 
 class ModeratorPermissionSet(PermissionSet):
@@ -103,4 +103,4 @@ class ModeratorPermissionSet(PermissionSet):
     def loads(cls, encoded, **kwargs):
         if encoded is None:
             return cls(all=True)
-        return super(ModeratorPermissionSet, cls).loads(encoded, **kwargs)
+        return super().loads(encoded, **kwargs)

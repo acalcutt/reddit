@@ -21,20 +21,18 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import uuid
 import unittest
+import uuid
 
 from pylons import tmpl_context as c
 from webob.exc import HTTPException
 
+from r2.lib.errors import ErrorSet, UserRequiredException, errors
+from r2.lib.validator import VVerifyPassword
+from r2.models import Account, bcrypt_password
+
 # Needs to be done before other r2 imports, since some code run on module import
 # expects a sane pylons env
-from r2.tests import RedditTestCase
-
-from r2.lib.db.thing import NotFound
-from r2.lib.errors import errors, ErrorSet, UserRequiredException
-from r2.lib.validator import VVerifyPassword
-from r2.models import Account, AccountExists, bcrypt_password
 
 
 class TestVVerifyPassword(unittest.TestCase):

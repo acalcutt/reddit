@@ -27,12 +27,13 @@
 
 import sys
 
-from r2.models import Link, Comment
-from r2.lib.db.sorts import epoch_seconds, score, controversy
-from r2.lib.db import queries
 from r2.lib import mr_tools
-from r2.lib.utils import timeago, UrlParser
-from r2.lib.jsontemplates import make_fullname # what a strange place
+from r2.lib.db import queries
+from r2.lib.db.sorts import controversy, epoch_seconds, score
+from r2.lib.jsontemplates import make_fullname  # what a strange place
+from r2.lib.utils import UrlParser, timeago
+from r2.models import Comment, Link
+
                                                # for this function
 
 thingcls_by_name = {
@@ -53,7 +54,7 @@ data_fields_by_name = {
 
 
 def join_things(thing_type):
-    mr_tools.join_things(data_fields_by_name[thing_type].keys())
+    mr_tools.join_things(list(data_fields_by_name[thing_type].keys()))
 
 
 def _get_cutoffs(intervals):
@@ -70,7 +71,7 @@ def _get_cutoffs(intervals):
 def time_listings(intervals, thing_type):
     cutoff_by_interval = _get_cutoffs(intervals)
 
-    @mr_tools.dataspec_m_thing(*data_fields_by_name[thing_type].items())
+    @mr_tools.dataspec_m_thing(*list(data_fields_by_name[thing_type].items()))
     def process(thing):
         if thing.deleted:
             return
@@ -80,7 +81,7 @@ def time_listings(intervals, thing_type):
         thing_score = score(thing.ups, thing.downs)
         thing_controversy = controversy(thing.ups, thing.downs)
 
-        for interval, cutoff in cutoff_by_interval.iteritems():
+        for interval, cutoff in cutoff_by_interval.items():
             if thing.timestamp < cutoff:
                 continue
 
@@ -105,9 +106,9 @@ def time_listings(intervals, thing_type):
                         continue
 
                     for domain in parsed.domain_permutations():
-                        yield ("domain/link/top/%s/%s" % (interval, domain),
+                        yield ("domain/link/top/{}/{}".format(interval, domain),
                                thing_score, thing.timestamp, fname)
-                        yield ("domain/link/controversial/%s/%s" % (interval, domain),
+                        yield ("domain/link/controversial/{}/{}".format(interval, domain),
                                thing_controversy, thing.timestamp, fname)
 
     mr_tools.mr_map(process)
@@ -129,7 +130,7 @@ def store_keys(key, maxes):
         if thing_cls == "link":
             query = queries.get_domain_links(id, sort, time)
 
-    assert query, 'unknown query type for %s' % (key,)
+    assert query, 'unknown query type for {}'.format(key)
 
     item_tuples = [tuple([item[-1]] + [float(x) for x in item[:-1]])
                    for item in maxes]
@@ -141,7 +142,7 @@ def store_keys(key, maxes):
     query._replace(item_tuples, lock=lock)
 
 def write_permacache(fd = sys.stdin):
-    mr_tools.mr_reduce_max_per_key(lambda x: map(float, x[:-1]), num=1000,
+    mr_tools.mr_reduce_max_per_key(lambda x: list(map(float, x[:-1])), num=1000,
                                    post=store_keys,
                                    fd = fd)
 
@@ -149,5 +150,5 @@ def reduce_listings(fd=sys.stdin):
     # like write_permacache, but just sends the reduced version of the listing
     # to stdout instead of to the permacache. It's handy for debugging to see
     # the final result before it's written out
-    mr_tools.mr_reduce_max_per_key(lambda x: map(float, x[:-1]), num=1000,
+    mr_tools.mr_reduce_max_per_key(lambda x: list(map(float, x[:-1])), num=1000,
                                    fd = fd)

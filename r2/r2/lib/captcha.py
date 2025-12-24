@@ -20,15 +20,13 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from __future__ import absolute_import
 
-import random, string
+import string
 
 from pylons import app_globals as g
 
-from Captcha.Base import randomIdentifier
-from Captcha.Visual import Text, Backgrounds, Distortions, ImageCaptcha
-
+from .Captcha.Base import randomIdentifier
+from .Captcha.Visual import Backgrounds, Distortions, ImageCaptcha, Text
 
 IDEN_LENGTH = 32
 SOL_LENGTH = 6

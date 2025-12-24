@@ -21,21 +21,22 @@
 ###############################################################################
 
 import datetime
+import email.utils
 import hashlib
 import time
-import email.utils
-from email.MIMEText import MIMEText
 from email.errors import HeaderParseError
+from email.MIMEText import MIMEText
 
 import sqlalchemy as sa
+from pylons import app_globals as g
+from pylons import request
+from pylons.i18n import _
 from sqlalchemy.dialects.postgresql.base import PGInet
 
-from r2.lib.db.tdb_sql import make_metadata, index_str, create_table
-from r2.lib.utils import Enum, tup
+from r2.lib.db.tdb_sql import create_table, index_str, make_metadata
 from r2.lib.memoize import memoize
-from pylons import request
-from pylons import app_globals as g
-from pylons.i18n import _
+from r2.lib.utils import Enum, tup
+
 
 def mail_queue(metadata):
     return sa.Table(g.db_app_name + '_mail_queue', metadata,
@@ -126,7 +127,7 @@ def opt_out(metadata):
                     sa.Column('msg_hash', sa.String),
                     )
 
-class EmailHandler(object):
+class EmailHandler:
     def __init__(self, force = False):
         engine = g.dbm.get_engine('email')
         self.metadata = make_metadata(engine)
@@ -289,7 +290,7 @@ class EmailHandler(object):
         sa.delete(s, sa.and_(*where)).execute()
 
 
-class Email(object):
+class Email:
     handler = EmailHandler()
 
     # Do not modify in any way other than appending new items!
@@ -412,7 +413,7 @@ class Email(object):
                                    t.c.msg_hash :  self.msg_hash,
                                    }).execute()
             except:
-                print "failed to send message"
+                print("failed to send message")
 
             self.sent = True
 
@@ -421,9 +422,9 @@ class Email(object):
             if reject_newlines and '\n' in s:
                 raise HeaderParseError(
                     'header value contains unexpected newline: {!r}'.format(s))
-            return s.encode('utf8') if isinstance(s, unicode) else s
+            return s.encode('utf8') if isinstance(s, str) else s
 
-        fr = '"%s" <%s>' % (
+        fr = '"{}" <{}>'.format(
             self.from_name().replace('"', ''),
             self.fr_addr.replace('>', ''),
         )

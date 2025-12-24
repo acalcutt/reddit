@@ -22,36 +22,38 @@
 
 import sys
 from collections import defaultdict
+
 from r2.models import *
+
 
 def fix_trans_id():
     bad_campaigns = list(PromoCampaign._query(PromoCampaign.c.trans_id == 1, data=True))
     num_bad_campaigns = len(bad_campaigns)
 
     if not num_bad_campaigns:
-        print "No campaigns with trans_id == 1"
+        print("No campaigns with trans_id == 1")
         return
 
     # print some info and prompt user to continue
-    print ("Found %d campaigns with trans_id == 1. \n"
+    print("Found %d campaigns with trans_id == 1. \n"
            "Campaigns ids: %s \n" 
            "Press 'c' to fix them or any other key to abort." %
            (num_bad_campaigns, [pc._id for pc in bad_campaigns]))
     input_char = sys.stdin.read(1)
     if input_char != 'c' and input_char != 'C':
-        print "aborting..."
+        print("aborting...")
         return
 
     # log the ids for reference
-    print ("Fixing %d campaigns with bad freebie trans_id: %s" % 
+    print("Fixing %d campaigns with bad freebie trans_id: %s" % 
            (num_bad_campaigns, [pc._id for pc in bad_campaigns]))
 
     # get corresponding links and copy trans_id from link data to campaign thing
-    link_ids = set([campaign.link_id for campaign in bad_campaigns])
-    print "Fetching associated links: %s" % link_ids
+    link_ids = {campaign.link_id for campaign in bad_campaigns}
+    print("Fetching associated links: %s" % link_ids)
     try:
         links = Link._byID(link_ids, data=True, return_dict=False)
-    except NotFound, e:
+    except NotFound as e:
         print("Invalid data: Some promocampaigns have invalid link_ids. "
               "Please delete these campaigns or fix the data before "
               "continuing. Exception: %s" % e)
@@ -84,6 +86,6 @@ def fix_trans_id():
     # log the actions for future reference
     msg = ("%d of %d campaigns updated successfully. %d updates failed: %s" %
            (num_bad_campaigns, num_bad_campaigns - len(failed), len(failed), failed))
-    print msg
+    print(msg)
 
         

@@ -21,7 +21,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 import unittest
-from mock import patch
+from unittest.mock import patch
 
 import pylibmc
 from pylons import app_globals as g
@@ -45,52 +45,52 @@ class RateLimitStandaloneFunctionsTest(unittest.TestCase):
     def test_get_timeslice(self):
         self.now = 125
         ts = ratelimit.get_timeslice(60)
-        self.assertEquals(120, ts.beginning)
-        self.assertEquals(180, ts.end)
-        self.assertEquals(55, ts.remaining)
+        self.assertEqual(120, ts.beginning)
+        self.assertEqual(180, ts.end)
+        self.assertEqual(55, ts.remaining)
 
     def test_make_ratelimit_cache_key_1s(self):
         self.now = 14
         ts = ratelimit.get_timeslice(1)
         key = ratelimit._make_ratelimit_cache_key('a', ts)
-        self.assertEquals('rl:a-000014', key)
+        self.assertEqual('rl:a-000014', key)
 
     def test_make_ratelimit_cache_key_1m(self):
         self.now = 65
         ts = ratelimit.get_timeslice(60)
         key = ratelimit._make_ratelimit_cache_key('a', ts)
-        self.assertEquals('rl:a-000100', key)
+        self.assertEqual('rl:a-000100', key)
 
     def test_make_ratelimit_cache_key_1h(self):
         self.now = 3650
         ts = ratelimit.get_timeslice(3600)
         key = ratelimit._make_ratelimit_cache_key('a', ts)
-        self.assertEquals('rl:a-010000', key)
+        self.assertEqual('rl:a-010000', key)
 
     def test_make_ratelimit_cache_key_1d(self):
         self.now = 24 * 3600 + 5
         ts = ratelimit.get_timeslice(24 * 3600)
         key = ratelimit._make_ratelimit_cache_key('a', ts)
-        self.assertEquals('rl:a-@86400', key)
+        self.assertEqual('rl:a-@86400', key)
 
     def test_make_ratelimit_cache_key_1w(self):
         self.now = 7 * 24 * 3600 + 5
         ts = ratelimit.get_timeslice(24 * 3600)
         key = ratelimit._make_ratelimit_cache_key('a', ts)
-        self.assertEquals('rl:a-@604800', key)
+        self.assertEqual('rl:a-@604800', key)
 
     def test_record_usage(self):
         self.now = 24 * 3600 + 5
         ts = ratelimit.get_timeslice(3600)
         ratelimit.record_usage('a', ts)
-        self.assertEquals(1, self.cache['rl:a-000000'])
+        self.assertEqual(1, self.cache['rl:a-000000'])
         ratelimit.record_usage('a', ts)
-        self.assertEquals(2, self.cache['rl:a-000000'])
+        self.assertEqual(2, self.cache['rl:a-000000'])
 
         self.now = 24 * 3600 + 5 * 3600
         ts = ratelimit.get_timeslice(3600)
         ratelimit.record_usage('a', ts)
-        self.assertEquals(1, self.cache['rl:a-050000'])
+        self.assertEqual(1, self.cache['rl:a-050000'])
 
     def test_record_usage_across_slice_expiration(self):
         self.now = 24 * 3600 + 5
@@ -109,14 +109,14 @@ class RateLimitStandaloneFunctionsTest(unittest.TestCase):
             # initial add() call inside record_usage().
             evicted = True
             ratelimit.record_usage('a', ts)
-            self.assertEquals(1, self.cache['rl:a-000000'])
+            self.assertEqual(1, self.cache['rl:a-000000'])
 
     def test_get_usage(self):
         self.now = 24 * 3600 + 5 * 3600
         ts = ratelimit.get_timeslice(3600)
-        self.assertEquals(None, ratelimit.get_usage('a', ts))
+        self.assertEqual(None, ratelimit.get_usage('a', ts))
         ratelimit.record_usage('a', ts)
-        self.assertEquals(1, ratelimit.get_usage('a', ts))
+        self.assertEqual(1, ratelimit.get_usage('a', ts))
 
 
 class RateLimitTest(unittest.TestCase):
@@ -143,13 +143,13 @@ class RateLimitTest(unittest.TestCase):
 
         self.now = 24 * 3600 + 5
         rl.record_usage()
-        self.assertEquals(1, self.cache['rl:tests-000000'])
+        self.assertEqual(1, self.cache['rl:tests-000000'])
         rl.record_usage()
-        self.assertEquals(2, self.cache['rl:tests-000000'])
+        self.assertEqual(2, self.cache['rl:tests-000000'])
 
         self.now = 24 * 3600 + 5 * 3600
         rl.record_usage()
-        self.assertEquals(1, self.cache['rl:tests-050000'])
+        self.assertEqual(1, self.cache['rl:tests-050000'])
 
     def test_get_usage(self):
         rl = self.TestRateLimit()
@@ -184,15 +184,15 @@ class LiveConfigRateLimitTest(unittest.TestCase):
     def test_limit(self):
         self.configure_rate_limit(1, 3600)
         rl = self.TestRateLimit()
-        self.assertEquals(1, rl.limit)
+        self.assertEqual(1, rl.limit)
 
         self.configure_rate_limit(2, 3600)
-        self.assertEquals(2, rl.limit)
+        self.assertEqual(2, rl.limit)
 
     def test_seconds(self):
         self.configure_rate_limit(1, 3600)
         rl = self.TestRateLimit()
-        self.assertEquals(3600, rl.seconds)
+        self.assertEqual(3600, rl.seconds)
 
         self.configure_rate_limit(1, 300)
-        self.assertEquals(300, rl.seconds)
+        self.assertEqual(300, rl.seconds)

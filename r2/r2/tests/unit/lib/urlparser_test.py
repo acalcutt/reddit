@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding=utf-8
 # The contents of this file are subject to the Common Public Attribution
 # License Version 1.0. (the "License"); you may not use this file except in
 # compliance with the License. You may obtain a copy of the License at
@@ -23,9 +22,10 @@
 ###############################################################################
 import unittest
 
+from pylons import app_globals as g
+
 from r2.lib.utils import UrlParser
 from r2.tests import RedditTestCase
-from pylons import app_globals as g
 
 
 class TestIsRedditURL(RedditTestCase):
@@ -132,11 +132,11 @@ class TestIsRedditURL(RedditTestCase):
         self.assertIsNotSafeRedditUrl("\xa0http://%s/" % g.domain)
         self.assertIsSafeRedditUrl("http://%s/\xa0" % g.domain)
         self.assertIsSafeRedditUrl("/foo/bar/\xa0baz")
-        # Make sure this works if the URL is unicode
-        self.assertIsNotSafeRedditUrl(u"http://\xa0.%s/" % g.domain)
-        self.assertIsNotSafeRedditUrl(u"\xa0http://%s/" % g.domain)
-        self.assertIsSafeRedditUrl(u"http://%s/\xa0" % g.domain)
-        self.assertIsSafeRedditUrl(u"/foo/bar/\xa0baz")
+        # Make sure this works if the URL is str
+        self.assertIsNotSafeRedditUrl("http://\xa0.%s/" % g.domain)
+        self.assertIsNotSafeRedditUrl("\xa0http://%s/" % g.domain)
+        self.assertIsSafeRedditUrl("http://%s/\xa0" % g.domain)
+        self.assertIsSafeRedditUrl("/foo/bar/\xa0baz")
 
 
 class TestSwitchSubdomainByExtension(RedditTestCase):
@@ -150,114 +150,114 @@ class TestSwitchSubdomainByExtension(RedditTestCase):
         u = UrlParser('http://www.reddit.com/r/redditdev')
         u.switch_subdomain_by_extension('compact')
         result = u.unparse()
-        self.assertEquals('http://i.reddit.com/r/redditdev', result)
+        self.assertEqual('http://i.reddit.com/r/redditdev', result)
 
         u = UrlParser(result)
         u.switch_subdomain_by_extension('mobile')
         result = u.unparse()
-        self.assertEquals('http://simple.reddit.com/r/redditdev', result)
+        self.assertEqual('http://simple.reddit.com/r/redditdev', result)
 
     def test_default_prefix(self):
         u = UrlParser('http://i.reddit.com/r/redditdev')
         u.switch_subdomain_by_extension()
-        self.assertEquals('http://www.reddit.com/r/redditdev', u.unparse())
+        self.assertEqual('http://www.reddit.com/r/redditdev', u.unparse())
 
         u = UrlParser('http://i.reddit.com/r/redditdev')
         u.switch_subdomain_by_extension('does-not-exist')
-        self.assertEquals('http://www.reddit.com/r/redditdev', u.unparse())
+        self.assertEqual('http://www.reddit.com/r/redditdev', u.unparse())
 
 
 class TestPathExtension(unittest.TestCase):
     def test_no_path(self):
         u = UrlParser('http://example.com')
-        self.assertEquals('', u.path_extension())
+        self.assertEqual('', u.path_extension())
 
     def test_directory(self):
         u = UrlParser('http://example.com/')
-        self.assertEquals('', u.path_extension())
+        self.assertEqual('', u.path_extension())
 
         u = UrlParser('http://example.com/foo/')
-        self.assertEquals('', u.path_extension())
+        self.assertEqual('', u.path_extension())
 
     def test_no_extension(self):
         u = UrlParser('http://example.com/a')
-        self.assertEquals('', u.path_extension())
+        self.assertEqual('', u.path_extension())
 
     def test_root_file(self):
         u = UrlParser('http://example.com/a.jpg')
-        self.assertEquals('jpg', u.path_extension())
+        self.assertEqual('jpg', u.path_extension())
 
     def test_nested_file(self):
         u = UrlParser('http://example.com/foo/a.jpg')
-        self.assertEquals('jpg', u.path_extension())
+        self.assertEqual('jpg', u.path_extension())
 
     def test_empty_extension(self):
         u = UrlParser('http://example.com/a.')
-        self.assertEquals('', u.path_extension())
+        self.assertEqual('', u.path_extension())
 
     def test_two_extensions(self):
         u = UrlParser('http://example.com/a.jpg.exe')
-        self.assertEquals('exe', u.path_extension())
+        self.assertEqual('exe', u.path_extension())
 
     def test_only_extension(self):
         u = UrlParser('http://example.com/.bashrc')
-        self.assertEquals('bashrc', u.path_extension())
+        self.assertEqual('bashrc', u.path_extension())
 
 
 class TestEquality(unittest.TestCase):
     def test_different_objects(self):
         u = UrlParser('http://example.com')
-        self.assertNotEquals(u, None)
+        self.assertNotEqual(u, None)
 
     def test_different_protocols(self):
         u = UrlParser('http://example.com')
         u2 = UrlParser('https://example.com')
-        self.assertNotEquals(u, u2)
+        self.assertNotEqual(u, u2)
 
     def test_different_domains(self):
         u = UrlParser('http://example.com')
         u2 = UrlParser('http://example.org')
-        self.assertNotEquals(u, u2)
+        self.assertNotEqual(u, u2)
 
     def test_different_ports(self):
         u = UrlParser('http://example.com')
         u2 = UrlParser('http://example.com:8000')
         u3 = UrlParser('http://example.com:8008')
-        self.assertNotEquals(u, u2)
-        self.assertNotEquals(u2, u3)
+        self.assertNotEqual(u, u2)
+        self.assertNotEqual(u2, u3)
 
     def test_different_paths(self):
         u = UrlParser('http://example.com')
         u2 = UrlParser('http://example.com/a')
         u3 = UrlParser('http://example.com/b')
-        self.assertNotEquals(u, u2)
-        self.assertNotEquals(u2, u3)
+        self.assertNotEqual(u, u2)
+        self.assertNotEqual(u2, u3)
 
     def test_different_params(self):
         u = UrlParser('http://example.com/')
         u2 = UrlParser('http://example.com/;foo')
         u3 = UrlParser('http://example.com/;bar')
-        self.assertNotEquals(u, u2)
-        self.assertNotEquals(u2, u3)
+        self.assertNotEqual(u, u2)
+        self.assertNotEqual(u2, u3)
 
     def test_different_queries(self):
         u = UrlParser('http://example.com/')
         u2 = UrlParser('http://example.com/?foo')
         u3 = UrlParser('http://example.com/?foo=bar')
-        self.assertNotEquals(u, u2)
-        self.assertNotEquals(u2, u3)
+        self.assertNotEqual(u, u2)
+        self.assertNotEqual(u2, u3)
 
     def test_different_fragments(self):
         u = UrlParser('http://example.com/')
         u2 = UrlParser('http://example.com/#foo')
         u3 = UrlParser('http://example.com/#bar')
-        self.assertNotEquals(u, u2)
-        self.assertNotEquals(u2, u3)
+        self.assertNotEqual(u, u2)
+        self.assertNotEqual(u2, u3)
 
     def test_same_url(self):
         u = UrlParser('http://example.com:8000/a;b?foo=bar&bar=baz#spam')
         u2 = UrlParser('http://example.com:8000/a;b?bar=baz&foo=bar#spam')
-        self.assertEquals(u, u2)
+        self.assertEqual(u, u2)
 
         u3 = UrlParser('')
         u3.scheme = 'http'
@@ -267,16 +267,16 @@ class TestEquality(unittest.TestCase):
         u3.params = 'b'
         u3.update_query(foo='bar', bar='baz')
         u3.fragment = 'spam'
-        self.assertEquals(u, u3)
+        self.assertEqual(u, u3)
 
     def test_integer_query_params(self):
         u = UrlParser('http://example.com/?page=1234')
         u2 = UrlParser('http://example.com/')
         u2.update_query(page=1234)
-        self.assertEquals(u, u2)
+        self.assertEqual(u, u2)
 
     def test_unicode_query_params(self):
-        u = UrlParser(u'http://example.com/?page=ｕｎｉｃｏｄｅ：（')
+        u = UrlParser('http://example.com/?page=ｕｎｉｃｏｄｅ：（')
         u2 = UrlParser('http://example.com/')
-        u2.update_query(page=u'ｕｎｉｃｏｄｅ：（')
-        self.assertEquals(u, u2)
+        u2.update_query(page='ｕｎｉｃｏｄｅ：（')
+        self.assertEqual(u, u2)

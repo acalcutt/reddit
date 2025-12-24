@@ -24,9 +24,8 @@
 This is used to determine which gilding trophy level they should have.
 """
 from pylons import app_globals as g
-
 from r2.models import Account
-from r2.models.gold import gold_table, ENGINE
+from r2.models.gold import ENGINE, gold_table
 from r2admin.lib.trophies import add_to_trophy_queue
 from sqlalchemy.sql.expression import select
 from sqlalchemy.sql.functions import count as sa_count

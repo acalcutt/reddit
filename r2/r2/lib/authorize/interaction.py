@@ -20,17 +20,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from pylons import app_globals as g
+from pylons import request
 from sqlalchemy.orm.exc import MultipleResultsFound
 
-from pylons import request
-from pylons import app_globals as g
-
+from r2.lib.authorize import api
 from r2.lib.db.thing import NotFound
-from r2.lib.utils import Storage
 from r2.lib.export import export
 from r2.models.bidding import Bid, CustomerID, PayID
-from r2.lib.authorize import api
-
 
 __all__ = []
 

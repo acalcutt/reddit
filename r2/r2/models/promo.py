@@ -25,17 +25,16 @@ from datetime import datetime
 from uuid import uuid1
 
 from pycassa.system_manager import INT_TYPE, TIME_UUID_TYPE, UTF8_TYPE
-from pylons import tmpl_context as c
 from pylons import app_globals as g
-from pylons.i18n import _, N_
+from pylons import tmpl_context as c
+from pylons.i18n import N_, _
 
 from r2.config import feature
-from r2.lib.unicode import _force_unicode
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.thing import Thing
+from r2.lib.str import _force_unicode
 from r2.lib.utils import Enum, to_datetime
-from r2.models.subreddit import Subreddit, Frontpage
-
+from r2.models.subreddit import Frontpage, Subreddit
 
 PROMOTE_STATUS = Enum("unpaid", "unseen", "accepted", "rejected",
                       "pending", "promoted", "finished", "edited_live")
@@ -43,7 +42,7 @@ PROMOTE_STATUS = Enum("unpaid", "unseen", "accepted", "rejected",
 PROMOTE_COST_BASIS = Enum('fixed_cpm', 'cpm', 'cpc',)
 
 
-class PriorityLevel(object):
+class PriorityLevel:
     name = ''
     _text = N_('')
     _description = N_('')
@@ -108,7 +107,7 @@ def PROMOTE_DEFAULT_PRIORITY(context=None):
     else:
         return AUCTION
 
-class Location(object):
+class Location:
     DELIMITER = '-'
     def __init__(self, country, region=None, metro=None):
         self.country = country or None
@@ -116,7 +115,7 @@ class Location(object):
         self.metro = metro or None
 
     def __repr__(self):
-        return '<%s (%s/%s/%s)>' % (self.__class__.__name__, self.country,
+        return '<{} ({}/{}/{})>'.format(self.__class__.__name__, self.country,
                                     self.region, self.metro)
 
     def to_code(self):
@@ -125,7 +124,7 @@ class Location(object):
 
     @classmethod
     def from_code(cls, code):
-        country, region, metro = [i or None for i in code.split(cls.DELIMITER)]
+        country, region, metro = (i or None for i in code.split(cls.DELIMITER))
         return cls(country, region, metro)
 
     def contains(self, other):
@@ -172,7 +171,7 @@ def calc_impressions(total_budget_pennies, cpm_pennies):
 NO_TRANSACTION = 0
 
 
-class Collection(object):
+class Collection:
     def __init__(self, name, sr_names, over_18=False, description=None,
             is_spotlight=False):
         self.name = name
@@ -200,7 +199,7 @@ class Collection(object):
         return sorted_collections
 
     def __repr__(self):
-        return "<%s: %s>" % (self.__class__.__name__, self.name)
+        return "<{}: {}>".format(self.__class__.__name__, self.name)
 
 
 class CollectionStorage(tdb_cassandra.View):
@@ -286,13 +285,13 @@ class CollectionStorage(tdb_cassandra.View):
         cls._cf.remove(rowkey)
 
 
-class Target(object):
+class Target:
     """Wrapper around either a Collection or a Subreddit name"""
     def __init__(self, target):
         if isinstance(target, Collection):
             self.collection = target
             self.is_collection = True
-        elif isinstance(target, basestring):
+        elif isinstance(target, str):
             self.subreddit_name = target
             self.is_collection = False
         else:
@@ -322,7 +321,7 @@ class Target(object):
             return self._subreddits
 
         sr_names = self.subreddit_names
-        srs = Subreddit._by_name(sr_names).values()
+        srs = list(Subreddit._by_name(sr_names).values())
         self._subreddits = srs
         return srs
 
@@ -345,7 +344,7 @@ class Target(object):
             return "/r/%s" % self.subreddit_name
 
     def __repr__(self):
-        return "<%s: %s>" % (self.__class__.__name__, self.pretty_name)
+        return "<{}: {}>".format(self.__class__.__name__, self.pretty_name)
 
 
 class PromoCampaign(Thing):
@@ -396,18 +395,18 @@ class PromoCampaign(Thing):
         return "campaign:"
 
     def __getattr__(self, attr):
-        val = super(PromoCampaign, self).__getattr__(attr)
+        val = super().__getattr__(attr)
 
         if (attr == 'total_budget_pennies' and hasattr(self, 'bid') and
                 not getattr(self, 'bid_migrated', False)):
-            old_bid = int(super(PromoCampaign, self).__getattr__('bid') * 100)
+            old_bid = int(super().__getattr__('bid') * 100)
             self.total_budget_pennies = old_bid
             self.bid_migrated = True
             return self.total_budget_pennies
 
         if (attr == 'bid_pennies' and hasattr(self, 'cpm') and
                 not getattr(self, 'cpm_migrated', False)):
-            old_cpm = super(PromoCampaign, self).__getattr__('cpm')
+            old_cpm = super().__getattr__('cpm')
             self.bid_pennies = old_cpm
             self.cpm_migrated = True
             return self.bid_pennies
@@ -437,7 +436,7 @@ class PromoCampaign(Thing):
 
         state = self.__dict__
         if "_target" in state:
-            state = {k: v for k, v in state.iteritems() if k != "_target"}
+            state = {k: v for k, v in state.items() if k != "_target"}
         return state
 
     @property
@@ -448,7 +447,7 @@ class PromoCampaign(Thing):
         return False
 
     def priority_name_from_priority(self, priority):
-        if not priority in PROMOTE_PRIORITIES.values():
+        if priority not in list(PROMOTE_PRIORITIES.values()):
             raise ValueError("%s is not a valid priority" % priority.name)
         return priority.name
 
@@ -628,7 +627,7 @@ class PromoCampaign(Thing):
                 return '/'.join([country, region, metro_str])
             else:
                 region_name = g.locations[country]['regions'][region]['name']
-                return ('%s, %s' % (region_name, country))
+                return ('{}, {}'.format(region_name, country))
         else:
             return g.locations[self.location.country]['name']
 
@@ -683,7 +682,7 @@ class PromotionLog(tdb_cassandra.View):
     def add(cls, link, text):
         name = c.user.name if c.user_is_loggedin else "<AUTOMATED>"
         now = datetime.now(g.tz).strftime("%Y-%m-%d %H:%M:%S")
-        text = "[%s: %s] %s" % (name, now, text)
+        text = "[{}: {}] {}".format(name, now, text)
         rowkey = cls._rowkey(link)
         column = {uuid1(): _force_unicode(text)}
         cls._set_values(rowkey, column)
@@ -696,7 +695,7 @@ class PromotionLog(tdb_cassandra.View):
             row = cls._byID(rowkey)
         except tdb_cassandra.NotFound:
             return []
-        tuples = sorted(row._values().items(), key=lambda t: t[0].time)
+        tuples = sorted(list(row._values().items()), key=lambda t: t[0].time)
         return [t[1] for t in tuples]
 
 
@@ -869,16 +868,16 @@ class PromotionPrices(tdb_cassandra.View):
             except tdb_cassandra.NotFoundException:
                 metros = {}
 
-            for name, cpm in collections.iteritems():
+            for name, cpm in collections.items():
                 r["COLLECTION"][name] = cpm
 
-            for name, cpm in subreddits.iteritems():
+            for name, cpm in subreddits.items():
                 r["SUBREDDIT"][name] = cpm
 
-            for name, cpm in countries.iteritems():
+            for name, cpm in countries.items():
                 r["COUNTRY"][name] = cpm
 
-            for name, cpm in metros.iteritems():
+            for name, cpm in metros.items():
                 r["METRO"][name] = cpm
 
         return r

@@ -20,12 +20,11 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import request
-from pylons import app_globals as g
-from reddit_base import RedditController
-from r2.lib.pages import AdminPage, AdminAwards
-from r2.lib.pages import AdminAwardGive, AdminAwardWinners
+from r2.lib.pages import AdminAwardGive, AdminAwards, AdminAwardWinners, AdminPage
 from r2.lib.validator import *
+
+from .reddit_base import RedditController
+
 
 class AwardsController(RedditController):
 

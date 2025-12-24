@@ -20,34 +20,30 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import json
+import base64
 import inspect
-import pytz
+import json
+import pickle as pickle
 from datetime import datetime
+from itertools import chain
+from uuid import UUID, uuid1
 
-from pylons import app_globals as g
-
+import pytz
 from pycassa import ColumnFamily
-from pycassa.pool import MaximumRetryException
 from pycassa.cassandra.ttypes import ConsistencyLevel, NotFoundException
+from pycassa.pool import MaximumRetryException
 from pycassa.system_manager import (
     ASCII_TYPE,
-    COUNTER_COLUMN_TYPE,
-    DATE_TYPE,
-    INT_TYPE,
-    SystemManager,
     TIME_UUID_TYPE,
     UTF8_TYPE,
+    SystemManager,
 )
 from pycassa.types import DateType
-from pycassa.util import convert_uuid_to_time
-from r2.lib.utils import tup, Storage
+from pycassa.util import OrderedDict, convert_uuid_to_time
+from pylons import app_globals as g
+
 from r2.lib.sgm import sgm
-from uuid import uuid1, UUID
-from itertools import chain
-import cPickle as pickle
-from pycassa.util import OrderedDict
-import base64
+from r2.lib.utils import Storage, tup
 
 connection_pools = g.cassandra_pools
 default_connection_pool = g.cassandra_default_pool
@@ -169,14 +165,14 @@ class ThingMeta(type):
                     creation_args = getattr(c, "_extra_schema_creation_args", {})
                     extra_creation_arguments.update(creation_args)
 
-                log.warning("Creating Cassandra Column Family %s" % (cf_name,))
+                log.warning("Creating Cassandra Column Family {}".format(cf_name))
                 with make_lock("cassandra_schema", 'cassandra_schema'):
                     manager.create_column_family(keyspace, cf_name,
                                                  comparator_type = cls._compare_with,
                                                  super=getattr(cls, '_super', False),
                                                  **extra_creation_arguments
                                                  )
-                log.warning("Created Cassandra Column Family %s" % (cf_name,))
+                log.warning("Created Cassandra Column Family {}".format(cf_name))
 
                 # try again to look it up
                 cls._cf = ColumnFamily(connection_pool,
@@ -190,10 +186,8 @@ class ThingMeta(type):
         return '<thing: %s>' % cls.__name__
 
 
-class ThingBase(object):
+class ThingBase(metaclass=ThingMeta):
     # base class for Thing
-
-    __metaclass__ = ThingMeta
 
     _cf_name = None # the name of the ColumnFamily; defaults to the
                     # name of the class
@@ -294,7 +288,7 @@ class ThingBase(object):
         self._id = _id
 
         if not self._use_db:
-            raise TdbException("Cannot make instances of %r" % (self.__class__,))
+            raise TdbException("Cannot make instances of {!r}".format(self.__class__))
 
     @classmethod
     def _byID(cls, ids, return_dict=True, properties=None):
@@ -310,7 +304,7 @@ class ThingBase(object):
             return {}
 
         # all keys must be strings or directly convertable to strings
-        assert all(isinstance(_id, basestring) or str(_id) for _id in ids)
+        assert all(isinstance(_id, str) or str(_id) for _id in ids)
 
         def reject_bad_partials(cached, still_need):
             # tell sgm that the match it found in the cache isn't good
@@ -319,7 +313,7 @@ class ThingBase(object):
             # the properties that we're after
             stillfind = set()
 
-            for k, v in cached.iteritems():
+            for k, v in cached.items():
                 if properties is None:
                     if v._partial is not None:
                         # there's a partial in the cache but we're not
@@ -349,7 +343,7 @@ class ThingBase(object):
                 # probably clipped. in this case, we should fetch the remaining
                 # columns for that row and add them to the result.
                 if cls._fetch_all_columns:
-                    for key, row in rows.iteritems():
+                    for key, row in rows.items():
                         if len(row) == max_column_count:
                             last_column_seen = next(reversed(row))
                             cols = cls._cf.xget(key,
@@ -360,7 +354,7 @@ class ThingBase(object):
                 rows = cls._cf.multiget(l_ids, columns = willask_properties)
 
             l_ret = {}
-            for t_id, row in rows.iteritems():
+            for t_id, row in rows.items():
                 t = cls._from_serialized_columns(t_id, row)
                 if properties is not None:
                     # make sure that the item is marked as a _partial
@@ -378,15 +372,15 @@ class ThingBase(object):
         )
 
         if is_single and not ret:
-            raise NotFound("<%s %r>" % (cls.__name__,
+            raise NotFound("<{} {!r}>".format(cls.__name__,
                                         ids[0]))
         elif is_single:
             assert len(ret) == 1
-            return ret.values()[0]
+            return list(ret.values())[0]
         elif return_dict:
             return ret
         else:
-            return filter(None, (ret.get(i) for i in ids))
+            return [_f for _f in (ret.get(i) for i in ids) if _f]
 
     @property
     def _fullname(self):
@@ -394,7 +388,7 @@ class ThingBase(object):
             raise TdbException("%r has no _type_prefix, so fullnames cannot be generated"
                                % self.__class__)
 
-        return '%s_%s' % (self._type_prefix, self._id)
+        return '{}_{}'.format(self._type_prefix, self._id)
 
     @classmethod
     def _by_fullname(cls, fnames, return_dict=True, ignore_missing=False):
@@ -410,18 +404,18 @@ class ThingBase(object):
             by_cls.setdefault(thing_types[typ], []).append(_id)
 
         items = []
-        for typ, ids in by_cls.iteritems():
-            items.extend(typ._byID(ids).values())
+        for typ, ids in by_cls.items():
+            items.extend(list(typ._byID(ids).values()))
 
         if is_single:
             try:
                 return items[0]
             except IndexError:
-                raise NotFound("<%s %r>" % (cls.__name__, ids[0]))
+                raise NotFound("<{} {!r}>".format(cls.__name__, ids[0]))
         elif return_dict:
-            return dict((x._fullname, x) for x in items)
+            return {x._fullname: x for x in items}
         else:
-            d = dict((x._fullname, x) for x in items)
+            d = {x._fullname: x for x in items}
             return [d[fullname] for fullname in fnames]
 
     @classmethod
@@ -430,7 +424,7 @@ class ThingBase(object):
 
     def _cache_key(self):
         if not self._id:
-            raise TdbException('no cache key for uncommitted %r' % (self,))
+            raise TdbException('no cache key for uncommitted {!r}'.format(self))
 
         return self._cache_key_id(self._id)
 
@@ -464,7 +458,7 @@ class ThingBase(object):
             try:
                 return int(val)
             except ValueError:
-                return long(val)
+                return int(val)
         elif attr in cls._float_props or (cls._value_type and cls._value_type == 'float'):
             return float(val)
         elif attr in cls._bool_props or (cls._value_type and cls._value_type == 'bool'):
@@ -480,7 +474,7 @@ class ThingBase(object):
             return val
 
         # otherwise we'll assume that it's a utf-8 string
-        return val if isinstance(val, unicode) else val.decode('utf-8')
+        return val if isinstance(val, str) else val.decode('utf-8')
 
     @classmethod
     def _serialize_column(cls, attr, val):
@@ -507,7 +501,7 @@ class ThingBase(object):
         elif attr in cls._bytes_props or (cls._value_type and cls._value_type == 'bytes'):
             return val
 
-        return unicode(val).encode('utf-8')
+        return str(val).encode('utf-8')
 
     @classmethod
     def _serialize_date(cls, date):
@@ -529,9 +523,9 @@ class ThingBase(object):
 
     @classmethod
     def _from_serialized_columns(cls, t_id, columns):
-        d_columns = dict((attr, cls._deserialize_column(attr, val))
+        d_columns = {attr: cls._deserialize_column(attr, val)
                          for (attr, val)
-                         in columns.iteritems())
+                         in columns.items()}
         return cls._from_columns(t_id, d_columns)
 
     @classmethod
@@ -554,7 +548,7 @@ class ThingBase(object):
             return
 
         if self._id is None:
-            raise TdbException("Can't commit %r without an ID" % (self,))
+            raise TdbException("Can't commit {!r} without an ID".format(self))
 
         if self._committed and self._ttl and self._warn_on_partial_ttl:
             log.warning("Using a full-TTL object %r in a mutable fashion"
@@ -573,11 +567,11 @@ class ThingBase(object):
         # serialize everything while filtering out anything that's
         # been dirtied but doesn't actually differ from what's already
         # in the DB
-        updates = dict((attr, self._serialize_column(attr, val))
+        updates = {attr: self._serialize_column(attr, val)
                        for (attr, val)
-                       in self._dirties.iteritems()
+                       in self._dirties.items()
                        if (attr not in self._orig or
-                           val != self._orig[attr]))
+                           val != self._orig[attr])}
 
         # n.b. deleted columns are applied *after* the updates. our
         # __setattr__/__delitem__ tries to make sure that this always
@@ -608,7 +602,7 @@ class ThingBase(object):
         wcl = self._wcl(write_consistency_level)
         with self._cf.batch(write_consistency_level = wcl) as b:
             if updates:
-                for k, v in updates.iteritems():
+                for k, v in updates.items():
                     b.insert(self._id,
                              {k: v},
                              ttl=self._column_ttls.get(k, self._ttl))
@@ -647,13 +641,13 @@ class ThingBase(object):
                         write_consistency_level=self._write_consistency_level)
 
     def __getattr__(self, attr):
-        if isinstance(attr, basestring) and attr.startswith('_'):
+        if isinstance(attr, str) and attr.startswith('_'):
             # TODO: I bet this interferes with Views whose column names can
             # start with a _
             try:
                 return self.__dict__[attr]
             except KeyError:
-                raise AttributeError, attr
+                raise AttributeError(attr)
 
         if attr in self._deletes:
             raise AttributeError("%r has no %r because you deleted it", (self, attr))
@@ -664,15 +658,15 @@ class ThingBase(object):
         elif attr in self._defaults:
             return self._defaults[attr]
         elif self._partial is not None and attr not in self._partial:
-            raise AttributeError("%r has no %r but you didn't request it" % (self, attr))
+            raise AttributeError("{!r} has no {!r} but you didn't request it".format(self, attr))
         else:
-            raise AttributeError('%r has no %r' % (self, attr))
+            raise AttributeError('{!r} has no {!r}'.format(self, attr))
 
     def __setattr__(self, attr, val):
         if attr == '_id' and self._committed:
             raise ValueError('cannot change _id on a committed %r' % (self.__class__))
 
-        if isinstance(attr, basestring) and attr.startswith('_'):
+        if isinstance(attr, str) and attr.startswith('_'):
             # TODO: I bet this interferes with Views whose column names can
             # start with a _
             return object.__setattr__(self, attr, val)
@@ -743,7 +737,7 @@ class ThingBase(object):
 
     def _set_ttl(self, key, ttl):
         assert key in self._dirties
-        assert isinstance(ttl, (long, int))
+        assert isinstance(ttl, int)
         self._column_ttls[key] = ttl
 
     def _on_create(self):
@@ -772,7 +766,7 @@ class ThingBase(object):
         id_str = self._id
         comm_str = '' if self._committed else ' (uncommitted)'
         part_str = '' if self._partial is None else ' (partial)'
-        return "<%s %r%s%s>" % (self.__class__.__name__,
+        return "<{} {!r}{}{}>".format(self.__class__.__name__,
                               id_str,
                               comm_str, part_str)
 
@@ -783,9 +777,9 @@ class ThingBase(object):
             if not self._committed:
                 # normally we'd log this with g.log or something, but we can't
                 # guarantee that the thread destructing us has access to g
-                print "Warning: discarding uncomitted %r; this is usually a bug" % (self,)
+                print("Warning: discarding uncomitted {!r}; this is usually a bug".format(self))
             elif self._dirty:
-                print ("Warning: discarding dirty %r; this is usually a bug (_dirties=%r, _deletes=%r)"
+                print("Warning: discarding dirty %r; this is usually a bug (_dirties=%r, _deletes=%r)"
                        % (self,self._dirties,self._deletes))
 
 class Thing(ThingBase):
@@ -818,7 +812,7 @@ class UuidThing(ThingBase):
             assert len(uuids) == 1
             uuids = uuids[0]
 
-        return super(UuidThing, cls)._byID(uuids, **kw)
+        return super()._byID(uuids, **kw)
 
     @classmethod
     def _cache_key_id(cls, t_id):
@@ -842,7 +836,7 @@ def view_of(cls):
 
 
 
-class DenormalizedRelation(object):
+class DenormalizedRelation(metaclass=ThingMeta):
     """A model of many-to-many relationships, indexed by thing1.
 
     Each thing1 is represented by a row. The relationships from that thing1 to
@@ -856,7 +850,6 @@ class DenormalizedRelation(object):
     it should have its row cache disabled.
 
     """
-    __metaclass__ = ThingMeta
     _use_db = False
     _cf_name = None
     _compare_with = ASCII_TYPE
@@ -942,17 +935,17 @@ class DenormalizedRelation(object):
             # {(thing1, thing2) : value}
             thing2s_by_id = {thing2._id36 : thing2 for thing2 in thing2s}
             return {(thing1, thing2s_by_id[k]) : v
-                    for k, v in results.iteritems()}
+                    for k, v in results.items()}
         else:
             if results:
                 assert len(results) == 1
-                return results.values()[0]
+                return list(results.values())[0]
             else:
-                raise NotFound("<%s %r>" % (cls.__name__, (thing1._id36,
+                raise NotFound("<{} {!r}>".format(cls.__name__, (thing1._id36,
                                                            thing2._id36)))
 
 
-class ColumnQuery(object):
+class ColumnQuery:
     """
     A query across a row of a CF.
     """
@@ -1010,7 +1003,7 @@ class ColumnQuery(object):
 
     def _after(self, thing):
         if thing:
-            column_name = self.obj_to_column(thing).keys()[0]
+            column_name = list(self.obj_to_column(thing).keys())[0]
             self.column_start = column_name
         else:
             self.column_start = ""
@@ -1038,16 +1031,16 @@ class ColumnQuery(object):
 
                 # multiget returns OrderedDict {rowkey: {column_name: column_value}}
                 # combine into single OrderedDict of {column_name: column_value}
-                nrows = len(r.keys())
+                nrows = len(list(r.keys()))
                 if nrows == 0:
                     return
                 elif nrows == 1:
-                    columns = r.values()[0]
+                    columns = list(r.values())[0]
                 else:
                     r_combined = {}
-                    for d in r.values():
+                    for d in list(r.values()):
                         r_combined.update(d)
-                    columns = OrderedDict(sorted(r_combined.items(),
+                    columns = OrderedDict(sorted(list(r_combined.items()),
                                                  key=lambda t: self.sort_key(t[0]),
                                                  reverse=self.column_reversed))
             except NotFoundException:
@@ -1075,15 +1068,15 @@ class ColumnQuery(object):
             # Convert to list of columns
             l_columns = [{col_name: columns[col_name]} for col_name in columns]
 
-            column_start = l_columns[-1].keys()[0]
+            column_start = list(l_columns[-1].keys())[0]
             objs = self.column_to_obj(l_columns)
 
             if yield_column_names:
-                column_names = [column.keys()[0] for column in l_columns]
+                column_names = [list(column.keys())[0] for column in l_columns]
                 if len(column_names) == 1:
                     ret = (column_names[0], objs),
                 else:
-                    ret = zip(column_names, objs)
+                    ret = list(zip(column_names, objs))
             else:
                 ret = objs
 
@@ -1092,10 +1085,10 @@ class ColumnQuery(object):
                 yield r
 
     def __repr__(self):
-        return "<%s(%s-%r)>" % (self.__class__.__name__, self.cls.__name__,
+        return "<{}({}-{!r})>".format(self.__class__.__name__, self.cls.__name__,
                                 self.rowkeys)
 
-class MultiColumnQuery(object):
+class MultiColumnQuery:
     def __init__(self, queries, num, sort_key=None):
         self.num = num
         self._queries = queries
@@ -1133,7 +1126,7 @@ class MultiColumnQuery(object):
         for q in self._queries:
             try:
                 gen = q.__iter__(yield_column_names=True)
-                column_name, item = gen.next()
+                column_name, item = next(gen)
                 top_items.append((column_name, item, gen))
             except StopIteration:
                 pass
@@ -1147,7 +1140,7 @@ class MultiColumnQuery(object):
 
             # Try to get a new item from the query that gave us the current one
             try:
-                column_name, item = gen.next()
+                column_name, item = next(gen)
                 top_items.append((column_name, item, gen)) # if multiple queues have the same item value the sort is somewhat undefined
                 top_items.sort(key=sort_key)
             except StopIteration:
@@ -1159,7 +1152,7 @@ class MultiColumnQuery(object):
             _update(top_items)
             num_ret += 1
 
-class Query(object):
+class Query:
     """A query across a CF. Note that while you can query rows from a
        CF that has a RandomPartitioner, you won't get them in any sort
        of order"""
@@ -1185,9 +1178,9 @@ class Query(object):
         q.after = q.limit = None
 
         for row in q:
-            print row
-            for col, val in row._t.iteritems():
-                print '\t%s: %r' % (col, val)
+            print(row)
+            for col, val in row._t.items():
+                print('\t{}: {!r}'.format(col, val))
 
     def __iter__(self):
         # n.b.: we aren't caching objects that we find this way in the
@@ -1250,7 +1243,7 @@ class View(ThingBase):
         _obj_to_column()."""
         columns, is_single = tup(columns, ret_is_single=True)
 
-        ids = [column.keys()[0] for column in columns]
+        ids = [list(column.keys())[0] for column in columns]
 
         if len(ids) == 1:
             ids = ids[0]
@@ -1299,8 +1292,8 @@ class View(ThingBase):
            looking up the whole row first"""
         # col_values =:= dict(col_name -> col_value)
 
-        updates = dict((col_name, cls._serialize_column(col_name, col_val))
-                       for (col_name, col_val) in col_values.iteritems())
+        updates = {col_name: cls._serialize_column(col_name, col_val)
+                       for (col_name, col_val) in col_values.items()}
 
         # if they didn't give us a TTL, use the default TTL for the
         # class. This will be further overwritten below per-column
@@ -1310,7 +1303,7 @@ class View(ThingBase):
         default_ttl = ttl or cls._ttl
 
         def do_inserts(b):
-            for k, v in updates.iteritems():
+            for k, v in updates.items():
                 b.insert(row_key, {k: v},
                          ttl=cls._default_ttls.get(k, default_ttl))
 
@@ -1343,11 +1336,11 @@ class DenormalizedView(View):
     @classmethod
     def _thing_dumper(cls, thing):
         serialize_fn = cls._view_of._serialize_column
-        serialized_columns = dict((attr, serialize_fn(attr, val)) for
-            (attr, val) in thing._orig.iteritems())
+        serialized_columns = {attr: serialize_fn(attr, val) for
+            (attr, val) in thing._orig.items()}
 
         # Encode date props which may be binary
-        for attr, val in serialized_columns.items():
+        for attr, val in list(serialized_columns.items()):
             if cls.is_date_prop(attr):
                 serialized_columns[attr] = base64.b64encode(val)
 
@@ -1359,7 +1352,7 @@ class DenormalizedView(View):
         serialized_columns = json.loads(dump)
 
         # Decode date props
-        for attr, val in serialized_columns.items():
+        for attr, val in list(serialized_columns.items()):
             if cls.is_date_prop(attr):
                 serialized_columns[attr] = base64.b64decode(val)
 
@@ -1385,7 +1378,7 @@ class DenormalizedView(View):
         columns = tup(columns)
         objs = []
         for column in columns:
-            _id, dump = column.items()[0]
+            _id, dump = list(column.items())[0]
             obj = cls._thing_loader(_id, dump)
             objs.append(obj)
 

@@ -21,19 +21,18 @@
 ###############################################################################
 
 import base64
-import boto
+import datetime
 import hashlib
 import hmac
 import json
 import os
 import sys
 import time
-import datetime
-import pytz
 from collections import namedtuple
 
+import boto
+import pytz
 from pylons import app_globals as g
-
 
 HADOOP_FOLDER_SUFFIX = '_$folder$'
 
@@ -43,7 +42,7 @@ SIGNATURE_V4_ALGORITHM = "AWS4-HMAC-SHA256"
 def _to_path(bucket, key):
     if not bucket:
         raise ValueError
-    return 's3://%s/%s' % (bucket, key)
+    return 's3://{}/{}'.format(bucket, key)
 
 
 def _from_path(path):
@@ -128,7 +127,7 @@ def copy_to_s3(s3_connection, local_path, dst_path, verbose=False):
 
     kw = {}
     if verbose:
-        print 'Uploading %s to %s' % (local_path, dst_path)
+        print('Uploading {} to {}'.format(local_path, dst_path))
         kw['cb'] = callback
 
     k.set_contents_from_filename(logfile, **kw)
@@ -164,12 +163,12 @@ def delete_keys(bucket_name, prefix, connection=None):
 
 
 def _get_v4_credential(aws_access_key_id, date, service_name, region_name):
-    return ("%(aws_access_key_id)s/%(datestamp)s/%(region_name)s/%(service_name)s/aws4_request" % {
-        "aws_access_key_id": aws_access_key_id,
-        "datestamp": date.strftime("%Y%m%d"),
-        "region_name": region_name,
-        "service_name": service_name,
-    })
+    return ("{aws_access_key_id}/{datestamp}/{region_name}/{service_name}/aws4_request".format(
+        aws_access_key_id=aws_access_key_id,
+        datestamp=date.strftime("%Y%m%d"),
+        region_name=region_name,
+        service_name=service_name,
+    ))
 
 def _get_upload_policy(
         bucket, key, credential, date, acl,
@@ -219,7 +218,7 @@ def _get_upload_policy(
     conditions.append([
         "content-length-range", 0, max_content_length])
 
-    for key, value in meta.iteritems():
+    for key, value in meta.items():
         conditions.append({key: value})
 
     if content_type:
@@ -350,7 +349,7 @@ def get_post_args(
         "value": storage_class,
     })
 
-    for key, value in meta.iteritems():
+    for key, value in meta.items():
         fields.append({
             "name": key,
             "value": value,
@@ -372,6 +371,6 @@ def get_post_args(
     })
 
     return {
-        "action": "//%s.%s" % (bucket, g.s3_media_domain),
+        "action": "//{}.{}".format(bucket, g.s3_media_domain),
         "fields": fields,
     }

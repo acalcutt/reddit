@@ -20,123 +20,110 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 import csv
-from collections import defaultdict
-import hashlib
 import re
-import urllib
-import urllib2
+from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
+from pylons import app_globals as g
+from pylons import request, response
+from pylons import tmpl_context as c
+from pylons.i18n import _
+
+from r2.controllers.api_docs import api_doc, api_section
+from r2.controllers.ipn import generate_blob, update_blob
+from r2.controllers.login import handle_login, handle_register
+from r2.controllers.oauth2 import allow_oauth2_access, require_oauth2_scope
 from r2.controllers.reddit_base import (
+    MinimalController,
+    RedditController,
     abort_with_error,
     cross_domain,
     generate_modhash,
-    is_trusted_origin,
-    MinimalController,
     paginated_listing,
-    RedditController,
     set_user_cookie,
 )
-
-from pylons.i18n import _
-from pylons import request, response
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-
-from r2.lib.validator import *
-
-from r2.models import *
-
-from r2.lib import amqp
-from r2.lib import recommender
-from r2.lib import hooks
-from r2.lib.ratelimit import SimpleRateLimit
-
-from r2.lib.utils import (
-    blockquote_text,
-    extract_user_mentions,
-    get_title,
-    query_string,
-    randstr,
-    sanitize_url,
-    timefromnow,
-    timeuntil,
-    tup,
+from r2.lib import (
+    amqp,
+    emailer,
+    hooks,
+    media,
+    newsletter,
+    promote,
+    recommender,
 )
-
-from r2.lib.pages import (
-    BoringPage,
-    ClickGadget,
-    CssError,
-    FormPage,
-    Reddit,
-    responsive,
-    UploadedImage,
-    UrlParser,
-    WrappedUser,
+from r2.lib.captcha import get_iden
+from r2.lib.csrf import csrf_exempt
+from r2.lib.db import queries, tdb_cassandra
+from r2.lib.filters import (
+    _force_unicode,
+    _force_utf8,
+    safemarkdown,
+    spaceCompress,
+    websafe,
 )
-from r2.lib.pages import FlairList, FlairCsv, FlairTemplateEditor, \
-    FlairSelector
-from r2.lib.pages import PrefApps
+from r2.lib.lock import TimeoutExpired
+from r2.lib.media import str_to_image
+from r2.lib.menus import CommentSortMenu
 from r2.lib.pages import (
     BannedTableItem,
+    BoringPage,
+    ClickGadget,
     ContributorTableItem,
+    CssError,
+    FlairCsv,
+    FlairList,
+    FlairSelector,
+    FlairTemplateEditor,
     FriendTableItem,
     InvitedModTableItem,
     ModTableItem,
     MutedTableItem,
+    PrefApps,
+    Reddit,
     ReportForm,
     SubredditReportForm,
     SubredditStylesheet,
+    UploadedImage,
+    UrlParser,
     WikiBannedTableItem,
     WikiMayContributeTableItem,
+    WrappedUser,
+    responsive,
 )
-
 from r2.lib.pages.things import (
     default_thing_wrapper,
     hot_links_by_url_listing,
     wrap_links,
 )
-
-from r2.lib.menus import CommentSortMenu
-from r2.lib.captcha import get_iden
+from r2.lib.ratelimit import SimpleRateLimit
 from r2.lib.strings import strings
-from r2.lib.template_helpers import format_html, header_url
-from r2.lib.filters import _force_unicode, _force_utf8, websafe_json, websafe, spaceCompress
-from r2.lib.db import queries
-from r2.lib import media
-from r2.lib.db import tdb_cassandra
-from r2.lib import promote
-from r2.lib import tracking, emailer, newsletter
 from r2.lib.subreddit_search import search_reddits
-from r2.lib.filters import safemarkdown
-from r2.lib.media import str_to_image
-from r2.controllers.api_docs import api_doc, api_section
-from r2.controllers.oauth2 import require_oauth2_scope, allow_oauth2_access
-from r2.lib.template_helpers import (
-    add_sr,
-    get_domain,
-    make_url_protocol_relative,
-)
 from r2.lib.system_messages import (
     notify_user_added,
     send_ban_message,
     send_mod_removal_message,
 )
-from r2.controllers.ipn import generate_blob, update_blob
-from r2.controllers.login import handle_login, handle_register
-from r2.lib.lock import TimeoutExpired
-from r2.lib.csrf import csrf_exempt
+from r2.lib.template_helpers import (
+    add_sr,
+    format_html,
+    header_url,
+    make_url_protocol_relative,
+)
+from r2.lib.utils import (
+    blockquote_text,
+    extract_user_mentions,
+    get_title,
+    query_string,
+    tup,
+)
+from r2.lib.validator import *
 from r2.lib.voting import cast_vote
-
+from r2.models import *
 from r2.models import wiki
 from r2.models.ip import set_account_ip
-from r2.models.recommend import AccountSRFeedback, FEEDBACK_ACTIONS
+from r2.models.recommend import FEEDBACK_ACTIONS, AccountSRFeedback
 from r2.models.rules import SubredditRules
 from r2.models.vote import Vote
-from r2.lib.merge import ConflictException
-
-from datetime import datetime, timedelta
-from urlparse import urlparse
 
 
 class ApiminimalController(MinimalController):
@@ -195,7 +182,7 @@ class ApiController(RedditController):
 
         thing_classes = (Link, Comment, Subreddit)
         things = things or []
-        things = filter(lambda thing: isinstance(thing, thing_classes), things)
+        things = [thing for thing in things if isinstance(thing, thing_classes)]
 
         c.update_last_visit = False
         listing = wrap_links(things)
@@ -266,7 +253,7 @@ class ApiController(RedditController):
             return {}
 
     @csrf_exempt
-    @json_validate(password=VPassword(("passwd")))
+    @json_validate(password=VPassword("passwd"))
     def POST_check_password(self, responder, password):
         """
         Check whether a password is valid.
@@ -317,7 +304,7 @@ class ApiController(RedditController):
 
         try:
             newsletter.add_subscriber(email, source=source)
-        except newsletter.EmailUnacceptableError as e:
+        except newsletter.EmailUnacceptableError:
             c.errors.add(errors.NEWSLETTER_EMAIL_UNACCEPTABLE, field="email")
             responder.has_errors("email", errors.NEWSLETTER_EMAIL_UNACCEPTABLE)
             return
@@ -1003,7 +990,7 @@ class ApiController(RedditController):
                 not c.user_is_admin and
                 container.use_quotas):
             sr_ratelimit = SimpleRateLimit(
-                name="sr_%s_%s" % (str(type), container._id36),
+                name="sr_{}_{}".format(str(type), container._id36),
                 seconds=g.sr_quota_time,
                 limit=getattr(g, "sr_%s_quota" % type),
             )
@@ -1027,7 +1014,7 @@ class ApiController(RedditController):
             if form.has_errors("ban_message", errors.TOO_LONG):
                 return
             if ban_reason and note:
-                note = "%s: %s" % (ban_reason, note)
+                note = "{}: {}".format(ban_reason, note)
             elif ban_reason:
                 note = ban_reason
 
@@ -2230,7 +2217,7 @@ class ApiController(RedditController):
 
         if getattr(link, "promoted", None) and link.disable_comments:
             message = blockquote_text(message) + "\n\n" if message else ""
-            message += '\n%s\n\n%s\n\n' % (link_title, link.url)
+            message += '\n{}\n\n{}\n\n'.format(link_title, link.url)
             email_message = pm_message = message
         else:
             message = blockquote_text(message) + "\n\n" if message else ""
@@ -2273,7 +2260,7 @@ class ApiController(RedditController):
         subject = "%s has shared a link with you!" % c.user.name
         # Prepend this subject to the message - we're repeating ourselves
         # because it looks very abrupt without it.
-        pm_message = "%s\n\n%s" % (subject, pm_message)
+        pm_message = "{}\n\n{}".format(subject, pm_message)
         
         for target in users:
             m, inbox_rel = Message._new(c.user, target, subject,
@@ -2644,7 +2631,7 @@ class ApiController(RedditController):
 
         try:
             size = str_to_image(file).size
-        except (IOError, TypeError):
+        except (OSError, TypeError):
             errors['IMAGE_ERROR'] = _('Invalid image or general image error')
         else:
             if upload_type == 'icon':
@@ -2835,7 +2822,7 @@ class ApiController(RedditController):
         if sr and feature.is_enabled('related_subreddits'):
             keyword_fields.append('related_subreddits')
 
-        kw = {k: v for k, v in kw.iteritems() if k in keyword_fields}
+        kw = {k: v for k, v in kw.items() if k in keyword_fields}
 
         public_description = kw.pop('public_description')
         description = kw.pop('description')
@@ -3004,7 +2991,7 @@ class ApiController(RedditController):
                     msg %= (sr.name, ', '.join(collections))
                     emailer.sales_email(msg)
 
-            for k, v in kw.iteritems():
+            for k, v in kw.items():
                 if getattr(sr, k, None) != v:
                     ModAction.create(sr, c.user, action='editsettings',
                                      details=k)
@@ -4054,8 +4041,8 @@ class ApiController(RedditController):
         
         limit = 100  # max of 100 flair settings per call
         results = FlairCsv()
-        # encode to UTF-8, since csv module doesn't fully support unicode
-        infile = csv.reader(flair_csv.strip().encode('utf-8').split('\n'))
+        # Python 3's csv module fully supports Unicode strings
+        infile = csv.reader(flair_csv.strip().split('\n'))
         for i, row in enumerate(infile):
             line_result = results.add_line()
             line_no = i + 1
@@ -4098,7 +4085,7 @@ class ApiController(RedditController):
                 mode = 'added'
             else:
                 mode = 'removed'
-            line_result.status = '%s flair for user %s' % (mode, user.name)
+            line_result.status = '{} flair for user {}'.format(mode, user.name)
             line_result.ok = True
 
         return BoringPage(_("API"), content = results).render()
@@ -4448,7 +4435,7 @@ class ApiController(RedditController):
             jquery.apply_stylesheet_url(sr_stylesheet_url, sr_style_enabled)
 
             if not sr.header or header_url(sr.header) == g.default_header_url:
-                jquery.remove_header_image();
+                jquery.remove_header_image()
             else:
                 jquery.apply_header_image(header_url(sr.header),
                     sr.header_size, sr.header_title)
@@ -4594,7 +4581,7 @@ class ApiController(RedditController):
         If `exact` is true, only an exact match will be returned.
         """
         if query:
-            query = sr_path_rx.sub('\g<name>', query.strip())
+            query = sr_path_rx.sub(r'\g<name>', query.strip())
 
         names = []
         if query and exact:
@@ -4904,7 +4891,7 @@ class ApiController(RedditController):
             if account._id == c.user._id:
                 jquery('#developed-app-%s' % client._id).fadeOut()
             else:
-                jquery('li#app-dev-%s-%s' % (client._id, account._id)).fadeOut()
+                jquery('li#app-dev-{}-{}'.format(client._id, account._id)).fadeOut()
 
     @noresponse(VUser(),
                 VModhash(),
@@ -4926,7 +4913,7 @@ class ApiController(RedditController):
         if not form.has_error():
             try:
                 client.icon_url = media.upload_icon(icon_file, (72, 72))
-            except IOError, ex:
+            except OSError as ex:
                 c.errors.add(errors.BAD_IMAGE,
                              msg_params=dict(message=ex.message),
                              field='file')
@@ -5060,8 +5047,8 @@ class ApiController(RedditController):
 
         """
 
-        srs = [sr for sr in srs.values() if not isinstance(sr, FakeSubreddit)]
-        to_omit = [sr for sr in to_omit.values() if not isinstance(sr, FakeSubreddit)]
+        srs = [sr for sr in list(srs.values()) if not isinstance(sr, FakeSubreddit)]
+        to_omit = [sr for sr in list(to_omit.values()) if not isinstance(sr, FakeSubreddit)]
 
         omit_id36s = [sr._id36 for sr in to_omit]
         rec_srs = recommender.get_recommendations(srs, to_omit=omit_id36s)
@@ -5076,7 +5063,7 @@ class ApiController(RedditController):
     def POST_rec_feedback(self, form, jquery, action, srs):
         if form.has_errors("type", errors.INVALID_OPTION):
             return self.abort404()
-        AccountSRFeedback.record_feedback(c.user, srs.values(), action)
+        AccountSRFeedback.record_feedback(c.user, list(srs.values()), action)
 
 
     @validatedForm(

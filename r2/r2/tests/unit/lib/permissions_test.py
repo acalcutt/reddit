@@ -23,31 +23,32 @@
 
 import unittest
 
-from r2.lib.permissions import PermissionSet, ModeratorPermissionSet
+from r2.lib.permissions import ModeratorPermissionSet, PermissionSet
+
 
 class TestPermissionSet(PermissionSet):
     info = dict(x={}, y={})
 
 class PermissionSetTest(unittest.TestCase):
     def test_dumps(self):
-        self.assertEquals(
+        self.assertEqual(
             '+all', PermissionSet(all=True).dumps())
-        self.assertEquals(
+        self.assertEqual(
             '+all', PermissionSet(all=True, other=True).dumps())
-        self.assertEquals(
+        self.assertEqual(
             '+a,-b', PermissionSet(a=True, b=False).dumps())
 
     def test_loads(self):
-        self.assertEquals("", TestPermissionSet.loads(None).dumps())
-        self.assertEquals("", TestPermissionSet.loads("").dumps())
-        self.assertEquals("+x,+y", TestPermissionSet.loads("+x,+y").dumps())
-        self.assertEquals("+x,-y", TestPermissionSet.loads("+x,-y").dumps())
-        self.assertEquals("+all", TestPermissionSet.loads("+x,-y,+all").dumps())
-        self.assertEquals("+x,-y,+z",
+        self.assertEqual("", TestPermissionSet.loads(None).dumps())
+        self.assertEqual("", TestPermissionSet.loads("").dumps())
+        self.assertEqual("+x,+y", TestPermissionSet.loads("+x,+y").dumps())
+        self.assertEqual("+x,-y", TestPermissionSet.loads("+x,-y").dumps())
+        self.assertEqual("+all", TestPermissionSet.loads("+x,-y,+all").dumps())
+        self.assertEqual("+x,-y,+z",
                           TestPermissionSet.loads("+x,-y,+z").dumps())
         self.assertRaises(ValueError,
                           TestPermissionSet.loads, "+x,-y,+z", validate=True)
-        self.assertEquals(
+        self.assertEqual(
             "+x,-y",
             TestPermissionSet.loads("-all,+x,-y", validate=True).dumps())
 

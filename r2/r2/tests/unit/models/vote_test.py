@@ -1,5 +1,5 @@
-from mock import patch, MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock
 
 import pytz
 

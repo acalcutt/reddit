@@ -20,39 +20,36 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from r2.lib.db.tdb_sql import make_metadata, index_str, create_table
-
 import json
-import pytz
+import re
 import uuid
+from datetime import datetime
+from random import choice
+from time import time
 
+import pytz
+import sqlalchemy as sa
+import stripe
 from pycassa import NotFoundException
 from pycassa.system_manager import ASCII_TYPE, INT_TYPE, TIME_UUID_TYPE, UTF8_TYPE
 from pycassa.util import convert_uuid_to_time
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 from pylons.i18n import _, ungettext
-from datetime import datetime
-import sqlalchemy as sa
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.sql.expression import select
 from sqlalchemy.sql.functions import sum as sa_sum
 
-from r2.lib.utils import GoldPrice, randstr, to_date
-import re
-from random import choice
-from time import time
-
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.tdb_cassandra import NotFound, view_of
+from r2.lib.db.tdb_sql import create_table, index_str, make_metadata
+from r2.lib.memoize import memoize
+from r2.lib.utils import GoldPrice, randstr, to_date
 from r2.models import Account
 from r2.models.subreddit import Frontpage
 from r2.models.wiki import WikiPage, WikiPageIniItem
-from r2.lib.memoize import memoize
-
-import stripe
 
 gold_bonus_cutoff = datetime(2010,7,27,0,0,0,0,g.tz)
 gold_static_goal_cutoff = datetime(2013, 11, 7, tzinfo=g.display_tz)
@@ -95,9 +92,7 @@ indices = [index_str(gold_table, 'status', 'status'),
 create_table(gold_table, indices)
 
 
-class GoldRevenueGoalByDate(object):
-    __metaclass__ = tdb_cassandra.ThingMeta
-
+class GoldRevenueGoalByDate(metaclass=tdb_cassandra.ThingMeta):
     _use_db = True
     _cf_name = "GoldRevenueGoalByDate"
     _read_consistency_level = tdb_cassandra.CL.ONE
@@ -130,7 +125,7 @@ class GoldRevenueGoalByDate(object):
                 column_start=colkey,
                 column_count=1,
             )
-            return col.values()[0]
+            return list(col.values())[0]
         except NotFoundException:
             return None
 
@@ -175,7 +170,7 @@ class GildingsByThing(tdb_cassandra.View):
     @classmethod
     def get_gilder_ids(cls, thing):
         columns = cls.get_time_sorted_columns(thing._fullname)
-        return [int(account_id, 36) for account_id in columns.iterkeys()]
+        return [int(account_id, 36) for account_id in columns.keys()]
 
     @classmethod
     def create(cls, user, things):
@@ -208,7 +203,7 @@ class GildingsByDay(tdb_cassandra.View):
         key = cls._rowkey(date)
         columns = cls.get_time_sorted_columns(key)
         gildings = []
-        for name, json_blob in columns.iteritems():
+        for name, json_blob in columns.items():
             timestamp = convert_uuid_to_time(name)
             date = datetime.utcfromtimestamp(timestamp).replace(tzinfo=g.tz)
 
@@ -609,14 +604,14 @@ def creddits_lock(user):
 
 PENNIES_PER_SERVER_SECOND = {
     datetime.strptime(datestr, "%Y/%m/%d").date(): v
-    for datestr, v in g.live_config['pennies_per_server_second'].iteritems()
+    for datestr, v in g.live_config['pennies_per_server_second'].items()
 }
 
 
 def calculate_server_seconds(pennies, date):
     cutoff_dates = sorted(PENNIES_PER_SERVER_SECOND.keys())
     date = to_date(date)
-    key = max(filter(lambda cutoff_date: date >= cutoff_date, cutoff_dates))
+    key = max([cutoff_date for cutoff_date in cutoff_dates if date >= cutoff_date])
     rate = PENNIES_PER_SERVER_SECOND[key]
 
     # for simplicity all payment processor fees are $0.30 + 2.9%

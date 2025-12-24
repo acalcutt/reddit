@@ -37,12 +37,10 @@ import re
 import unicodedata
 
 import tinycss2
-
 from pylons.i18n import N_
 
 from r2.lib.contrib import rcssmin
 from r2.lib.utils import tup
-
 
 __all__ = ["validate_css"]
 
@@ -301,7 +299,7 @@ SAFE_PROPERTIES = {
     "transition-duration",
     "transition-property",
     "transition-timing-function",
-    "unicode-bidi",
+    "str-bidi",
     "vertical-align",
     "visibility",
     "voice-family",
@@ -394,7 +392,7 @@ def strip_vendor_prefix(identifier):
     return identifier
 
 
-class ValidationError(object):
+class ValidationError:
     def __init__(self, line_number, error_code, message_params=None):
         self.line = line_number
         self.error_code = error_code
@@ -410,7 +408,7 @@ class ValidationError(object):
         return ERROR_MESSAGES[self.error_code]
 
 
-class StylesheetValidator(object):
+class StylesheetValidator:
     def __init__(self, images):
         self.images = images
 
@@ -580,6 +578,6 @@ def validate_css(stylesheet, images):
     valid.
 
     """
-    assert isinstance(stylesheet, unicode)
+    assert isinstance(stylesheet, str)
     validator = StylesheetValidator(images)
     return validator.parse_and_validate(stylesheet)

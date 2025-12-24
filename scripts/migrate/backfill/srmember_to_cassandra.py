@@ -20,7 +20,6 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from collections import defaultdict
 
 import time
 
@@ -85,5 +84,5 @@ def migrate_srmember_subscribers(after_user_id=39566712):
         if i % 1000 == 0:
             new_proc_time = time.time()
             duration = new_proc_time - proc_time
-            print "%s (%.3f): %s - %s" % (i, duration, user_id, action_date)
+            print("{} ({:.3f}): {} - {}".format(i, duration, user_id, action_date))
             proc_time = new_proc_time

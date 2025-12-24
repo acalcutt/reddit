@@ -20,23 +20,22 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import os
 import mimetypes
+import os
 
 from mako.lookup import TemplateLookup
-from pylons.error import handle_mako_error
 from pylons.configuration import PylonsConfig
+from pylons.error import handle_mako_error
 
 import r2.lib.helpers
 from r2.config.paths import (
-    get_r2_path,
     get_built_statics_path,
+    get_r2_path,
     get_raw_statics_path,
 )
 from r2.config.routing import make_map
 from r2.lib.app_globals import Globals
 from r2.lib.configparse import ConfigValue
-
 
 mimetypes.init()
 

@@ -43,14 +43,13 @@ have to load all of the subreddits into memory, which would be ... bad.
 
 
 import gzip
-from StringIO import StringIO
+from io import StringIO
 
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from pylons import app_globals as g
 
-from r2.lib.sitemaps.generate import subreddit_sitemaps, sitemap_index
-
+from r2.lib.sitemaps.generate import sitemap_index, subreddit_sitemaps
 
 HEADERS = {
     'Content-Type': 'text/xml',
@@ -71,7 +70,7 @@ def upload_sitemap(key, sitemap):
 
 def store_subreddit_sitemap(bucket, index, sitemap):
     key = Key(bucket)
-    key.key = 'subreddit_sitemap/{0}.xml'.format(index)
+    key.key = 'subreddit_sitemap/{}.xml'.format(index)
     g.log.debug("Uploading %r", key)
 
     upload_sitemap(key, sitemap)

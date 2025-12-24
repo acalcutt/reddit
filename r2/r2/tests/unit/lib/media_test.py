@@ -22,11 +22,11 @@
 ###############################################################################
 
 import unittest
-
-from mock import patch
+from unittest.mock import patch
 
 from r2.lib.media import _get_scrape_url
 from r2.models import Link
+
 
 class TestGetScrapeUrl(unittest.TestCase):
     @patch('r2.lib.media.Link')

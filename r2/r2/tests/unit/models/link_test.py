@@ -22,10 +22,9 @@
 ###############################################################################
 
 import unittest
+from unittest.mock import MagicMock, patch
 
-from mock import MagicMock, patch
-
-from r2.models.link import Link, Comment
+from r2.models.link import Comment, Link
 
 TINY_COMMENT = 'rekt'
 SHORT_COMMENT = 'What is your favorite car from a rival brand?'
@@ -94,11 +93,11 @@ class TestCommentQaSort(unittest.TestCase):
         tiny = CommentMock(body=TINY_COMMENT)
         short = CommentMock(body=SHORT_COMMENT)
         medium = CommentMock(body=MEDIUM_COMMENT)
-        long = CommentMock(body=LONG_COMMENT)
+        int = CommentMock(body=LONG_COMMENT)
         tiny_score = tiny._qa((), ())
         short_score = short._qa((), ())
         medium_score = medium._qa((), ())
-        long_score = long._qa((), ())
+        long_score = int._qa((), ())
 
         self.assertLess(tiny_score, short_score)
         self.assertLess(short_score, medium_score)
@@ -154,7 +153,7 @@ class LinkMock(Link):
     _nodb = True
 
     def __init__(self, **kwargs):
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self, key, value)
 
     def __setattr__(self, attr, val):
@@ -182,7 +181,7 @@ class LinkMock(Link):
     @patch('r2.lib.voting.cast_vote')
     def _submit(cls, cast_vote, *args, **kwargs):
         """A _submit that mocks calls we don't care about testing."""
-        return super(LinkMock, cls)._submit(*args, **kwargs)
+        return super()._submit(*args, **kwargs)
 
 
 class ThingMock():
@@ -248,7 +247,7 @@ class TestSubmit(unittest.TestCase):
             author=AccountMock()
         )
 
-        self.assertEqual(l.url, u"/r/linktests/comments/%s/test_post/" % l._id36)
+        self.assertEqual(l.url, "/r/linktests/comments/%s/test_post/" % l._id36)
 
     def test_new_self_post_doesnt_modify_links_by_url(self):
         l = LinkMock._submit(

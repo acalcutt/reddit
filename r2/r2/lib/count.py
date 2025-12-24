@@ -20,12 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from r2.models import Link, Subreddit
+from pylons import app_globals as g
+from pylons import config
+
 from r2.lib import utils
 from r2.lib.db.operators import desc
-from pylons import config
-from pylons import app_globals as g
-
+from r2.models import Link, Subreddit
 
 count_period = g.rising_period
 
@@ -37,12 +37,12 @@ def incr_counts(wrapped):
 def get_link_counts(period = count_period):
     links = Link._query(Link.c._date >= utils.timeago(period),
                         limit=50, data = True)
-    return dict((l._fullname, (0, l.sr_id)) for l in links)
+    return {l._fullname: (0, l.sr_id) for l in links}
 
 def get_sr_counts():
     srs = utils.fetch_things2(Subreddit._query(sort=desc("_date")))
 
-    return dict((sr._fullname, sr._ups) for sr in srs)
+    return {sr._fullname: sr._ups for sr in srs}
 
 
 if config['r2.import_private']:

@@ -20,13 +20,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import sys
 import os.path
-import pkg_resources
+import sys
 from collections import OrderedDict
 
+import pkg_resources
 
-class Plugin(object):
+
+class Plugin:
     js = {}
     config = {}
     live_config = {}
@@ -64,7 +65,7 @@ class Plugin(object):
             from r2.lib import js
             module_registry = js.module
 
-        for name, module in self.js.iteritems():
+        for name, module in self.js.items():
             if name not in module_registry:
                 module_registry[name] = module
             else:
@@ -83,7 +84,7 @@ class Plugin(object):
         return []
 
 
-class PluginLoader(object):
+class PluginLoader:
     def __init__(self, working_set=None, plugin_names=None):
         self.working_set = working_set or pkg_resources.WorkingSet()
 
@@ -93,10 +94,10 @@ class PluginLoader(object):
             entry_points = []
             for name in plugin_names:
                 try:
-                    entry_point = self.available_plugins(name).next()
+                    entry_point = next(self.available_plugins(name))
                 except StopIteration:
-                    print >> sys.stderr, ("Unable to locate plugin "
-                                          "%s. Skipping." % name)
+                    print(("Unable to locate plugin "
+                                          "%s. Skipping." % name), file=sys.stderr)
                     continue
                 else:
                     entry_points.append(entry_point)
@@ -110,8 +111,8 @@ class PluginLoader(object):
                     # if this plugin was specifically requested, fail.
                     raise e
                 else:
-                    print >> sys.stderr, ("Error loading plugin %s (%s)."
-                                          " Skipping." % (entry_point.name, e))
+                    print(("Error loading plugin %s (%s)."
+                                          " Skipping." % (entry_point.name, e)), file=sys.stderr)
                     continue
             self.plugins[entry_point.name] = plugin_cls(entry_point)
 
@@ -119,10 +120,10 @@ class PluginLoader(object):
         return len(self.plugins)
 
     def __iter__(self):
-        return self.plugins.itervalues()
+        return iter(self.plugins.values())
 
     def __reversed__(self):
-        return reversed(self.plugins.values())
+        return reversed(list(self.plugins.values()))
 
     def __getitem__(self, key):
         return self.plugins[key]
@@ -159,5 +160,4 @@ class PluginLoader(object):
 
     def get_documented_controllers(self):
         for plugin in self:
-            for controller, url_prefix in plugin.get_documented_controllers():
-                yield controller, url_prefix
+            yield from plugin.get_documented_controllers()

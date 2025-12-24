@@ -27,12 +27,12 @@ Tools to check if arbitrary HTML fragments would be safe to embed inline
 import os
 import re
 import sys
-import urllib
-import urlparse
+import urllib.error
+import urllib.parse
+import urllib.request
+from io import StringIO
 
 import lxml.etree
-
-from cStringIO import StringIO
 
 valid_link_schemes = (
     '/',
@@ -83,7 +83,7 @@ def souptest_sniff_node(node):
         if node.text.strip() not in {"SC_ON", "SC_OFF"}:
             raise SoupUnexpectedCommentError(node)
     # Looks like all nodes but `Element` have functions in `.tag`
-    elif isinstance(node.tag, basestring):
+    elif isinstance(node.tag, str):
         # namespaces are tacked onto the front of the tag / attr name if
         # applicable so we don't need to worry about checking for those.
         tag_name = node.tag
@@ -99,11 +99,11 @@ def souptest_sniff_node(node):
                 if not lv.startswith(valid_link_schemes):
                     raise SoupUnsupportedSchemeError(val)
                 # work around CRBUG-464270
-                parsed_url = urlparse.urlparse(lv)
+                parsed_url = urllib.parse.urlparse(lv)
                 if parsed_url.hostname and len(parsed_url.hostname) > 255:
                     raise SoupDetectedCrasherError(parsed_url.hostname)
                 # work around for Chrome crash with "%%30%30" - Sep 2015
-                if "%00" in urllib.unquote(parsed_url.path):
+                if "%00" in urllib.parse.unquote(parsed_url.path):
                     raise SoupDetectedCrasherError(lv)
     else:
         # Processing instructions and friends fall down here.
@@ -137,7 +137,7 @@ def souptest_fragment(fragment):
     if souptest_doctype is None:
         # Slurp in all of the entity definitions so we can avoid a read every
         # time we parse
-        with open(ENTITY_DTD_PATH, 'r') as ent_file:
+        with open(ENTITY_DTD_PATH) as ent_file:
             souptest_doctype = SOUPTEST_DOCTYPE_FMT % ent_file.read()
         souptest_fragment.souptest_doctype = souptest_doctype
 
@@ -152,7 +152,7 @@ def souptest_fragment(fragment):
     # We also need to wrap everything in a div, as lxml throws out
     # comments outside the root tag. This also ensures that attempting an
     # entity declaration or similar shenanigans will cause a syntax error.
-    documentized_fragment = "%s<div>%s</div>" % (souptest_doctype, fragment)
+    documentized_fragment = "{}<div>{}</div>".format(souptest_doctype, fragment)
     s = StringIO(documentized_fragment)
 
     try:
@@ -167,12 +167,12 @@ def souptest_fragment(fragment):
         # In XML some characters are illegal even as references, thankfully
         # they're almost all control codes: (`&#x00;`, `&#x1c;`, etc.)
         if value.msg.startswith('xmlParseCharRef: invalid xmlChar '):
-            raise SoupUnsupportedEntityError, (value,), trace
+            raise SoupUnsupportedEntityError(value,).with_traceback(trace)
         undef_ent = re.match(UNDEFINED_ENTITY_RE, value.msg)
         if undef_ent:
-            raise SoupUnsupportedEntityError, (value, undef_ent.group(1)), trace
+            raise SoupUnsupportedEntityError(value, undef_ent.group(1)).with_traceback(trace)
 
-        raise SoupSyntaxError, (value,), trace
+        raise SoupSyntaxError(value,).with_traceback(trace)
 
 
 class SoupError(Exception):
@@ -188,7 +188,7 @@ class SoupReprError(SoupError):
         self.obj = obj
 
     def __str__(self):
-        return "HAX: %s: %r" % (self.HUMAN_MESSAGE, self.obj)
+        return "HAX: {}: {!r}".format(self.HUMAN_MESSAGE, self.obj)
 
 
 class SoupSyntaxError(SoupReprError):

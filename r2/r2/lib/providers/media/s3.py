@@ -25,12 +25,10 @@ import os
 import re
 
 import boto
-
 from pylons import app_globals as g
 
 from r2.lib.configparse import ConfigValue
 from r2.lib.providers.media import MediaProvider
-
 
 _NEVER = "Thu, 31 Dec 2037 23:59:59 GMT"
 
@@ -84,9 +82,9 @@ class S3MediaProvider(MediaProvider):
 
     def _get_bucket_key_from_url(self, url):
         if g.s3_media_domain in url:
-            r_bucket = re.compile('.*\://(?:%s.)?([^\/]+)' % g.s3_media_domain)
+            r_bucket = re.compile(r'.*\://(?:%s.)?([^\/]+)' % g.s3_media_domain)
         else:
-            r_bucket = re.compile('.*\://?([^\/]+)')
+            r_bucket = re.compile(r'.*\://?([^\/]+)')
 
         bucket_name = r_bucket.findall(url)[0]
         key_name = url.split('/')[-1]
@@ -133,7 +131,7 @@ class S3MediaProvider(MediaProvider):
         bucket = self._get_bucket(bucket_name, validate=False)
         key = bucket.new_key(name)
 
-        if isinstance(contents, basestring):
+        if isinstance(contents, str):
             set_fn = key.set_contents_from_string
         else:
             set_fn = key.set_contents_from_file
@@ -147,9 +145,9 @@ class S3MediaProvider(MediaProvider):
         )
 
         if g.s3_media_direct:
-            return "http://%s/%s/%s" % (g.s3_media_domain, bucket_name, name)
+            return "http://{}/{}/{}".format(g.s3_media_domain, bucket_name, name)
         else:
-            return "http://%s/%s" % (bucket_name, name)
+            return "http://{}/{}".format(bucket_name, name)
 
     def purge(self, url):
         """Deletes the key as specified by the url"""

@@ -20,13 +20,15 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import app_globals as g
-from datetime import timedelta as timedelta
-from datetime import datetime
-import sqlalchemy as sa
-from r2.lib.db.tdb_lite import tdb_lite
-import pytz
 import random
+from datetime import datetime
+from datetime import timedelta as timedelta
+
+import pytz
+import sqlalchemy as sa
+from pylons import app_globals as g
+
+from r2.lib.db.tdb_lite import tdb_lite
 
 COUNT_CATEGORY = 'hc_count'
 ELAPSED_CATEGORY = 'hc_elapsed'
@@ -37,7 +39,7 @@ def expiration_from_time(time):
         raise ValueError ("HardCache items *must* have an expiration time")
     return datetime.now(TZ) + timedelta(0, time)
 
-class HardCacheBackend(object):
+class HardCacheBackend:
     def __init__(self, gc):
         self.tdb = tdb_lite(gc)
         self.profile_categories = {}
@@ -72,7 +74,7 @@ class HardCacheBackend(object):
                     all_enginenames.add(c)
                     enginenames_by_category[category].append(c)
 
-        assert('*' in enginenames_by_category.keys())
+        assert('*' in list(enginenames_by_category.keys()))
 
         engines_by_enginename = {}
         for enginename in all_enginenames:
@@ -84,7 +86,7 @@ class HardCacheBackend(object):
             engines_by_enginename[enginename] = table
 
         self.mapping = {}
-        for category, enginenames in enginenames_by_category.iteritems():
+        for category, enginenames in enginenames_by_category.items():
             self.mapping[category] = [ engines_by_enginename[e]
                                        for e in enginenames]
 
@@ -182,7 +184,7 @@ class HardCacheBackend(object):
             self.profile_stop(prof)
             return value
 
-        except sa.exc.IntegrityError, e:
+        except sa.exc.IntegrityError:
             self.profile_stop(prof)
             return self.get(category, ids, force_write_table=True)
 
@@ -269,7 +271,7 @@ class HardCacheBackend(object):
 
         for row in rows:
           if row.expiration >= datetime.now(TZ):
-              k = "%s-%s" % (category, row.ids)
+              k = "{}-{}".format(category, row.ids)
               results[k] = self.tdb.db2py(row.value, row.kind)
 
         return results
@@ -329,7 +331,7 @@ def delete_expired(expiration="now", limit=5000):
 
     masters = set()
 
-    for engines in backend.mapping.values():
+    for engines in list(backend.mapping.values()):
         masters.add(engines[0])
 
     for engine in masters:

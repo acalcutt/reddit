@@ -20,25 +20,25 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from account import *
-from ip import *
-from link import *
-from listing import *
-from vote import *
-from report import *
-from rules import *
-from subreddit import *
-from flair import *
-from award import *
-from bidding import *
-from mail_queue import Email, has_opted_out, opt_count
-from gold import *
-from admintools import *
-from token import *
-from modaction import *
-from promo import *
+from .account import *
+from .admintools import *
+from .award import *
+from .bidding import *
 
 # r2.models.builder will import other models, so pulling its classes/vars into
 # r2.models needs to be done last to ensure that the models it depends
 # on are already loaded.
-from builder import *
+from .builder import *
+from .flair import *
+from .gold import *
+from .ip import *
+from .link import *
+from .listing import *
+from .mail_queue import Email, has_opted_out, opt_count
+from .modaction import *
+from .promo import *
+from .report import *
+from .rules import *
+from .subreddit import *
+from .token import *
+from .vote import *

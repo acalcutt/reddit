@@ -22,21 +22,18 @@
 ###############################################################################
 
 import collections
-import unittest
 import contextlib
-import math
 import functools
-import traceback
+import math
 import sys
-
-from mock import MagicMock, patch
-from pylons import request
-from pylons import app_globals as g
+import traceback
+import unittest
+from unittest.mock import patch
 
 from r2.lib import utils
 
 
-class CrappyQuery(object):
+class CrappyQuery:
     """Helper class for testing.
     It satisfies the methods fetch_things2 will call on a query
     and also generator interface.
@@ -109,7 +106,7 @@ class CrappyQuery(object):
         self.i += 1
         return ret
 
-    def next(self):
+    def __next__(self):
         return self.__next__()
 
     def __call__(self):
@@ -138,10 +135,10 @@ class UtilsTest(unittest.TestCase):
             with patch('time.sleep', new=record_sleep_times):
                 yield
         finally:
-            self.assertEquals(len(sleepy_times), num)
+            self.assertEqual(len(sleepy_times), num)
             walker = start / 1000.0
             for i in sleepy_times:
-                self.assertEquals(i, walker)
+                self.assertEqual(i, walker)
                 walker *= 2
 
     def test_exponential_retrier(self):
@@ -169,14 +166,14 @@ class UtilsTest(unittest.TestCase):
         with self.check_exponential_backoff_sleep_times(500, 0):
             # first call to crappy_function should return zero without
             # any retrying
-            self.assertEquals(0,
+            self.assertEqual(0,
                               utils.exponential_retrier(
                                   crappy_function,
                                   max_retries=num_retries))
 
         with self.check_exponential_backoff_sleep_times(500, num_retries):
             # this should return 6 as we will retry 5 times
-            self.assertEquals(6,
+            self.assertEqual(6,
                               utils.exponential_retrier(
                                   crappy_function,
                                   max_retries=num_retries))
@@ -200,12 +197,10 @@ class UtilsTest(unittest.TestCase):
                                           max_retries=num_retries)
             except ValueError as e:
                 # test that exception caught here has proper stack trace
-                self.assertTrue(any(map(
-                    lambda x: x[3] == "raise ValueError(\"foo %d\" % ret)",
-                    traceback.extract_tb(sys.exc_traceback))))
+                self.assertTrue(any([x[3] == "raise ValueError(\"foo %d\" % ret)" for x in traceback.extract_tb(sys.exc_info()[2])]))
                 error = e
 
-            self.assertEquals(error.message, "foo %d" % num_retries)
+            self.assertEqual(error.message, "foo %d" % num_retries)
 
         with patch('time.sleep'):
             # check that exception is rethrown if we pass
@@ -226,7 +221,7 @@ class UtilsTest(unittest.TestCase):
             except ValueError as e:
                 error = e
 
-            self.assertEquals(error.message, "foo 0")
+            self.assertEqual(error.message, "foo 0")
 
     def test_retriable_fetch_things_passthrough(self):
         # test simple pass through case
@@ -245,9 +240,9 @@ class UtilsTest(unittest.TestCase):
         crappy_query = CrappyQuery(0, end, 0)
         generated = list(fetch_things_with_retry(crappy_query))
 
-        self.assertEquals(generated, range(0, end))
-        self.assertEquals(crappy_query.total_num_failed, 0)
-        self.assertEquals(crappy_query.num_after_was_called, num_chunks)
+        self.assertEqual(generated, list(range(0, end)))
+        self.assertEqual(crappy_query.total_num_failed, 0)
+        self.assertEqual(crappy_query.num_after_was_called, num_chunks)
 
     def test_retriable_fetch_things_exception_rethrow(self):
         # test that exception is rethrown if we run out of retries
@@ -273,8 +268,8 @@ class UtilsTest(unittest.TestCase):
 
             # after should not have ever been called because
             # getting the first chunk should have failed
-            self.assertEquals(0, crappy_query.num_after_was_called)
-            self.assertEquals("FOO %d %d %d" % (0, 0, num_retries + 1),
+            self.assertEqual(0, crappy_query.num_after_was_called)
+            self.assertEqual("FOO %d %d %d" % (0, 0, num_retries + 1),
                               error.message)
 
         # test same thing but failing in subsequent chunk
@@ -289,10 +284,10 @@ class UtilsTest(unittest.TestCase):
                 error = e
 
             # we should have generated some partial results
-            self.assertEquals(generated, range(0, chunk_size * 2))
-            self.assertEquals("FOO %d %d %d" % (10, 2, num_retries + 1),
+            self.assertEqual(generated, list(range(0, chunk_size * 2)))
+            self.assertEqual("FOO %d %d %d" % (10, 2, num_retries + 1),
                               error.message)
-            self.assertEquals(2, crappy_query.num_after_was_called)
+            self.assertEqual(2, crappy_query.num_after_was_called)
 
     def test_retriable_fetch_things_recover_from_fail(self):
         # test that we get all of the numbers in the range
@@ -313,7 +308,7 @@ class UtilsTest(unittest.TestCase):
             crappy_query = CrappyQuery(0, end, num_retries - 1)
             generated = list(fetch_things_with_retry(crappy_query))
 
-            self.assertEquals(generated, range(0, end))
+            self.assertEqual(generated, list(range(0, end)))
             self.assertEqual(num_chunks,
                              crappy_query.num_after_was_called)
 
@@ -321,22 +316,22 @@ class UtilsTest(unittest.TestCase):
             crappy_query = CrappyQuery(0, end, num_retries - 1, 2)
             generated = list(fetch_things_with_retry(crappy_query))
 
-            self.assertEquals(generated, range(0, end))
-            self.assertEquals(num_chunks,
+            self.assertEqual(generated, list(range(0, end)))
+            self.assertEqual(num_chunks,
                               crappy_query.num_after_was_called)
 
         # test same thing as above but with chunks=True
         with patch('time.sleep'):
             expected = []
             for i in range(0, num_chunks):
-                expected.append(range(i * chunk_size,
-                                      i * chunk_size + chunk_size))
+                expected.append(list(range(i * chunk_size,
+                                      i * chunk_size + chunk_size)))
 
             crappy_query = CrappyQuery(0, end, num_retries - 1)
             generated = list(fetch_things_with_retry(crappy_query,
                                                      chunks=True))
 
-            self.assertEquals(generated, expected)
+            self.assertEqual(generated, expected)
             self.assertEqual(num_chunks,
                              crappy_query.num_after_was_called)
 
@@ -345,8 +340,8 @@ class UtilsTest(unittest.TestCase):
             generated = list(fetch_things_with_retry(crappy_query,
                                                      chunks=True))
 
-            self.assertEquals(generated, expected)
-            self.assertEquals(num_chunks,
+            self.assertEqual(generated, expected)
+            self.assertEqual(num_chunks,
                               crappy_query.num_after_was_called)
 
     def test_weighted_lottery(self):
@@ -354,8 +349,8 @@ class UtilsTest(unittest.TestCase):
             [('x', 2), (None, 0), (None, 0), ('y', 3), ('z', 1)])
 
         def expect(result, random_value):
-            scaled_r = float(random_value) / sum(weights.itervalues())
-            self.assertEquals(
+            scaled_r = float(random_value) / sum(weights.values())
+            self.assertEqual(
                 result,
                 utils.weighted_lottery(weights, _random=lambda: scaled_r))
 
@@ -368,69 +363,69 @@ class UtilsTest(unittest.TestCase):
         self.assertRaises(ValueError, expect, None, 6)
 
     def test_extract_subdomain(self):
-        self.assertEquals(
+        self.assertEqual(
             utils.extract_subdomain('beta.reddit.com', 'reddit.com'),
             'beta')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.extract_subdomain('beta.reddit.local:8000', 'reddit.local'),
             'beta')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.extract_subdomain('reddit.com', 'reddit.com'),
             '')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.extract_subdomain('internet-frontpage.com', 'reddit.com'),
             '')
 
     def test_coerce_url_to_protocol(self):
-        self.assertEquals(
+        self.assertEqual(
             utils.coerce_url_to_protocol('http://example.com/foo'),
             'http://example.com/foo')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.coerce_url_to_protocol('https://example.com/foo'),
             'http://example.com/foo')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.coerce_url_to_protocol('//example.com/foo'),
             'http://example.com/foo')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.coerce_url_to_protocol('http://example.com/foo', 'https'),
             'https://example.com/foo')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.coerce_url_to_protocol('https://example.com/foo', 'https'),
             'https://example.com/foo')
 
-        self.assertEquals(
+        self.assertEqual(
             utils.coerce_url_to_protocol('//example.com/foo', 'https'),
             'https://example.com/foo')
 
     def test_sanitize_url(self):
-        self.assertEquals(
+        self.assertEqual(
             utils.sanitize_url('http://dk./'),
             'http://dk/'
         )
 
-        self.assertEquals(
+        self.assertEqual(
             utils.sanitize_url('http://google.com./'),
             'http://google.com/'
         )
 
-        self.assertEquals(
+        self.assertEqual(
             utils.sanitize_url('http://google.com/'),
             'http://google.com/'
         )
 
-        self.assertEquals(
+        self.assertEqual(
             utils.sanitize_url('https://github.com/reddit/reddit/pull/1302'),
             'https://github.com/reddit/reddit/pull/1302'
         )
 
-        self.assertEquals(
+        self.assertEqual(
             utils.sanitize_url('http://dk../'),
             None
         )
@@ -439,33 +434,33 @@ class UtilsTest(unittest.TestCase):
 class TestCanonicalizeEmail(unittest.TestCase):
     def test_empty_string(self):
         canonical = utils.canonicalize_email("")
-        self.assertEquals(canonical, "")
+        self.assertEqual(canonical, "")
 
     def test_unicode(self):
-        canonical = utils.canonicalize_email(u"\u2713@example.com")
-        self.assertEquals(canonical, "\xe2\x9c\x93@example.com")
+        canonical = utils.canonicalize_email("\\u2713@example.com")
+        self.assertEqual(canonical, "\xe2\x9c\x93@example.com")
 
     def test_localonly(self):
         canonical = utils.canonicalize_email("invalid")
-        self.assertEquals(canonical, "")
+        self.assertEqual(canonical, "")
 
     def test_multiple_ats(self):
         canonical = utils.canonicalize_email("invalid@invalid@invalid")
-        self.assertEquals(canonical, "")
+        self.assertEqual(canonical, "")
 
     def test_remove_dots(self):
         canonical = utils.canonicalize_email("d.o.t.s@example.com")
-        self.assertEquals(canonical, "dots@example.com")
+        self.assertEqual(canonical, "dots@example.com")
 
     def test_remove_plus_address(self):
         canonical = utils.canonicalize_email("fork+nork@example.com")
-        self.assertEquals(canonical, "fork@example.com")
+        self.assertEqual(canonical, "fork@example.com")
 
     def test_unicode_in_byte_str(self):
         # this shouldn't ever happen, but some entries in postgres appear
         # to be byte strings with non-ascii in 'em.
         canonical = utils.canonicalize_email("\xe2\x9c\x93@example.com")
-        self.assertEquals(canonical, "\xe2\x9c\x93@example.com")
+        self.assertEqual(canonical, "\xe2\x9c\x93@example.com")
 
 
 class TestTruncString(unittest.TestCase):

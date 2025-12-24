@@ -22,7 +22,7 @@
 
 from pylons import config
 
-from validator import *
+from .validator import *
 
 if config['r2.import_private']:
     from r2admin.lib.validator import *

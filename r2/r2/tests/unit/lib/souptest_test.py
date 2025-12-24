@@ -24,7 +24,6 @@
 import unittest
 
 from r2.lib.souptest import (
-    souptest_fragment,
     SoupDetectedCrasherError,
     SoupError,
     SoupSyntaxError,
@@ -35,6 +34,7 @@ from r2.lib.souptest import (
     SoupUnsupportedNodeError,
     SoupUnsupportedSchemeError,
     SoupUnsupportedTagError,
+    souptest_fragment,
 )
 
 

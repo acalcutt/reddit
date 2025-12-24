@@ -23,7 +23,7 @@
 import json
 from datetime import datetime
 
-from pycassa.system_manager import UTF8_TYPE, TIME_UUID_TYPE
+from pycassa.system_manager import TIME_UUID_TYPE, UTF8_TYPE
 from pycassa.util import convert_uuid_to_time
 from pylons import app_globals as g
 
@@ -57,7 +57,7 @@ class AdminNotesBySystem(tdb_cassandra.View):
         except tdb_cassandra.NotFoundException:
             return []
         result = []
-        for uuid, json_blob in query.iteritems():
+        for uuid, json_blob in query.items():
             when = datetime.fromtimestamp(convert_uuid_to_time(uuid), tz=g.tz)
             payload = json.loads(json_blob)
             payload['when'] = when
@@ -66,4 +66,4 @@ class AdminNotesBySystem(tdb_cassandra.View):
 
     @classmethod
     def _rowkey(cls, system_name, subject):
-        return "%s:%s" % (system_name, subject)
+        return "{}:{}".format(system_name, subject)

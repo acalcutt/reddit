@@ -22,19 +22,18 @@
 
 from pylons import config
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.i18n import N_
 
-from r2.lib.wrapped import Templated
-from r2.lib.pages import LinkInfoBar, Reddit
 from r2.lib.menus import (
-    NamedButton,
     NavButton,
-    menu,
     NavMenu,
     OffsiteButton,
+    menu,
 )
+from r2.lib.pages import LinkInfoBar, Reddit
 from r2.lib.utils import timesince
+from r2.lib.wrapped import Templated
+
 
 def admin_menu(**kwargs):
     buttons = [

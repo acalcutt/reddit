@@ -24,15 +24,13 @@ import json
 import os
 import token
 import tokenize
-
-from babel.messages.extract import extract_javascript
-from cStringIO import StringIO
+from io import StringIO
 
 import babel.messages.frontend
 import babel.messages.pofile
 import pylons
-
-from pylons.i18n.translation import translation, LanguageError, NullTranslations
+from babel.messages.extract import extract_javascript
+from pylons.i18n.translation import LanguageError, NullTranslations, translation
 
 try:
     import reddit_i18n
@@ -55,7 +53,7 @@ def _get_translator(lang, graceful_fail=False, **kwargs):
     try:
         translator = translation(config['pylons.package'], I18N_PATH,
                                  languages=lang, **kwargs)
-    except IOError, ioe:
+    except OSError as ioe:
         if graceful_fail:
             translator = NullTranslations()
         else:
@@ -139,7 +137,7 @@ def get_active_langs(config, path=I18N_PATH, default_lang='en'):
 def get_catalog(lang):
     """Return a Catalog object given the language code."""
     path = os.path.join(I18N_PATH, lang, "LC_MESSAGES", "r2.po")
-    with open(path, "r") as f:
+    with open(path) as f:
         return babel.messages.pofile.read_po(f)
 
 
@@ -152,11 +150,10 @@ def validate_plural_forms(plural_forms_str):
     try:
         danger = [x for x in tokens if x[0] == token.NAME and x[1] != 'n']
     except tokenize.TokenError:
-        raise ValueError, \
-              'plural forms expression error, maybe unbalanced parenthesis'
+        raise ValueError('plural forms expression error, maybe unbalanced parenthesis')
     else:
         if danger:
-            raise ValueError, 'plural forms expression could be dangerous'
+            raise ValueError('plural forms expression could be dangerous')
 
 
 def extract_javascript_msgids(source):

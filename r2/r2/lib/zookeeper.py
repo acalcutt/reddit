@@ -20,15 +20,17 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import os
-import json
-import urllib
 import functools
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 import zlib
 
 from kazoo.client import KazooClient
-from kazoo.security import make_digest_acl
 from kazoo.exceptions import NoNodeException
+from kazoo.security import make_digest_acl
 
 from r2.lib import hooks
 from r2.lib.contrib import ipaddress
@@ -55,7 +57,7 @@ def connect_to_zookeeper(hostlist, credentials):
     return client
 
 
-class LiveConfig(object):
+class LiveConfig:
     """A read-only dictionary view of configuration retrieved from ZooKeeper.
 
     The data will be parsed using the given configuration specs, exactly like
@@ -80,13 +82,13 @@ class LiveConfig(object):
         return self.data.get(key, default)
 
     def iteritems(self):
-        return self.data.iteritems()
+        return iter(self.data.items())
 
     def __repr__(self):
         return "<LiveConfig %r>" % self.data
 
 
-class LiveList(object):
+class LiveList:
     """A mutable set shared by all apps and backed by ZooKeeper."""
     def __init__(self, client, root, map_fn=None, reduce_fn=lambda L: L,
                  watch=True):
@@ -107,12 +109,12 @@ class LiveList(object):
                 self.data = self._normalize_children(children, reduce=True)
 
     def _nodepath(self, item):
-        escaped = urllib.quote(str(item), safe=":")
+        escaped = urllib.parse.quote(str(item), safe=":")
         return os.path.join(self.root, escaped)
 
     def _normalize_children(self, children, reduce):
-        unquoted = (urllib.unquote(c) for c in children)
-        mapped = map(self.map_fn, unquoted)
+        unquoted = (urllib.parse.unquote(c) for c in children)
+        mapped = list(map(self.map_fn, unquoted))
 
         if reduce:
             return list(self.reduce_fn(mapped))
@@ -146,11 +148,11 @@ class LiveList(object):
         return len(self.data)
 
     def __repr__(self):
-        return "<LiveList %r (%s)>" % (self.data,
+        return "<LiveList {!r} ({})>".format(self.data,
                                        "push" if self.is_watching else "pull")
 
 
-class ReducedLiveList(object):
+class ReducedLiveList:
     """Store a copy of the reduced data in addition to the full LiveList.
 
     This is useful for cases where the map/reduce phase is slow and CPU
@@ -212,7 +214,7 @@ class ReducedLiveList(object):
         return len(self.data)
 
     def __repr__(self):
-        return "<%s %r>" % (self.__class__.__name__, self.data)
+        return "<{} {!r}>".format(self.__class__.__name__, self.data)
 
 
 class IPNetworkLiveList(ReducedLiveList):

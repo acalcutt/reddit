@@ -20,9 +20,11 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from reddit_base import RedditController
-from r2.lib.pages import AdminPage, AdminCreddits, AdminGold
-from r2.lib.validator import nop, validate, VAdmin
+from r2.lib.pages import AdminCreddits, AdminGold, AdminPage
+from r2.lib.validator import VAdmin, nop, validate
+
+from .reddit_base import RedditController
+
 
 class AdminToolController(RedditController):
     @validate(

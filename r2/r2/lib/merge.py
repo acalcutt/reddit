@@ -20,12 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import difflib
 import subprocess
 import tempfile
-import difflib
-from pylons.i18n import _
-from pylons import app_globals as g
 
+from pylons import app_globals as g
+from pylons.i18n import _
 
 MAX_DIFF_LINE_LENGTH = 4000
 
@@ -81,8 +81,8 @@ if __name__ == "__main__":
     a = "Hello people of the human rance\n\nHow are you today"
     b = "Hello people of the human race\n\nHow are you tday"
     
-    print threewaymerge(original, a, b)
+    print(threewaymerge(original, a, b))
     
     g.diff3_temp_location = '/dev/shm'
     
-    print threewaymerge(original, a, b)
+    print(threewaymerge(original, a, b))

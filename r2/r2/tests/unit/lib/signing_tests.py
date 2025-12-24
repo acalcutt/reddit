@@ -1,9 +1,9 @@
-from mock import MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from pylons import app_globals as g
 
-from r2.tests import RedditTestCase
 from r2.lib import signing
+from r2.tests import RedditTestCase
 
 
 class SigningTests(RedditTestCase):
@@ -50,9 +50,9 @@ class SigningTests(RedditTestCase):
         else:
             self.assertEqual(len(signature.errors), 0)
         has_mac = expected.pop("has_mac", False)
-        for k, v in expected.iteritems():
+        for k, v in expected.items():
             got = getattr(signature, k)
-            self.assertEqual(got, v, "signature.%s: %s != %s" % (k, got, v))
+            self.assertEqual(got, v, "signature.{}: {} != {}".format(k, got, v))
 
         if has_mac:
             self.assertTrue(bool(signature.mac))
@@ -147,7 +147,7 @@ class SigningTests(RedditTestCase):
         body = '{"user": "reddit", "password": "hunter2"}'
         platform = "test"
         version = 1
-        header = "1:%s:%s:deadbeef" % (platform, version)
+        header = "1:{}:{}:deadbeef".format(platform, version)
         self.assert_invalid(
             body,
             header=header,
@@ -159,7 +159,7 @@ class SigningTests(RedditTestCase):
         body = '{"user": "reddit", "password": "hunter2"}'
         platform = "test"
         version = 1
-        header = "1:%s:%s:0:deadbeef" % (platform, version)
+        header = "1:{}:{}:0:deadbeef".format(platform, version)
         self.assert_invalid(
             body,
             header=header,

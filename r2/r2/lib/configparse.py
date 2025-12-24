@@ -23,7 +23,7 @@
 import re
 
 
-class ConfigValue(object):
+class ConfigValue:
     _bool_map = dict(true=True, false=False)
 
     @staticmethod
@@ -45,7 +45,7 @@ class ConfigValue(object):
         try:
             return ConfigValue._bool_map[v.lower()]
         except KeyError:
-            raise ValueError("Unknown value for %r: %r" % (key, v))
+            raise ValueError("Unknown value for {!r}: {!r}".format(key, v))
 
     @staticmethod
     def tuple(v, key=None):
@@ -58,8 +58,8 @@ class ConfigValue(object):
     @staticmethod
     def set_of(value_type, delim=','):
         def parse(v, key=None):
-            return set(value_type(x)
-                       for x in ConfigValue.to_iter(v, delim=delim))
+            return {value_type(x)
+                       for x in ConfigValue.to_iter(v, delim=delim)}
         return parse
 
     @staticmethod
@@ -83,7 +83,7 @@ class ConfigValue(object):
             try:
                 return choices[v]
             except KeyError:
-                raise ValueError("Unknown option for %r: %r not in %r" % (key, v, choices.keys()))
+                raise ValueError("Unknown option for {!r}: {!r} not in {!r}".format(key, v, list(choices.keys())))
         return parse_choice
 
     @staticmethod
@@ -119,7 +119,7 @@ class ConfigValueParser(dict):
 
     def add_spec(self, spec):
         new_keys = []
-        for parser, keys in spec.iteritems():
+        for parser, keys in spec.items():
             # keys can be either a list or a dict
             for key in keys:
                 assert key not in self.config_keys

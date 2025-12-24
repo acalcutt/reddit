@@ -22,7 +22,6 @@
 
 import unittest
 
-
 MESSAGE = "the quick brown fox jumped over..."
 BLOCK_O_PADDING = ("\x10\x10\x10\x10\x10\x10\x10\x10"
                    "\x10\x10\x10\x10\x10\x10\x10\x10")
@@ -35,46 +34,46 @@ class TestPadding(unittest.TestCase):
     def test_pad_empty_string(self):
         from r2.lib.tracking import _pad_message
         padded = _pad_message("")
-        self.assertEquals(padded, BLOCK_O_PADDING)
+        self.assertEqual(padded, BLOCK_O_PADDING)
 
     def test_pad_round_string(self):
-        from r2.lib.tracking import _pad_message, KEY_SIZE
+        from r2.lib.tracking import KEY_SIZE, _pad_message
         padded = _pad_message("x" * KEY_SIZE)
-        self.assertEquals(len(padded), KEY_SIZE * 2)
-        self.assertEquals(padded[KEY_SIZE:], BLOCK_O_PADDING)
+        self.assertEqual(len(padded), KEY_SIZE * 2)
+        self.assertEqual(padded[KEY_SIZE:], BLOCK_O_PADDING)
 
     def test_unpad_empty_message(self):
         from r2.lib.tracking import _unpad_message
         unpadded = _unpad_message("")
-        self.assertEquals(unpadded, "")
+        self.assertEqual(unpadded, "")
 
     def test_unpad_evil_message(self):
         from r2.lib.tracking import _unpad_message
         evil = ("a" * 88) + chr(57)
         result = _unpad_message(evil)
-        self.assertEquals(result, "")
+        self.assertEqual(result, "")
 
     def test_padding_roundtrip(self):
-        from r2.lib.tracking import _unpad_message, _pad_message
+        from r2.lib.tracking import _pad_message, _unpad_message
         tested = _unpad_message(_pad_message(MESSAGE))
-        self.assertEquals(MESSAGE, tested)
+        self.assertEqual(MESSAGE, tested)
 
 
 class TestEncryption(unittest.TestCase):
     def test_salt(self):
-        from r2.lib.tracking import _make_salt, SALT_SIZE
-        self.assertEquals(len(_make_salt()), SALT_SIZE)
+        from r2.lib.tracking import SALT_SIZE, _make_salt
+        self.assertEqual(len(_make_salt()), SALT_SIZE)
 
     def test_encrypt(self):
-        from r2.lib.tracking import _encrypt, SALT_SIZE
+        from r2.lib.tracking import SALT_SIZE, _encrypt
         encrypted = _encrypt(
             "a" * SALT_SIZE,
             MESSAGE,
             SECRET,
         )
-        self.assertEquals(encrypted, ENCRYPTED)
+        self.assertEqual(encrypted, ENCRYPTED)
 
     def test_decrypt(self):
         from r2.lib.tracking import _decrypt
         decrypted = _decrypt(ENCRYPTED, SECRET)
-        self.assertEquals(MESSAGE, decrypted)
+        self.assertEqual(MESSAGE, decrypted)

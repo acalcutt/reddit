@@ -20,7 +20,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-class MediaProvider(object):
+class MediaProvider:
     """Provider for storing media objects.
 
     Media objects are thumbnails, subreddit images/stylesheets, and app icons.

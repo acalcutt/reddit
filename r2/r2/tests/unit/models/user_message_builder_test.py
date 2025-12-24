@@ -21,20 +21,18 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 import contextlib
-
-from r2.tests import RedditTestCase
-
-from mock import patch, MagicMock
-
-from r2.models import Message
-from r2.models.builder import UserMessageBuilder, MessageBuilder
+from unittest.mock import MagicMock, patch
 
 from pylons import tmpl_context as c
+
+from r2.models import Message
+from r2.models.builder import MessageBuilder, UserMessageBuilder
+from r2.tests import RedditTestCase
 
 
 class UserMessageBuilderTest(RedditTestCase):
     def setUp(self):
-        super(UserMessageBuilderTest, self).setUp()
+        super().setUp()
         self.user = MagicMock(name="user")
         self.message = MagicMock(spec=Message)
 

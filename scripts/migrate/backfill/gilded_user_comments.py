@@ -29,15 +29,13 @@ This listing is stored in get_gilded_user_comments and seen on
 import datetime
 
 from pylons import app_globals as g
-
 from r2.lib.db.queries import get_gilded_user_comments
 from r2.lib.utils import Storage
-from r2.models import GildingsByDay, Thing, Comment
+from r2.models import Comment, GildingsByDay, Thing
 from r2.models.query_cache import CachedQueryMutator
 
-
 date = datetime.datetime.now(g.tz)
-earliest_date = datetime.datetime(2012, 10, 01, tzinfo=g.tz)
+earliest_date = datetime.datetime(2012, 10, 0o1, tzinfo=g.tz)
 
 already_seen = set()
 

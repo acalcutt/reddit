@@ -22,8 +22,8 @@
 
 import hashlib
 
-from pylons import app_globals as g
 import requests
+from pylons import app_globals as g
 
 from r2.lib.configparse import ConfigValue
 from r2.lib.providers.image_resizing import (
@@ -31,6 +31,7 @@ from r2.lib.providers.image_resizing import (
     NotLargeEnough,
 )
 from r2.lib.utils import UrlParser, query_string
+
 
 class ImgixImageResizingProvider(ImageResizingProvider):
     """A provider that uses imgix to create on-the-fly resizings."""

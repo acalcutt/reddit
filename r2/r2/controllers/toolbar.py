@@ -22,10 +22,9 @@
 import re
 import string
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 
-from reddit_base import RedditController
 from r2.lib import utils
 from r2.lib.pages import *
 from r2.lib.pages.things import hot_links_by_url_listing
@@ -34,13 +33,15 @@ from r2.lib.validator import *
 from r2.models import *
 from r2.models.admintools import is_shamed_domain
 
+from .reddit_base import RedditController
+
 # strips /r/foo/, /s/, or both
-strip_sr          = re.compile('\A/r/[a-zA-Z0-9_-]+')
-strip_s_path      = re.compile('\A/s/')
-leading_slash     = re.compile('\A/+')
-has_protocol      = re.compile('\A[a-zA-Z_-]+:')
-allowed_protocol  = re.compile('\Ahttps?:')
-need_insert_slash = re.compile('\Ahttps?:/[^/]')
+strip_sr          = re.compile(r'\A/r/[a-zA-Z0-9_-]+')
+strip_s_path      = re.compile(r'\A/s/')
+leading_slash     = re.compile(r'\A/+')
+has_protocol      = re.compile(r'\A[a-zA-Z_-]+:')
+allowed_protocol  = re.compile(r'\Ahttps?:')
+need_insert_slash = re.compile(r'\Ahttps?:/[^/]')
 def demangle_url(path):
     # there's often some URL mangling done by the stack above us, so
     # let's clean up the URL before looking it up
@@ -52,7 +53,7 @@ def demangle_url(path):
         if not allowed_protocol.match(path):
             return None
     else:
-        path = '%s://%s' % (g.default_scheme, path)
+        path = '{}://{}'.format(g.default_scheme, path)
 
     if need_insert_slash.match(path):
         path = string.replace(path, '/', '//', 1)

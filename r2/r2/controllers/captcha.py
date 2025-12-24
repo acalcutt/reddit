@@ -20,13 +20,16 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from reddit_base import RedditController
-import StringIO
-import r2.lib.captcha as captcha
+import io
+
 from pylons import response
 
+import r2.lib.captcha as captcha
 from r2.controllers.api_docs import api_doc, api_section
 from r2.controllers.oauth2 import allow_oauth2_access
+
+from .reddit_base import RedditController
+
 
 class CaptchaController(RedditController):
     @allow_oauth2_access
@@ -49,7 +52,7 @@ class CaptchaController(RedditController):
         use [/api/new_captcha](#POST_api_new_captcha).
         """
         image = captcha.get_image(iden)
-        f = StringIO.StringIO()
+        f = io.StringIO()
         image.save(f, "PNG")
         response.content_type = "image/png;"
         return f.getvalue()

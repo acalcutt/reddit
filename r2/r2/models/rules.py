@@ -21,9 +21,10 @@
 ###############################################################################
 
 import json
-import pytz
 import time
 from datetime import datetime
+
+import pytz
 from pycassa.system_manager import UTF8_TYPE
 from pylons.i18n import _
 
@@ -205,7 +206,7 @@ class SubredditRules(tdb_cassandra.View):
             return []
 
         result = []
-        for uuid, json_blob in query.iteritems():
+        for uuid, json_blob in query.items():
             payload = json.loads(json_blob)
             if not payload.get("created_utc"):
                 payload["created_utc"] = time.mktime(

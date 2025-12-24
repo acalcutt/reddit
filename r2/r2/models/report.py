@@ -22,13 +22,12 @@
 
 from collections import Counter
 
-from r2.lib.db.thing import Relation, MultiRelation
-from r2.lib.utils import tup
-from r2.models import Link, Comment, Message, Subreddit, Account
-
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 
+from r2.lib.db.thing import MultiRelation, Relation
+from r2.lib.utils import tup
+from r2.models import Account, Comment, Link, Message, Subreddit
 
 _LinkReport = Relation(Account, Link)
 _CommentReport = Relation(Account, Comment)
@@ -55,7 +54,7 @@ class Report(MultiRelation('report', *REPORT_RELS)):
         # check if this report exists already!
         rel = cls.rel(user, thing)
         q = rel._fast_query(user, thing, ['-1', '0', '1'])
-        q = [ report for (tupl, report) in q.iteritems() if report ]
+        q = [ report for (tupl, report) in q.items() if report ]
         if q:
             # stop if we've seen this before, so that we never get the
             # same report from the same user twice
@@ -73,7 +72,7 @@ class Report(MultiRelation('report', *REPORT_RELS)):
         try:
             thing._incr(cls._field)
         except (ValueError, TypeError):
-            g.log.error("%r has bad field %r = %r" % (thing, cls._field,
+            g.log.error("{!r} has bad field {!r} = {!r}".format(thing, cls._field,
                          getattr(thing, cls._field, "(nonexistent)")))
             raise
 
@@ -110,7 +109,7 @@ class Report(MultiRelation('report', *REPORT_RELS)):
         for thing in things:
             things_by_cls.setdefault(thing.__class__, []).append(thing)
 
-        for thing_cls, cls_things in things_by_cls.iteritems():
+        for thing_cls, cls_things in things_by_cls.items():
             to_clear = []
             # look up all of the reports for each thing
             rel_cls = cls.rel(Account, thing_cls)

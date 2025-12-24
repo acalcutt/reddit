@@ -29,12 +29,12 @@ in `reddit-consumer-cloudsearch_q.conf` unless you're sure *everything* in
 cloudsearch queue.
 """
 
-import time
 import sys
+import time
 
+from r2.lib import amqp
 from r2.lib.db.operators import desc
 from r2.lib.utils import fetch_things2, progress
-from r2.lib import amqp
 from r2.models import Account
 
 

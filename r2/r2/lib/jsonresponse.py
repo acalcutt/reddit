@@ -20,21 +20,16 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from r2.config.extensions import get_api_subtype
-from r2.lib.utils import tup
-from r2.lib.captcha import get_iden
-from r2.lib.wrapped import Wrapped, StringTemplate
-from r2.lib.filters import websafe_json, spaceCompress
-from r2.lib.base import BaseController
-from r2.lib.pages.things import wrap_links
-from r2.models import IDBuilder, Listing
-
-import simplejson
 from pylons import tmpl_context as c
-from pylons import app_globals as g
+
+from r2.lib.captcha import get_iden
+from r2.lib.filters import spaceCompress
+from r2.lib.pages.things import wrap_links
+from r2.lib.utils import tup
+from r2.lib.wrapped import Wrapped
 
 
-class JsonResponse(object):
+class JsonResponse:
     """
     Simple Api response handler, returning a list of errors generated
     in the api func's validators, as well as blobs of data set by the
@@ -105,7 +100,7 @@ class JsonResponse(object):
 
         if kw:
             for d in data:
-                if d.has_key('data'):
+                if 'data' in d:
                     d['data'].update(kw)
 
         self._data['things'] = data
@@ -233,7 +228,7 @@ class JQueryResponse(JsonResponse):
         return self.find("*[name=%s]" % name)
 
     def set_inputs(self, **kw):
-        for k, v in kw.iteritems():
+        for k, v in kw.items():
             # Using 'val' instead of setting the 'value' attribute allows this
             # To work for non-textbox inputs, like textareas
             self.get_input(k).val(v).end()
@@ -254,7 +249,7 @@ class JQueryResponse(JsonResponse):
 
     def set(self, **kw):
         obj = self
-        for k, v in kw.iteritems():
+        for k, v in kw.items():
             obj = obj.attr(k, v)
         return obj
 

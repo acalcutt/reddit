@@ -21,27 +21,20 @@
 ###############################################################################
 
 import collections
+import itertools
 import json
 import re
-import simplejson
-import socket
-import itertools
-
-from Cookie import CookieError
 from copy import copy
 from datetime import datetime, timedelta
 from functools import wraps
-from hashlib import sha1, md5
-from urllib import quote, unquote
-from urlparse import urlparse
+from hashlib import md5
+from urllib.parse import quote, unquote, urlparse
 
 import babel.core
-import pylibmc
-
-from mako.filters import url_escape
+import simplejson
+from pylons import app_globals as g
 from pylons import request, response
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.i18n import _
 from pylons.i18n.translation import LanguageError
 
@@ -50,7 +43,6 @@ from r2.config.extensions import is_api, set_extension
 from r2.lib import (
     baseplate_integration,
     filters,
-    geoip,
     hooks,
     pages,
     ratelimit,
@@ -58,44 +50,39 @@ from r2.lib import (
 )
 from r2.lib.base import BaseController, abort
 from r2.lib.cookies import (
-    change_user_cookie_security,
-    Cookies,
+    DELETE,
+    NEVER,
     Cookie,
+    Cookies,
+    change_user_cookie_security,
     delete_secure_session_cookie,
     have_secure_session_cookie,
     upgrade_cookie_security,
-    NEVER,
-    DELETE,
 )
 from r2.lib.errors import (
-    ErrorSet,
     BadRequestError,
+    ErrorSet,
     ForbiddenError,
     errors,
     reddit_http_error,
 )
-from r2.lib.filters import _force_utf8, _force_unicode, scriptsafe_dumps
+from r2.lib.filters import _force_unicode, _force_utf8, scriptsafe_dumps
 from r2.lib.loid import LoId
 from r2.lib.require import RequirementException, require, require_split
 from r2.lib.strings import strings
-from r2.lib.template_helpers import add_sr, JSPreload
-from r2.lib.tracking import encrypt, decrypt, get_pageview_pixel_url
+from r2.lib.template_helpers import JSPreload
+from r2.lib.tracking import decrypt, get_pageview_pixel_url
 from r2.lib.translation import set_lang
 from r2.lib.utils import (
     SimpleSillyStub,
     UniqueIterator,
+    UrlParser,
     extract_subdomain,
-    http_utils,
     is_subdomain,
     is_throttled,
     tup,
-    UrlParser,
 )
 from r2.lib.validator import (
-    build_arg_list,
-    fullname_regex,
-    valid_jsonp_callback,
-    validate,
     VBoolean,
     VByName,
     VCount,
@@ -103,6 +90,10 @@ from r2.lib.validator import (
     VLength,
     VLimit,
     VTarget,
+    build_arg_list,
+    fullname_regex,
+    valid_jsonp_callback,
+    validate,
 )
 from r2.models import (
     Account,
@@ -133,8 +124,6 @@ from r2.models import (
     valid_feed,
     valid_otp_cookie,
 )
-from r2.lib.db import tdb_cassandra
-
 
 # Cookies which may be set in a response without making it uncacheable
 CACHEABLE_COOKIES = ()
@@ -164,7 +153,7 @@ class UnloggedUser(FakeAccount):
     def _decode_json(self, json_blob):
         data = json.loads(json_blob)
         validated = {}
-        for k, v in data.iteritems():
+        for k, v in data.items():
             validator = self.allowed_prefs.get(k)
             if validator:
                 try:
@@ -194,7 +183,7 @@ class UnloggedUser(FakeAccount):
                 return values
 
     def _to_cookie(self, data):
-        allowed_data = {k: v for k, v in data.iteritems()
+        allowed_data = {k: v for k, v in data.items()
                         if k in self.allowed_prefs}
         jsonified = json.dumps(allowed_data, sort_keys=True)
         c.cookies[self.COOKIE_NAME] = Cookie(value=jsonified)
@@ -207,7 +196,7 @@ class UnloggedUser(FakeAccount):
 
     def _commit(self):
         if self._dirty:
-            for k, (oldv, newv) in self._dirties.iteritems():
+            for k, (oldv, newv) in self._dirties.items():
                 self._t[k] = newv
             self._to_cookie(self._t)
 
@@ -298,13 +287,13 @@ def set_subreddit():
             domain = g.domain
             if g.domain_prefix:
                 domain = ".".join((g.domain_prefix, domain))
-            path = '%s://%s%s' % (g.default_scheme, domain, sr.path)
+            path = '{}://{}{}'.format(g.default_scheme, domain, sr.path)
             abort(301, location=BaseController.format_output_url(path))
     elif '+' in sr_name:
         name_filter = lambda name: Subreddit.is_valid_name(name,
             allow_language_srs=True)
-        sr_names = filter(name_filter, sr_name.split('+'))
-        srs = Subreddit._by_name(sr_names, stale=can_stale).values()
+        sr_names = list(filter(name_filter, sr_name.split('+')))
+        srs = list(Subreddit._by_name(sr_names, stale=can_stale).values())
         if All in srs:
             c.site = All
         elif Friends in srs:
@@ -315,7 +304,7 @@ def set_subreddit():
                 c.site = srs[0]
             elif srs:
                 found = {sr.name.lower() for sr in srs}
-                sr_names = filter(lambda name: name.lower() in found, sr_names)
+                sr_names = [name for name in sr_names if name.lower() in found]
                 sr_name = '+'.join(sr_names)
                 multi_path = '/r/' + sr_name
                 c.site = MultiReddit(multi_path, srs)
@@ -326,7 +315,7 @@ def set_subreddit():
         base_sr_name, exclude_sr_names = sr_names[0], sr_names[1:]
         srs = Subreddit._by_name(sr_names, stale=can_stale)
         base_sr = srs.pop(base_sr_name, None)
-        exclude_srs = [sr for sr in srs.itervalues()
+        exclude_srs = [sr for sr in srs.values()
                           if not isinstance(sr, FakeSubreddit)]
 
         if base_sr == All:
@@ -359,7 +348,7 @@ def set_subreddit():
             idna = _force_unicode(domain).encode("idna")
             if idna != domain:
                 path_info = request.environ["PATH_INFO"]
-                path = "/domain/%s%s" % (idna, path_info)
+                path = "/domain/{}{}".format(idna, path_info)
                 abort(302, location=BaseController.format_output_url(path))
         except UnicodeError:
             domain = ''  # Ensure valid_ascii_domain fails
@@ -381,7 +370,7 @@ def set_multireddit():
         multiurl = None
 
         if c.user_is_loggedin and routes_dict.get("my_multi"):
-            multi_ids = ["/user/%s/m/%s" % (logged_in_username, multipath)
+            multi_ids = ["/user/{}/m/{}".format(logged_in_username, multipath)
                          for multipath in multipaths]
             multiurl = "/me/m/" + fullpath
         elif "username" in routes_dict:
@@ -397,7 +386,7 @@ def set_multireddit():
                     abort(302, location=BaseController.format_output_url(path))
 
             multiurl = "/user/" + username + "/m/" + fullpath
-            multi_ids = ["/user/%s/m/%s" % (username, multipath)
+            multi_ids = ["/user/{}/m/{}".format(username, multipath)
                         for multipath in multipaths]
         elif "m" in request.GET and is_api():
             # Only supported via API as we don't have a valid non-query
@@ -441,7 +430,7 @@ def set_content_type():
     c.render_style = e['render_style']
     response.content_type = e['content_type']
 
-    if e.has_key('extension'):
+    if 'extension' in e:
         c.extension = ext = e['extension']
         if ext in ('embed', 'widget'):
             wrapper = request.params.get("callback", "document.write")
@@ -576,7 +565,7 @@ def ratelimit_agents():
         return
 
     # Search anywhere in the useragent for the given regex
-    for agent_re, limit in g.user_agent_ratelimit_regexes.iteritems():
+    for agent_re, limit in g.user_agent_ratelimit_regexes.items():
         if agent_re.search(user_agent):
             ratelimit_agent(agent_re.pattern, limit)
             return
@@ -774,9 +763,9 @@ def request_timer_name(action):
 
 
 def flatten_response(content):
-    """Convert a content iterable to a string, properly handling unicode."""
+    """Convert a content iterable to a string, properly handling str."""
     # TODO: it would be nice to replace this with response.body someday
-    # once unicode issues are ironed out.
+    # once str issues are ironed out.
     return "".join(_force_utf8(x) for x in tup(content) if x)
 
 
@@ -975,7 +964,7 @@ class MinimalController(BaseController):
             upgrade_cookie_security()
 
         # Don't poison the cache with uncacheable cookies
-        dirty_cookies = (k for k, v in c.cookies.iteritems() if v.dirty)
+        dirty_cookies = (k for k, v in c.cookies.items() if v.dirty)
         would_poison = any((k not in CACHEABLE_COOKIES) for k in dirty_cookies)
 
         if c.user_is_loggedin or would_poison:
@@ -1003,7 +992,7 @@ class MinimalController(BaseController):
 
         # send cookies
         secure_cookies = feature.is_enabled("force_https")
-        for k, v in c.cookies.iteritems():
+        for k, v in c.cookies.items():
             if v.dirty:
                 v_secure = v.secure if v.secure is not None else secure_cookies
                 response.set_cookie(key=k,
@@ -1266,14 +1255,14 @@ class RedditController(OAuth2ResourceController):
         # populate c.cookies unless we're on the unsafe media_domain
         if request.host != g.media_domain or g.media_domain == g.domain:
             cookie_counts = collections.Counter()
-            for k, v in request.cookies.iteritems():
+            for k, v in request.cookies.items():
                 # minimalcontroller can still set cookies
                 if k not in c.cookies:
                     # we can unquote even if it's not quoted
                     c.cookies[k] = Cookie(value=unquote(v), dirty=False)
                     cookie_counts[Cookie.classify(k)] += 1
 
-            for cookietype, count in cookie_counts.iteritems():
+            for cookietype, count in cookie_counts.items():
                 g.stats.simple_event("cookie.%s" % cookietype, count)
 
         delete_obsolete_cookies()
@@ -1312,7 +1301,7 @@ class RedditController(OAuth2ResourceController):
             if not c.user:
                 c.user = UnloggedUser(get_browser_langs())
                 # patch for fixing mangled language preferences
-                if not isinstance(c.user.pref_lang, basestring):
+                if not isinstance(c.user.pref_lang, str):
                     c.user.pref_lang = g.lang
                     c.user._commit()
 

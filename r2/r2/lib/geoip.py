@@ -22,11 +22,12 @@
 ###############################################################################
 
 import datetime
-import httplib
+import http.client
 import json
 import os
-import socket
-import urllib2
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from pylons import app_globals as g
 
@@ -52,15 +53,15 @@ def _location_by_ips(ips):
         url = os.path.join(g.geoip_location, 'geoip', ip_string)
 
         try:
-            response = urllib2.urlopen(url=url, timeout=3)
+            response = urllib.request.urlopen(url=url, timeout=3)
             json_data = response.read()
-        except (urllib2.URLError, httplib.HTTPException, socket.error) as e:
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as e:
             g.log.warning("Failed to fetch GeoIP information: %r" % e)
             continue
 
         try:
             ret.update(json.loads(json_data))
-        except ValueError, e:
+        except ValueError as e:
             g.log.warning("Invalid JSON response for GeoIP lookup: %r" % e)
             continue
     return ret
@@ -75,15 +76,15 @@ def _organization_by_ips(ips):
     url = os.path.join(g.geoip_location, 'org', ip_string)
 
     try:
-        response = urllib2.urlopen(url=url, timeout=3)
+        response = urllib.request.urlopen(url=url, timeout=3)
         json_data = response.read()
-    except urllib2.URLError, e:
+    except urllib.error.URLError as e:
         g.log.warning("Failed to fetch GeoIP information: %r" % e)
         return {}
 
     try:
         return json.loads(json_data)
-    except ValueError, e:
+    except ValueError as e:
         g.log.warning("Invalid JSON response for GeoIP lookup: %r" % e)
         return {}
 

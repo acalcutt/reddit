@@ -19,38 +19,35 @@
 # All portions of the code written by reddit are Copyright (c) 2006-2015 reddit
 # Inc. All Rights Reserved.
 ###############################################################################
-from cStringIO import StringIO
 import datetime
 import gzip
 import hashlib
 import hmac
 import itertools
 import json
-import pytz
 import random
-import requests
 import time
-
-import httpagentparser
-import time
-
-from pylons import app_globals as g
+from io import StringIO
 from uuid import uuid4
 from wsgiref.handlers import format_date_time
 
+import httpagentparser
+import pytz
+import requests
+from pylons import app_globals as g
+
 from r2.lib import amqp, hooks
-from r2.lib.language import charset_summary
+from r2.lib.cache_poisoning import cache_headers_valid
 from r2.lib.geoip import (
     get_request_location,
-    location_by_ips,
 )
-from r2.lib.cache_poisoning import cache_headers_valid
+from r2.lib.language import charset_summary
 from r2.lib.utils import (
     domain,
-    to_epoch_milliseconds,
     sampled,
     squelch_exceptions,
     to36,
+    to_epoch_milliseconds,
 )
 
 
@@ -72,7 +69,7 @@ def parse_agent(ua):
         if d:
             for subattr in ("name", "version"):
                 if subattr in d:
-                    key = "%s_%s" % (attr, subattr)
+                    key = "{}_{}".format(attr, subattr)
                     agent_summary[key] = d[subattr]
 
     agent_summary['bot'] = parsed.get('bot')
@@ -80,7 +77,7 @@ def parse_agent(ua):
     return agent_summary
 
 
-class EventQueue(object):
+class EventQueue:
     def __init__(self, queue=amqp):
         self.queue = queue
 
@@ -136,7 +133,7 @@ class EventQueue(object):
         if vote.is_automatic_initial_vote:
             event.add("auto_self_vote", True)
 
-        for name, value in vote.effects.serializable_data.iteritems():
+        for name, value in vote.effects.serializable_data.items():
             # rename the "notes" field to "details_text" for the event
             if name == "notes":
                 name = "details_text"
@@ -702,7 +699,7 @@ class EventQueue(object):
             context=context,
         )
         event.add("request_url", request.fullpath)
-        for k, v in loid.to_dict().iteritems():
+        for k, v in loid.to_dict().items():
             event.add(k, v)
         self.save_event(event)
 
@@ -747,7 +744,7 @@ class EventQueue(object):
             event.add("signature_version", signature.version)
             event.add("signature_valid", signature.is_valid())
             sigerror = ", ".join(
-                "%s_%s" % (field, code) for code, field in signature.errors
+                "{}_{}".format(field, code) for code, field in signature.errors
             )
             event.add("signature_errors", sigerror)
             if signature.epoch:
@@ -777,7 +774,7 @@ class EventQueue(object):
             event.add('user_id', user._id)
             event.add('user_name', user.name)
         if loid:
-            for k, v in loid.to_dict().iteritems():
+            for k, v in loid.to_dict().items():
                 event.add(k, v)
         self.save_event(event)
 
@@ -808,7 +805,7 @@ class EventQueue(object):
         self.save_event(event)
 
 
-class Event(object):
+class Event:
     def __init__(self, topic, event_type,
             time=None, uuid=None, request=None, context=None, testing=False,
             data=None, obfuscated_data=None, truncatable_field=None):
@@ -850,12 +847,12 @@ class Event(object):
             # the values that've already been set. Variety of other solutions
             # here: http://stackoverflow.com/q/6354436/120999
             context_data = self.get_context_data(request, context)
-            new_context_data = {k: v for (k, v) in context_data.items()
+            new_context_data = {k: v for (k, v) in list(context_data.items())
                                 if k not in self.payload}
             self.payload.update(new_context_data)
 
             context_data = self.get_sensitive_context_data(request, context)
-            new_context_data = {k: v for (k, v) in context_data.items()
+            new_context_data = {k: v for (k, v) in list(context_data.items())
                                 if k not in self.obfuscated_data}
             self.obfuscated_data.update(new_context_data)
 
@@ -873,7 +870,7 @@ class Event(object):
 
     def add_text(self, key, value, obfuscate=False):
         self.add(key, value, obfuscate=obfuscate)
-        for k, v in charset_summary(value).iteritems():
+        for k, v in charset_summary(value).items():
             self.add("{}_{}".format(key, k), v)
 
     def add_target_fields(self, target):
@@ -1014,7 +1011,7 @@ class Event(object):
         return json.dumps(data)
 
 
-class PublishableEvent(object):
+class PublishableEvent:
     def __init__(self, data, truncatable_field=None):
         self.data = data
         self.truncatable_field = truncatable_field
@@ -1029,7 +1026,7 @@ class PublishableEvent(object):
         if len(self.data) <= target_len:
             return
 
-        # this will over-truncate with unicode characters, but it shouldn't be
+        # this will over-truncate with str characters, but it shouldn't be
         # important to cut it as close as possible
         oversize_by = len(self.data) - target_len
 
@@ -1048,7 +1045,7 @@ class PublishableEvent(object):
         g.stats.simple_event("eventcollector.oversize_truncated")
 
 
-class EventPublisher(object):
+class EventPublisher:
     # The largest JSON string for a single event in bytes (but it's encoded
     # to ASCII, so this is the same as character length)
     MAX_EVENT_SIZE = 100 * 1024

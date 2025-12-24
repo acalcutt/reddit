@@ -22,6 +22,7 @@
 
 from pylons import app_globals as g
 
+
 class SupportTicketError(Exception):
     pass
 

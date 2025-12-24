@@ -20,7 +20,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-class ImageResizingProvider(object):
+class ImageResizingProvider:
     """Provider for generating resizable image urls.
 
     """

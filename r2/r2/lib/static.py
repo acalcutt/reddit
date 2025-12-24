@@ -21,12 +21,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import sys
-import os
+import base64
 import hashlib
 import json
-import base64
+import os
 import shutil
+import sys
 
 
 def locate_static_file(name):

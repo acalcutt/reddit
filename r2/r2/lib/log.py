@@ -20,14 +20,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from hashlib import md5
 import sys
+from hashlib import md5
 
+import raven
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.util import PylonsContext, AttribSafeContextObj, ContextObj
-import raven
+from pylons.util import AttribSafeContextObj, ContextObj, PylonsContext
 from raven.processors import Processor
 from weberror.reporter import Reporter
 
@@ -36,11 +36,12 @@ from r2.lib.app_globals import Globals
 
 def get_operational_exceptions():
     import _pylibmc
-    import sqlalchemy.exc
     import pycassa.pool
+    import sqlalchemy.exc
+
+    import r2.lib.cache
     import r2.lib.db.thing
     import r2.lib.lock
-    import r2.lib.cache
 
     return (
         SystemExit,  # gunicorn is shutting us down
@@ -71,12 +72,12 @@ class SanitizeStackLocalsProcessor(Processor):
     def filter_stacktrace(self, data, **kwargs):
         def remove_keys(obj):
             if isinstance(obj, dict):
-                for k in obj.keys():
+                for k in list(obj.keys()):
                     if k in self.keys_to_remove:
                         obj.pop(k)
                     elif isinstance(obj[k], self.classes_to_remove):
                         obj.pop(k)
-                    elif isinstance(obj[k], basestring):
+                    elif isinstance(obj[k], str):
                         contains_forbidden_repr = any(
                             _cls.__name__ in obj[k]
                             for _cls in self.classes_to_remove
@@ -100,7 +101,7 @@ class RavenErrorReporter(Reporter):
     def get_module_versions(cls):
         return {
             repo: commit_hash[:6]
-            for repo, commit_hash in g.versions.iteritems()
+            for repo, commit_hash in g.versions.items()
         }
 
     @classmethod
@@ -122,7 +123,7 @@ class RavenErrorReporter(Reporter):
             "referer",
         )
         headers = {
-            k: v for k, v in request.headers.iteritems()
+            k: v for k, v in request.headers.items()
             if k.lower() in HEADER_WHITELIST
         }
 
@@ -170,7 +171,7 @@ class RavenErrorReporter(Reporter):
             "/opt/",    # scripts may be run from /opt/REPO/scripts
         ]
         release_str = '|'.join(
-           "%s:%s" % (repo, commit_hash)
+           "{}:{}".format(repo, commit_hash)
            for repo, commit_hash in sorted(g.versions.items())
         )
         release_hash = md5(release_str).hexdigest()
@@ -219,7 +220,7 @@ class RavenErrorReporter(Reporter):
             routes_dict = request.environ["pylons.routes_dict"]
             controller = routes_dict.get("controller", "unknown")
             action = routes_dict.get("action", "unknown")
-            culprit = "%s.%s" % (controller, action)
+            culprit = "{}.{}".format(controller, action)
 
         try:
             client.captureException(

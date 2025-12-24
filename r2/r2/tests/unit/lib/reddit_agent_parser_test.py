@@ -25,15 +25,16 @@
 from r2.lib.utils.reddit_agent_parser import (
     AlienBlueDetector,
     BaconReaderDetector,
-    detect,
     McRedditDetector,
     NarwhalForRedditDetector,
     ReaditDetector,
     RedditAndroidDetector,
-    RedditIsFunDetector,
     RedditIOSDetector,
+    RedditIsFunDetector,
     RedditSyncDetector,
-    RelayForRedditDetector)
+    RelayForRedditDetector,
+    detect,
+)
 from r2.tests import RedditTestCase
 
 

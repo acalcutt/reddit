@@ -20,15 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import collections
-from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
 from uuid import uuid1
 
-from pycassa.types import CompositeType, AsciiType
 from pycassa.system_manager import TIME_UUID_TYPE
 from pylons import app_globals as g
-import pytz
 
 from r2.lib import hooks
 from r2.lib.db import tdb_cassandra
@@ -37,11 +34,10 @@ from r2.lib.db.tdb_cassandra import (
     UTF8_TYPE,
 )
 from r2.lib.utils import Enum, epoch_timestamp
-
 from r2.models import Account
 
 
-class Vote(object):
+class Vote:
     DIRECTIONS = Enum("up", "down", "unvote")
     SERIALIZED_DIRECTIONS = {
         DIRECTIONS.up: 1,
@@ -49,7 +45,7 @@ class Vote(object):
         DIRECTIONS.unvote: 0,
     }
     DESERIALIZED_DIRECTIONS = {
-        v: k for k, v in SERIALIZED_DIRECTIONS.iteritems()}
+        v: k for k, v in SERIALIZED_DIRECTIONS.items()}
 
     def __init__(self, user, thing, direction, date, data=None, effects=None,
             get_previous_vote=True, event_data=None):
@@ -105,7 +101,7 @@ class Vote(object):
 
     @property
     def _id(self):
-        return "%s_%s" % (self.user._id36, self.thing._id36)
+        return "{}_{}".format(self.user._id36, self.thing._id36)
 
     @property
     def affected_thing_attr(self):
@@ -138,7 +134,7 @@ class Vote(object):
 
     @property
     def delay(self):
-        """How long after the thing was posted that the vote was cast."""
+        """How int after the thing was posted that the vote was cast."""
         if self.is_automatic_initial_vote:
             return timedelta(0)
         
@@ -187,7 +183,7 @@ class Vote(object):
         g.stats.simple_event('vote.total')
 
 
-class VoteEffects(object):
+class VoteEffects:
     """Contains details about how a vote affects the thing voted on."""
     def __init__(self, vote, effects=None):
         """Initialize a new set of vote effects.
@@ -224,7 +220,7 @@ class VoteEffects(object):
     def notes(self):
         notes = []
 
-        for code, message in self.note_codes.iteritems():
+        for code, message in self.note_codes.items():
             note = code
             if message:
                 note += " (%s)" % message
@@ -300,7 +296,7 @@ class VoteEffects(object):
             "affects_karma": self.affects_karma,
         }
 
-        for key, value in self.other_effects.iteritems():
+        for key, value in self.other_effects.items():
             data[key] = value
 
         if self.notes:
@@ -321,7 +317,7 @@ class VotesByAccount(tdb_cassandra.DenormalizedRelation):
         elif thing_cls == Comment:
             return CommentVotesByAccount
 
-        raise TypeError("Can't find %r class for %r" % (cls, thing_cls))
+        raise TypeError("Can't find {!r} class for {!r}".format(cls, thing_cls))
 
     @classmethod
     def write_vote(cls, vote):
@@ -440,7 +436,7 @@ class VoteDetailsByThing(tdb_cassandra.View):
             ips = {}
 
         details = []
-        for voter_id36, json_data in raw_details.iteritems():
+        for voter_id36, json_data in raw_details.items():
             data = json.loads(json_data)
             data = cls.convert_old_details(data)
 
@@ -488,7 +484,7 @@ class VoteNote(tdb_cassandra.View):
 
     @classmethod
     def _rowkey(cls, vote):
-        return '%s_%s' % (vote.user._fullname, vote.thing._fullname)
+        return '{}_{}'.format(vote.user._fullname, vote.thing._fullname)
 
     @classmethod
     def set(cls, vote, note):
@@ -504,4 +500,4 @@ class VoteNote(tdb_cassandra.View):
         except tdb_cassandra.NotFound:
             return None
 
-        return ", ".join(all_notes._values().values())
+        return ", ".join(list(all_notes._values().values()))

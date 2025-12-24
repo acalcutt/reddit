@@ -28,7 +28,7 @@ from pylons import app_globals as g
 from r2.models.trylater import TryLaterBySubject
 
 
-class UserTempBan(object):
+class UserTempBan:
     @classmethod
     def schedule(cls, victim, duration):
         TryLaterBySubject.schedule(
@@ -54,7 +54,7 @@ class UserTempBan(object):
             return datetime.fromtimestamp(convert_uuid_to_time(uu), g.tz)
         return {
             name: convert_uuid_to_datetime(uu)
-                for name, uu in results.iteritems()
+                for name, uu in results.items()
         }
 
     @classmethod

@@ -32,21 +32,20 @@ jobs.
 
 """
 
+import collections
+import datetime
 import json
 import random
-import datetime
-import collections
 
-from pylons import app_globals as g
-from pycassa.system_manager import ASCII_TYPE, UTF8_TYPE
 from pycassa.batch import Mutator
+from pycassa.system_manager import ASCII_TYPE, UTF8_TYPE
+from pylons import app_globals as g
 
-from r2.models import Thing
 from r2.lib.db import tdb_cassandra
-from r2.lib.db.operators import asc, desc, BooleanOp
+from r2.lib.db.operators import BooleanOp, asc
 from r2.lib.db.sorts import epoch_seconds
 from r2.lib.utils import flatten, to36
-
+from r2.models import Thing
 
 CONNECTION_POOL = g.cassandra_pools['main']
 PRUNE_CHANCE = g.querycache_prune_chance
@@ -54,7 +53,7 @@ MAX_CACHED_ITEMS = 1000
 LOG = g.log
 
 
-class ThingTupleComparator(object):
+class ThingTupleComparator:
     """A callable usable for comparing sort-data in a cached query.
 
     The query cache stores minimal sort data on each thing to be able to order
@@ -77,7 +76,7 @@ class ThingTupleComparator(object):
         return 0
 
 
-class _CachedQueryBase(object):
+class _CachedQueryBase:
     def __init__(self, sort):
         self.sort = sort
         self.sort_cols = [s.col for s in self.sort]
@@ -135,7 +134,7 @@ class CachedQuery(_CachedQueryBase):
         self.filter = filter_fn
         self.timestamps = None  # column timestamps, for safe pruning
         self.is_precomputed = is_precomputed
-        super(CachedQuery, self).__init__(sort)
+        super().__init__(sort)
 
     def _make_item_tuple(self, item):
         """Return an item tuple from the result of a query.
@@ -173,7 +172,7 @@ class CachedQuery(_CachedQueryBase):
             by_model[q.model].append(q)
 
         cached_queries = {}
-        for model, queries in by_model.iteritems():
+        for model, queries in by_model.items():
             pure, need_mangling = [], []
             for q in queries:
                 if not q.is_precomputed:
@@ -182,8 +181,8 @@ class CachedQuery(_CachedQueryBase):
                     need_mangling.append(q.key)
 
             mangled = model.index_mangle_keys(need_mangling)
-            fetched = model.get(pure + mangled.keys())
-            for key, values in fetched.iteritems():
+            fetched = model.get(pure + list(mangled.keys()))
+            for key, values in fetched.items():
                 key = mangled.get(key, key)
                 cached_queries[key] = values
 
@@ -261,7 +260,7 @@ class CachedQuery(_CachedQueryBase):
 
             cf_name = self.model.__name__
             query_name = self.key.split('.')[0]
-            counter_key = "cache.%s.%s" % (cf_name, query_name)
+            counter_key = "cache.{}.{}".format(cf_name, query_name)
             counter = g.stats.get_counter(counter_key)
             if counter:
                 counter.increment(event_name, delta=num_pruned)
@@ -285,7 +284,7 @@ class CachedQuery(_CachedQueryBase):
         return not self.__eq__(other)
 
     def __repr__(self):
-        return "%s(%s, %r)" % (self.__class__.__name__,
+        return "{}({}, {!r})".format(self.__class__.__name__,
                                self.model.__name__, self.key)
 
 
@@ -305,14 +304,14 @@ class MergedCachedQuery(_CachedQueryBase):
             assert all(sort == q.sort for q in queries)
         else:
             sort = []
-        super(MergedCachedQuery, self).__init__(sort)
+        super().__init__(sort)
 
     def _fetch(self):
         CachedQuery._fetch_multi(self.queries)
         self.data = flatten([q.data for q in self.queries])
 
 
-class CachedQueryMutator(object):
+class CachedQueryMutator:
     """Utility to manipulate cached queries with batching.
 
     This implements the context manager protocol so it can be used with the
@@ -446,7 +445,7 @@ def _is_query_precomputed(query):
     return False
 
 
-class FakeQuery(object):
+class FakeQuery:
     """A somewhat query-like object for conveying sort information."""
 
     def __init__(self, sort, precomputed=False):
@@ -481,7 +480,7 @@ def cached_query(model, filter_fn=filter_identity):
                     args = list(args)
                     args[0] = args[0]._id
 
-                if isinstance(args[0], (int, long)):
+                if isinstance(args[0], int):
                     serialized = to36(args[0])
                 else:
                     serialized = str(args[0])
@@ -517,7 +516,7 @@ def merged_cached_query(fn):
     return merge_wrapper
 
 
-class _BaseQueryCache(object):
+class _BaseQueryCache(metaclass=tdb_cassandra.ThingMeta):
     """The model through which cached queries to interact with Cassandra.
 
     Each cached query is stored as a distinct row in Cassandra.  The row key is
@@ -528,8 +527,6 @@ class _BaseQueryCache(object):
     CachedQuery._make_item_tuple).
 
     """
-
-    __metaclass__ = tdb_cassandra.ThingMeta
     _connection_pool = 'main'
     _extra_schema_creation_args = dict(key_validation_class=ASCII_TYPE,
                                        default_validation_class=UTF8_TYPE)
@@ -551,11 +548,11 @@ class _BaseQueryCache(object):
                                 column_count=tdb_cassandra.max_column_count)
 
         res = {}
-        for row, columns in rows.iteritems():
+        for row, columns in rows.items():
             data = []
             timestamps = []
 
-            for (key, (value, timestamp)) in columns.iteritems():
+            for (key, (value, timestamp)) in columns.items():
                 value = json.loads(value)
                 data.append((key,) + tuple(value))
                 timestamps.append((key, timestamp))
@@ -575,9 +572,9 @@ class _BaseQueryCache(object):
                                 column_count=1)
 
         res = {}
-        for key, columns in rows.iteritems():
+        for key, columns in rows.items():
             root_key = key.rsplit("/")[0]
-            index_component = columns.keys()[0]
+            index_component = list(columns.keys())[0]
             mangled = "/".join((root_key, index_component))
             res[mangled] = root_key
         return res
@@ -591,8 +588,8 @@ class _BaseQueryCache(object):
         not, it is actually inserted.
 
         """
-        updates = dict((key, json.dumps(value))
-                       for key, value in columns.iteritems())
+        updates = {key: json.dumps(value)
+                       for key, value in columns.items()}
         mutator.insert(cls._cf, key, updates, ttl=ttl)
 
     @classmethod

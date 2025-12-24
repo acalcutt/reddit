@@ -21,15 +21,20 @@
 ###############################################################################
 
 import calendar
+import time
 from collections import defaultdict
 
-from utils import to36, tup, iters
-from wrapped import Wrapped, StringTemplate, CacheStub, Templated
+import pytz
 from mako.template import Template
+from pylons import app_globals as g
+from pylons import response
+from pylons import tmpl_context as c
+from pylons.i18n import _
+from wrapped import CacheStub, StringTemplate, Wrapped
+
 from r2.config import feature
 from r2.config.extensions import get_api_subtype
-from r2.lib import hooks
-from r2.lib.filters import spaceCompress, safemarkdown, _force_unicode
+from r2.lib.filters import _force_unicode, safemarkdown, spaceCompress
 from r2.models import (
     Account,
     Comment,
@@ -40,20 +45,16 @@ from r2.models import (
     Trophy,
 )
 from r2.models.token import OAuth2Scope, extra_oauth2_scope
-import time, pytz
-from pylons import response
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _
-
 from r2.models.wiki import ImagesByWikiPage
+
+from .utils import to36
 
 
 def make_typename(typ):
     return 't%s' % to36(typ._type_id)
 
 def make_fullname(typ, _id):
-    return '%s_%s' % (make_typename(typ), to36(_id))
+    return '{}_{}'.format(make_typename(typ), to36(_id))
 
 
 class ObjectTemplate(StringTemplate):
@@ -62,13 +63,13 @@ class ObjectTemplate(StringTemplate):
 
     def update(self, kw):
         def _update(obj):
-            if isinstance(obj, (str, unicode)):
+            if isinstance(obj, str):
                 return _force_unicode(obj)
             elif isinstance(obj, dict):
-                return dict((k, _update(v)) for k, v in obj.iteritems())
+                return {k: _update(v) for k, v in obj.items()}
             elif isinstance(obj, (list, tuple)):
-                return map(_update, obj)
-            elif isinstance(obj, CacheStub) and kw.has_key(obj.name):
+                return list(map(_update, obj))
+            elif isinstance(obj, CacheStub) and obj.name in kw:
                 return kw[obj.name]
             else:
                 return obj
@@ -91,7 +92,7 @@ class TakedownJsonTemplate(JsonTemplate):
         return thing.explanation
 
 
-class ThingTemplate(object):
+class ThingTemplate:
     @classmethod
     def render(cls, thing):
         """
@@ -193,12 +194,12 @@ class ThingJsonTemplate(JsonTemplate):
         """
         attrs = dict(self._data_attrs_)
         if hasattr(self, "_optional_data_attrs"):
-            for attr, attrv in self._optional_data_attrs.iteritems():
+            for attr, attrv in self._optional_data_attrs.items():
                 if hasattr(thing, attr):
                     attrs[attr] = attrv
 
-        return dict((k, self.thing_attr(thing, v))
-                    for k, v in attrs.iteritems())
+        return {k: self.thing_attr(thing, v)
+                    for k, v in attrs.items()}
 
     def thing_attr(self, thing, attr):
         """
@@ -321,7 +322,7 @@ class SubredditJsonTemplate(ThingJsonTemplate):
 
         permissions = getattr(thing, 'mod_permissions', None)
         if permissions:
-            permissions = [perm for perm, has in permissions.iteritems() if has]
+            permissions = [perm for perm, has in permissions.items() if has]
             data['mod_permissions'] = permissions
 
         return data
@@ -411,7 +412,7 @@ class LabeledMultiJsonTemplate(LabeledMultiDescriptionJsonTemplate):
     del _data_attrs_["id"]
 
     def __init__(self, expand_srs=False):
-        super(LabeledMultiJsonTemplate, self).__init__()
+        super().__init__()
         self.expand_srs = expand_srs
 
     def kind(self, wrapped):
@@ -439,7 +440,7 @@ class LabeledMultiJsonTemplate(LabeledMultiDescriptionJsonTemplate):
         elif attr == "display_name":
             return thing.display_name or thing.name
         else:
-            super_ = super(LabeledMultiJsonTemplate, self)
+            super_ = super()
             return super_.thing_attr(thing, attr)
 
 
@@ -527,7 +528,7 @@ class IdentityJsonTemplate(ThingJsonTemplate):
         if thing.pref_hide_from_robots:
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
 
-        data = {k: self.thing_attr(thing, v) for k, v in attrs.iteritems()
+        data = {k: self.thing_attr(thing, v) for k, v in attrs.items()
                 if viewable or k in self._public_attrs}
         try:
             self.add_message_data(data, thing)
@@ -551,8 +552,7 @@ class IdentityJsonTemplate(ThingJsonTemplate):
             data['has_mod_mail'] = self.thing_attr(thing, 'has_mod_mail')
 
     def thing_attr(self, thing, attr):
-        from r2.lib.template_helpers import (
-            display_comment_karma, display_link_karma)
+        from r2.lib.template_helpers import display_comment_karma, display_link_karma
         if attr == "is_mod":
             t = thing.lookups[0] if isinstance(thing, Wrapped) else thing
             return t.is_moderator_somewhere
@@ -597,8 +597,8 @@ class AccountJsonTemplate(IdentityJsonTemplate):
 
 
 class PrefsJsonTemplate(ThingJsonTemplate):
-    _data_attrs_ = dict((k[len("pref_"):], k) for k in
-            Account._preference_attrs)
+    _data_attrs_ = {k[len("pref_"):]: k for k in
+            Account._preference_attrs}
 
     def __init__(self, fields=None):
         if fields is not None:
@@ -712,7 +712,7 @@ def get_media_embed_attributes(item):
     }
 
     media_object = item.media_object
-    if media_object and not isinstance(media_object, basestring):
+    if media_object and not isinstance(media_object, str):
         media_embed = get_media_embed(media_object)
         if media_embed:
             data["media_embed"] = {
@@ -723,7 +723,7 @@ def get_media_embed_attributes(item):
             }
 
     secure_media_object = item.secure_media_object
-    if secure_media_object and not isinstance(secure_media_object, basestring):
+    if secure_media_object and not isinstance(secure_media_object, str):
         secure_media_embed = get_media_embed(secure_media_object)
         if secure_media_embed:
             data["secure_media_embed"] = {
@@ -933,7 +933,6 @@ class CommentJsonTemplate(ThingTemplate):
 
     @classmethod
     def get_json(cls, item):
-        from r2.models import Link
 
         data = ThingTemplate.get_json(item)
 
@@ -1257,7 +1256,7 @@ class InvitedModTableItemJsonTemplate(RelTableItemJsonTemplate):
 
     def thing_attr(self, thing, attr):
         if attr == 'permissions':
-            permissions = thing.permissions.items()
+            permissions = list(thing.permissions.items())
             return [perm for perm, has in permissions if has]
         else:
             return RelTableItemJsonTemplate.thing_attr(self, thing, attr)
@@ -1431,7 +1430,7 @@ class StylesheetTemplate(ThingJsonTemplate):
     def images(self):
         sr_images = ImagesByWikiPage.get_images(c.site, "config/stylesheet")
         images = []
-        for name, url in sr_images.iteritems():
+        for name, url in sr_images.items():
             images.append({'name': name,
                            'link': 'url(%%%%%s%%%%)' % name,
                            'url': url})
@@ -1574,13 +1573,12 @@ class PolicyViewJsonTemplate(ThingJsonTemplate):
 
 class KarmaListJsonTemplate(ThingJsonTemplate):
     def data(self, karmas):
-        from r2.lib.template_helpers import (
-            display_comment_karma, display_link_karma)
+        from r2.lib.template_helpers import display_comment_karma, display_link_karma
         karmas = [{
             'sr': sr,
             'link_karma': display_link_karma(link_karma),
             'comment_karma': display_comment_karma(comment_karma),
-        } for sr, (link_karma, comment_karma) in karmas.iteritems()]
+        } for sr, (link_karma, comment_karma) in karmas.items()]
         return karmas
 
     def kind(self, wrapped):
@@ -1591,7 +1589,7 @@ def get_usertrophies(user):
     trophies = Trophy.by_account(user)
     def visible_trophy(trophy):
         return trophy._thing2.awardtype != 'invisible'
-    trophies = filter(visible_trophy, trophies)
+    trophies = list(filter(visible_trophy, trophies))
     resp = TrophyListJsonTemplate().render(trophies)
     return resp.finalize()
 
