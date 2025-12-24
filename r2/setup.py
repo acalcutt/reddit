@@ -66,7 +66,7 @@ setup(
         "Babel>=1.0",
         "cython>=0.14",
         "SQLAlchemy",
-        "BeautifulSoup",
+        "beautifulsoup4",
         "chardet",
         "psycopg2",
         "pycassa>=1.7.0",

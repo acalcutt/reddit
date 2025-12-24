@@ -74,7 +74,7 @@ python-numpy
 python-dateutil
 cython
 python-sqlalchemy
-python-beautifulsoup
+python3-bs4
 python-chardet
 python-psycopg2
 python-pycassa
