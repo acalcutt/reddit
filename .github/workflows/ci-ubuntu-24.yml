@@ -17,175 +17,58 @@ jobs:
         with:
           python-version: '3.12'
 
-      name: CI (Ubuntu 24.04)
-
+      - name: Install system packages
+        run: |
           sudo apt-get update
-        push:
-        pull_request:
-
-      jobs:
-        test:
-          runs-on: ubuntu-24.04
-          timeout-minutes: 120
-          steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Set up Python
-              uses: actions/setup-python@v4
-              with:
-                python-version: '3.12'
-
-            - name: Install system packages
-              run: |
-                sudo apt-get update
-                sudo apt-get install -y wget openjdk-17-jre-headless libpq-dev build-essential python3-dev libssl-dev
-
-            - name: Install and start PostgreSQL
-              run: |
-                sudo apt-get install -y postgresql postgresql-contrib
-                sudo service postgresql start
-                sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'reddit';"
-                sudo -u postgres psql -c "CREATE DATABASE reddit OWNER reddit;"
-
-            - name: Download and start Cassandra (tarball)
-              env:
-                CASS_VER: '4.1.9'
-              run: |
-                # download apache cassandra tarball and run it locally (no docker)
-                wget -q https://downloads.apache.org/cassandra/$CASS_VER/apache-cassandra-$CASS_VER-bin.tar.gz -O cassandra.tar.gz
-                tar xzf cassandra.tar.gz
-                CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
-                echo "Cassandra home: $CASS_HOME"
-                # start Cassandra in background
-                nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
-                # wait for CQL port (bash /dev/tcp check)
-                for i in $(seq 1 180); do
-                  (echo > /dev/tcp/127.0.0.1/9042) >/dev/null 2>&1 && { echo 'cassandra up'; break; } || sleep 1
-                done
-                if ! (echo > /dev/tcp/127.0.0.1/9042) >/dev/null 2>&1; then
-                  echo 'timed out waiting for cassandra'
-                  exit 2
-                fi
-                # create the cassandra keyspace that the app expects
-                echo "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};" | "$CASS_HOME/bin/cqlsh" 127.0.0.1 9042
-
-            - name: Install Python dependencies
-              run: |
-                python -m pip install --upgrade pip setuptools wheel
-                # install package and its dependencies declared in r2/setup.py
-                pip install -e r2/
-                # install test runner
-                pip install pytest
-
-            - name: Bootstrap DBs (create SQL tables & Cassandra CFs)
-              run: |
-                # Load the app to trigger automatic table/column-family creation.
-                python tools/bootstrap_db.py --ini r2/example.ini
-
-            - name: Run unit tests (r2)
-              env:
-                DATABASE_URL: "postgresql://reddit:reddit@127.0.0.1/reddit"
-              run: |
-                python -m pytest r2/r2/tests -q
-
-            - name: Archive test logs
-              if: failure()
-              uses: actions/upload-artifact@v4
-              with:
-                name: test-logs
-                path: |
-                  cassandra.out
-                  r2/r2/tests/**/test*.log
           sudo apt-get install -y wget openjdk-17-jre-headless libpq-dev build-essential python3-dev libssl-dev
 
-      name: CI (Ubuntu 24.04)
+      - name: Install and start PostgreSQL
+        run: |
+          sudo apt-get install -y postgresql postgresql-contrib
+          sudo service postgresql start
+          sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'reddit';"
+          sudo -u postgres psql -c "CREATE DATABASE reddit OWNER reddit;"
 
-      on:
-        push:
-        pull_request:
+      - name: Download and start Cassandra (tarball)
+        env:
+          CASS_VER: '4.1.9'
+        run: |
+          wget -q https://downloads.apache.org/cassandra/$CASS_VER/apache-cassandra-$CASS_VER-bin.tar.gz -O cassandra.tar.gz
+          tar xzf cassandra.tar.gz
+          CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
+          echo "Cassandra home: $CASS_HOME"
+          nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
+          # wait for CQL port using nc
+          for i in $(seq 1 180); do
+            nc -z 127.0.0.1 9042 && { echo 'cassandra up'; break; } || sleep 1
+          done
+          if ! nc -z 127.0.0.1 9042; then
+            echo 'timed out waiting for cassandra'
+            exit 2
+          fi
+          echo "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};" | "$CASS_HOME/bin/cqlsh" 127.0.0.1 9042
 
-      jobs:
-        test:
-          runs-on: ubuntu-24.04
-          timeout-minutes: 120
-          steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e r2/
+          pip install pytest
 
-            - name: Set up Python
-              uses: actions/setup-python@v4
-              with:
-                python-version: '3.12'
+      - name: Bootstrap DBs (create SQL tables & Cassandra CFs)
+        run: |
+          python tools/bootstrap_db.py --ini r2/example.ini
 
-            - name: Install system packages
-              run: |
-                sudo apt-get update
-                sudo apt-get install -y wget openjdk-17-jre-headless libpq-dev build-essential python3-dev libssl-dev
+      - name: Run unit tests (r2)
+        env:
+          DATABASE_URL: "postgresql://reddit:reddit@127.0.0.1/reddit"
+        run: |
+          python -m pytest r2/r2/tests -q
 
-            - name: Install and start PostgreSQL
-              run: |
-                sudo apt-get install -y postgresql postgresql-contrib
-                sudo service postgresql start
-                sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'reddit';"
-                sudo -u postgres psql -c "CREATE DATABASE reddit OWNER reddit;"
-
-            - name: Download and start Cassandra (tarball)
-              env:
-                CASS_VER: '4.1.9'
-              run: |
-                # download apache cassandra tarball and run it locally (no docker)
-                wget -q https://downloads.apache.org/cassandra/$CASS_VER/apache-cassandra-$CASS_VER-bin.tar.gz -O cassandra.tar.gz
-                tar xzf cassandra.tar.gz
-                CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
-                echo "Cassandra home: $CASS_HOME"
-                # start Cassandra in background
-                nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
-                # wait for CQL port
-                python - <<'PY'
-      import socket, time, sys
-      start=time.time()
-      while time.time()-start<180:
-          s=socket.socket()
-          try:
-              s.settimeout(2)
-              s.connect(('127.0.0.1', 9042))
-              print('cassandra up')
-              sys.exit(0)
-          except Exception:
-              time.sleep(1)
-      print('timed out waiting for cassandra')
-      sys.exit(2)
-      PY
-                # create the cassandra keyspace that the app expects
-                cat <<'CQL' | "$CASS_HOME/bin/cqlsh" 127.0.0.1 9042
-      CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};
-      CQL
-
-            - name: Install Python dependencies
-              run: |
-                python -m pip install --upgrade pip setuptools wheel
-                # install package and its dependencies declared in r2/setup.py
-                pip install -e r2/
-                # install test runner
-                pip install pytest
-
-            - name: Bootstrap DBs (create SQL tables & Cassandra CFs)
-              run: |
-                # Load the app to trigger automatic table/column-family creation.
-                python tools/bootstrap_db.py --ini r2/example.ini
-
-            - name: Run unit tests (r2)
-              run: |
-                python -m pytest r2/r2/tests -q
-              env:
-                DATABASE_URL: "postgresql://reddit:reddit@127.0.0.1/reddit"
-
-            - name: Archive test logs
-              if: failure()
-              uses: actions/upload-artifact@v4
-              with:
-                name: test-logs
-                path: |
-                  cassandra.out
-                  r2/r2/tests/**/test*.log
+      - name: Archive test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            cassandra.out
+            r2/r2/tests/**/test*.log
