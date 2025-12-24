@@ -28,7 +28,7 @@ import socket
 import threading
 import time
 
-from pycassa import columnfamily, pool
+from r2.lib.db.cassandra_compat import ColumnFamily as columnfamily, ConnectionPool as pool
 
 from r2.lib import baseplate_integration, utils
 
@@ -518,23 +518,31 @@ class StatsCollectingConnectionPool(pool.ConnectionPool):
         host, sep, port = server.partition(':')
         self.stats.event_count('cassandra.connections', host)
 
-        cf_types = (columnfamily.ColumnParent, columnfamily.ColumnPath)
+        # Our compat layer doesn't expose Thrift column types; accept common
+        # argument shapes instead (strings for cf names, or dicts for batch_mutate)
+        cf_types = (str, dict)
 
         def get_cf_name_from_args(args, kwargs):
             for v in args:
-                if isinstance(v, cf_types):
-                    return v.column_family
+                if isinstance(v, str):
+                    return v
+                if isinstance(v, dict):
+                    # batch mutation: return first CF name seen
+                    for k in v.keys():
+                        return k
             for v in kwargs.values():
-                if isinstance(v, cf_types):
-                    return v.column_family
+                if isinstance(v, str):
+                    return v
+                if isinstance(v, dict):
+                    for k in v.keys():
+                        return k
             return None
 
         def get_cf_name_from_batch_mutation(args, kwargs):
-            cf_names = set()
-            mutation_map = args[0]
-            for key_mutations in mutation_map.values():
-                cf_names.update(key_mutations)
-            return list(cf_names)
+            mutation_map = args[0] if args else {}
+            if isinstance(mutation_map, dict):
+                return list(mutation_map.keys())
+            return []
 
         instrumented_methods = dict(
             get=get_cf_name_from_args,

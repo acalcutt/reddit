@@ -29,17 +29,22 @@ from itertools import chain
 from uuid import UUID, uuid1
 
 import pytz
-from pycassa import ColumnFamily
-from pycassa.cassandra.ttypes import ConsistencyLevel, NotFoundException
-from pycassa.pool import MaximumRetryException
-from pycassa.system_manager import (
-    ASCII_TYPE,
-    TIME_UUID_TYPE,
-    UTF8_TYPE,
-    SystemManager,
-)
-from pycassa.types import DateType
-from pycassa.util import OrderedDict, convert_uuid_to_time
+from r2.lib.db.cassandra_compat import ColumnFamily, NotFoundException, ConnectionPool, SystemManager
+from cassandra import ReadTimeout
+from cassandra import ConsistencyLevel
+from cassandra.util import datetime_from_uuid1
+from collections import OrderedDict
+
+def convert_uuid_to_time(u):
+    try:
+        return datetime_from_uuid1(u)
+    except Exception:
+        return None
+
+class DateType:
+    pass
+
+MaximumRetryException = Exception
 from pylons import app_globals as g
 
 from r2.lib.sgm import sgm

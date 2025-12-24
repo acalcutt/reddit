@@ -69,6 +69,8 @@ setup(
         "beautifulsoup4",
         "chardet",
         "psycopg2",
+        # Modern Cassandra driver (DataStax) — prefer over pycassa
+        "cassandra-driver",
         # pycassa is provided by system packages on modern distros (python3-pycassa)
         # Keep it out of pip install_requires to avoid attempting to build
         # the legacy pycassa source (which is Python 2 only) during CI.

@@ -52,18 +52,11 @@ jobs:
           # create keyspace via docker exec cqlsh
           docker exec reddit_cassandra cqlsh -e "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};"
 
-      - name: Install pycassa (2to3 patched)
-        run: |
-          # pycassa upstream is Python2-only; fetch, run 2to3, and install into the env
-          git clone https://github.com/pycassa/pycassa /tmp/pycassa
-          python -m pip install --upgrade pip setuptools wheel
-          2to3 -w /tmp/pycassa || true
-          python -m pip install /tmp/pycassa
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          # install the rest of r2 (pycassa is already installed)
+          # install the DataStax Cassandra driver and other runtime deps
+          pip install cassandra-driver
           pip install -e r2/ --no-build-isolation
           pip install pytest
 
