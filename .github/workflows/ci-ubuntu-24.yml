@@ -40,26 +40,16 @@ jobs:
           echo "Cassandra home: $CASS_HOME"
           # start Cassandra in background
           nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
-          # wait for CQL port
-          python - <<'PY'
-import socket, time, sys
-start=time.time()
-while time.time()-start<180:
-    s=socket.socket()
-    try:
-        s.settimeout(2)
-        s.connect(('127.0.0.1', 9042))
-        print('cassandra up')
-        sys.exit(0)
-    except Exception:
-        time.sleep(1)
-print('timed out waiting for cassandra')
-sys.exit(2)
-PY
+          # wait for CQL port (bash /dev/tcp check)
+          for i in $(seq 1 180); do
+            (echo > /dev/tcp/127.0.0.1/9042) >/dev/null 2>&1 && { echo 'cassandra up'; break; } || sleep 1
+          done
+          if ! (echo > /dev/tcp/127.0.0.1/9042) >/dev/null 2>&1; then
+            echo 'timed out waiting for cassandra'
+            exit 2
+          fi
           # create the cassandra keyspace that the app expects
-          cat <<'CQL' | "$CASS_HOME/bin/cqlsh" 127.0.0.1 9042
-CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};
-CQL
+          echo "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};" | "$CASS_HOME/bin/cqlsh" 127.0.0.1 9042
 
       - name: Install Python dependencies
         run: |
