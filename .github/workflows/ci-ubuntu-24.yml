@@ -37,7 +37,16 @@ jobs:
           tar xzf cassandra.tar.gz
           CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
           echo "Cassandra home: $CASS_HOME"
-          # ensure a Java 11 runtime is used for Cassandra startup
+          # Try to select a Java 11 alternative if available, then set JAVA_HOME.
+          # This uses update-java-alternatives when a 11 JVM is present, else falls back
+          # to whatever `java` is on PATH.
+          if command -v update-java-alternatives >/dev/null 2>&1; then
+            # pick the first alternative name that contains '11'
+            alt=$(update-java-alternatives -l 2>/dev/null | awk '/11/ {print $1; exit}') || true
+            if [ -n "$alt" ]; then
+              sudo update-java-alternatives -s "$alt" || true
+            fi
+          fi
           export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
           echo "Using JAVA_HOME=$JAVA_HOME"
           nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
