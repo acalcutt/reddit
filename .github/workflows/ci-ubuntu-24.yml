@@ -20,7 +20,7 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget openjdk-17-jre-headless libpq-dev build-essential python3-dev libssl-dev
+          sudo apt-get install -y wget openjdk-11-jre-headless libpq-dev build-essential python3-dev libssl-dev netcat
 
       - name: Install and start PostgreSQL
         run: |
@@ -37,6 +37,9 @@ jobs:
           tar xzf cassandra.tar.gz
           CASS_HOME="$PWD/apache-cassandra-$CASS_VER"
           echo "Cassandra home: $CASS_HOME"
+          # ensure a Java 11 runtime is used for Cassandra startup
+          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+          echo "Using JAVA_HOME=$JAVA_HOME"
           nohup "$CASS_HOME/bin/cassandra" -R > cassandra.out 2>&1 &
           # wait for CQL port using nc
           for i in $(seq 1 180); do
