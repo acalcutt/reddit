@@ -54,7 +54,8 @@ else:
 
 setup(
     name="r2",
-    version="",
+    # Provide a valid version string to satisfy packaging/version
+    version="0.0.0",
     install_requires=[
         "Pylons",
         "Routes",
