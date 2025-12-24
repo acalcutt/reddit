@@ -77,7 +77,7 @@ python-sqlalchemy
 python3-bs4
 python-chardet
 python-psycopg2
-python-pycassa
+python3-pycassa
 python-imaging
 python-pycaptcha
 python-pylibmc=1.2.2-1~trusty5
