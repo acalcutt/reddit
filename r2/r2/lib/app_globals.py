@@ -39,7 +39,7 @@ from urllib.parse import urlparse
 import pkg_resources
 import pytz
 from baseplate import Baseplate
-from baseplate import config as baseplate_config
+from baseplate.lib import config as baseplate_config
 from baseplate.clients.thrift import ThriftContextFactory
 from baseplate.server import einhorn
 from baseplate.lib.thrift_pool import ThriftConnectionPool

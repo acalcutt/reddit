@@ -71,8 +71,8 @@ def main():
 
     # Some tests expect this
     try:
-        import baseplate.events
-        baseplate.events.EventQueue = queue.Queue
+        from baseplate.lib import events as baseplate_events
+        baseplate_events.EventQueue = queue.Queue
     except Exception:
         pass
 

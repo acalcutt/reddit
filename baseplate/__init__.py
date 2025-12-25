@@ -1,61 +1,89 @@
-"""Lightweight shim for Baseplate used in tests.
+"""Compatibility layer for Baseplate.
 
-This provides minimal classes and attributes required by r2 during test
-collection/bootstrap so tests can run without the full baseplate package.
+This module attempts to adapt old import paths used in r2 to the newer
+`baseplate` package layout. When the real `baseplate` package is installed
+this module will re-export the relevant symbols from the proper
+`baseplate.lib`/`baseplate.observers` modules. When not available, it
+provides lightweight fallbacks so tests and bootstrap can proceed.
 """
-from types import SimpleNamespace
+import importlib
+import types
 
 
-class BaseplateObserver:
-    pass
-
-
-class ServerSpanObserver(BaseplateObserver):
-    pass
-
-
-class SpanObserver(BaseplateObserver):
-    def __init__(self, name=None):
-        self.name = name
-
-
-class Baseplate:
-    def __init__(self, *args, **kwargs):
-        self.tracer = None
-
-    def register(self, observer):
-        return None
-
-    def add_to_context(self, key, value):
-        return None
-
-    def configure_logging(self):
-        return None
-
-    def configure_context(self):
-        return None
-
-    def configure_tracing(self, *args, **kwargs):
-        return None
-
-    def configure_tracer(self, *args, **kwargs):
+def _import_or_none(name):
+    try:
+        return importlib.import_module(name)
+    except Exception:
         return None
 
 
-# Minimal config helpers referenced by r2
-class _Optional:
-    def __init__(self, inner=None):
-        self.inner = inner
+# Try to re-export observers from new location
+_observers = _import_or_none('baseplate.observers')
+if _observers is not None:
+    BaseplateObserver = getattr(_observers, 'BaseplateObserver', type('BaseplateObserver', (), {}))
+    ServerSpanObserver = getattr(_observers, 'ServerSpanObserver', type('ServerSpanObserver', (), {}))
+    SpanObserver = getattr(_observers, 'SpanObserver', type('SpanObserver', (), {}))
+else:
+    class BaseplateObserver:  # fallback
+        pass
+
+    class ServerSpanObserver(BaseplateObserver):
+        pass
+
+    class SpanObserver(BaseplateObserver):
+        def __init__(self, name=None):
+            self.name = name
 
 
-class _Endpoint:
-    pass
+# Export a Baseplate class (best-effort). Newer baseplate exposes a Baseplate
+# class at top-level; if present, use it, otherwise provide a small shim.
+_baseplate_mod = _import_or_none('baseplate')
+if _baseplate_mod is not None and hasattr(_baseplate_mod, 'Baseplate'):
+    Baseplate = _baseplate_mod.Baseplate
+else:
+    class Baseplate:
+        def __init__(self, *args, **kwargs):
+            self.tracer = None
+
+        def register(self, observer):
+            return None
+
+        def add_to_context(self, key, value):
+            return None
+
+        def configure_logging(self):
+            return None
+
+        def configure_context(self):
+            return None
+
+        def configure_tracing(self, *args, **kwargs):
+            return None
+
+        def configure_tracer(self, *args, **kwargs):
+            return None
 
 
-config = SimpleNamespace(Optional=_Optional, Endpoint=_Endpoint)
+# Config helpers: prefer baseplate.lib.config
+_config_mod = _import_or_none('baseplate.lib.config') or _import_or_none('baseplate.config')
+if _config_mod is not None:
+    config = _config_mod
+else:
+    class _LocalConfigModule(types.SimpleNamespace):
+        def Optional(self, inner=None):
+            def parser(v):
+                if v is None or v == '':
+                    return None
+                if callable(inner):
+                    return inner(v)
+                return v
+
+            return parser
+
+        def Endpoint(self, v):
+            return str(v)
+
+    config = _LocalConfigModule()
 
 
-__all__ = [
-    'Baseplate', 'BaseplateObserver', 'ServerSpanObserver', 'SpanObserver',
-    'config',
-]
+__all__ = ['Baseplate', 'BaseplateObserver', 'ServerSpanObserver', 'SpanObserver', 'config']

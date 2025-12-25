@@ -31,7 +31,7 @@ than its own implementations.
 
 import functools
 
-from baseplate import BaseplateObserver, ServerSpanObserver, SpanObserver
+from baseplate.observers import BaseplateObserver, ServerSpanObserver, SpanObserver
 from pylons import app_globals as g
 from pylons import tmpl_context as c
 

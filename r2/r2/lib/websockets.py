@@ -27,7 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from baseplate.crypto import MessageSigner
+from baseplate.lib.crypto import MessageSigner
 from pylons import app_globals as g
 
 from r2.lib import amqp

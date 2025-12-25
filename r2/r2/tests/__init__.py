@@ -27,7 +27,7 @@ from collections import defaultdict
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-import baseplate.events
+from baseplate.lib import events as baseplate_events
 import paste.fixture
 import paste.script.appinstall
 import pkg_resources
@@ -71,7 +71,11 @@ from r2.config.middleware import RedditApp
 # unfortunately, because of the deep intertwinded dependency we have in the
 # orm with app_globals, we unfortunately have to do some pylons-setup
 # at import time
-baseplate.events.EventQueue = queue.Queue
+writable_ev = getattr(baseplate_events, 'EventQueue', None)
+if writable_ev is None:
+    baseplate_events.EventQueue = queue.Queue
+else:
+    baseplate_events.EventQueue = queue.Queue
 wsgiapp = loadapp('config:test.ini', relative_to=conf_dir)
 pylons.app_globals._push_object(wsgiapp.config['pylons.app_globals'])
 pylons.config._push_object(wsgiapp.config)
