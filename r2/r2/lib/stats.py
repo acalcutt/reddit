@@ -196,9 +196,12 @@ class StatsdClient:
 
 def _get_stat_name(*name_parts):
     def to_str(value):
-        if isinstance(value, str):
-            value = value.encode('utf-8', 'replace')
-        return value
+        if isinstance(value, bytes):
+            return value.decode('utf-8', 'replace')
+        if value is None:
+            return ''
+        return str(value)
+
     return '.'.join(to_str(x) for x in name_parts if x)
 
 
