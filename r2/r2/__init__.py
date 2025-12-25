@@ -31,6 +31,22 @@ This file loads the finished app from r2.config.middleware.
 # see "Non Blocking Module Imports" in:
 # http://code.google.com/p/modwsgi/wiki/ApplicationIssues
 import _strptime
+import sys
+import types
+
+# Provide a shim for old `boto.vendored.six.moves` imports. Some boto
+# releases expect a vendored `six` package under `boto.vendored.six.moves`.
+# Modern environments install `six` separately; map that into the expected
+# name so legacy boto modules continue to work.
+try:
+    import six
+    # expose the `moves` module under the legacy import path
+    sys.modules.setdefault('boto.vendored.six', types.ModuleType('boto.vendored.six'))
+    sys.modules['boto.vendored.six.moves'] = six.moves
+except Exception:
+    # If six isn't available or something else goes wrong, don't fail import;
+    # the real error will surface when boto is actually used.
+    pass
 
 
 # defer the (hefty) import until it's actually needed. this allows
