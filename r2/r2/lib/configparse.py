@@ -102,7 +102,17 @@ class ConfigValue:
     messages_re = re.compile(r'"([^"]+)"')
     @staticmethod
     def messages(v, key=None):
-        return ConfigValue.messages_re.findall(v.decode("string_escape"))
+        # In Python 2 this was v.decode("string_escape")
+        # In Python 3, we use codecs.decode with unicode_escape
+        import codecs
+        if isinstance(v, bytes):
+            v = v.decode('utf-8')
+        # Encode to bytes then decode with unicode_escape to handle escape sequences
+        try:
+            decoded = codecs.decode(v, 'unicode_escape')
+        except Exception:
+            decoded = v
+        return ConfigValue.messages_re.findall(decoded)
 
     @staticmethod
     def baseplate(baseplate_parser):
