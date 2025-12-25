@@ -90,6 +90,11 @@ jobs:
           pip install -e r2/ --no-build-isolation
           pip install pytest
 
+      - name: Verify r2 package installation
+        run: |
+          python -c "import r2; print('r2 loaded from:', r2.__file__); print('make_app exists:', hasattr(r2, 'make_app'))"
+          pip show r2
+
       - name: Bootstrap DBs (create SQL tables & Cassandra CFs)
         run: |
           python tools/bootstrap_db.py --ini r2/example.ini

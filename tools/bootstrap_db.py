@@ -13,6 +13,7 @@ import os
 import queue
 import sys
 import time
+import traceback
 
 from paste.deploy import loadapp
 
@@ -38,8 +39,35 @@ def main():
     repo_root = os.path.dirname(relative_to) if os.path.basename(relative_to) == 'r2' else relative_to
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
+    # Also add the r2 directory itself
+    r2_dir = os.path.join(repo_root, 'r2')
+    if os.path.isdir(r2_dir) and r2_dir not in sys.path:
+        sys.path.insert(0, r2_dir)
     # Invalidate import caches so new path is recognized
     importlib.invalidate_caches()
+
+    print('sys.path:', sys.path[:5])
+
+    # Test that we can import r2 and its make_app
+    try:
+        import r2
+        print('r2 module loaded from:', r2.__file__)
+        print('r2 module attributes:', [a for a in dir(r2) if not a.startswith('_')])
+        if hasattr(r2, 'make_app'):
+            print('r2.make_app found:', r2.make_app)
+        else:
+            print('WARNING: r2.make_app not found!')
+            # Try to import it directly
+            try:
+                from r2.config.middleware import make_app
+                print('Direct import of make_app succeeded:', make_app)
+            except Exception as e:
+                print('Direct import of make_app failed:', e)
+                traceback.print_exc()
+    except Exception as e:
+        print('Failed to import r2:', e)
+        traceback.print_exc()
+        return 4
 
     # Some tests expect this
     try:
@@ -57,6 +85,7 @@ def main():
         wsgiapp = loadapp(app_spec, relative_to=relative_to)
     except Exception as e:
         print('Error loading app:', e)
+        traceback.print_exc()
         return 3
 
     # Allow a short pause for any background initialization
