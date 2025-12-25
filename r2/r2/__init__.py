@@ -76,6 +76,29 @@ try:
     # Also map the moves module into sys.modules so `from boto.vendored.six.moves import ...`
     # works as expected.
     sys.modules.setdefault('boto.vendored.six.moves', six.moves)
+    # Register a few common submodules under the legacy dotted names so
+    # imports like `boto.vendored.six.moves.queue` resolve to the real
+    # modules from the stdlib / six.moves.
+    common_subs = [
+        'queue',
+        'urllib',
+        'urllib.request',
+        'urllib.parse',
+        'http_client',
+        '_thread',
+        'thread',
+    ]
+    for sub in common_subs:
+        try:
+            # resolve attribute path on six.moves (e.g. six.moves.urllib.request)
+            parts = sub.split('.')
+            obj = six.moves
+            for p in parts:
+                obj = getattr(obj, p)
+            sys.modules.setdefault(f'boto.vendored.six.moves.{sub}', obj)
+        except Exception:
+            # ignore any missing attributes — they'll error later if actually used
+            pass
 except Exception:
     # If anything goes wrong, don't break import-time; errors will surface
     # later when boto is actually used.
