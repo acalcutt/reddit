@@ -90,6 +90,8 @@ jobs:
           pip install cassandra-driver
           # ensure simplejson is available (needed by the project)
           pip install simplejson
+          # ensure paste and paste-deploy are available for loadwsgi
+          pip install Paste PasteDeploy
           pip install -e r2/ --no-build-isolation
           pip install pytest
 
