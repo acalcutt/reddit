@@ -88,6 +88,8 @@ jobs:
           # install Pyramid and Mako, DataStax Cassandra driver and other runtime deps
           pip install pyramid pyramid-mako
           pip install cassandra-driver
+          # ensure simplejson is available (needed by the project)
+          pip install simplejson
           pip install -e r2/ --no-build-isolation
           pip install pytest
 
