@@ -5,3 +5,4 @@ from .system_manager import *
 from .pool import *
 from .types import *
 from .util import *
+from .columnfamily import *
