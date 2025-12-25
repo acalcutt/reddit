@@ -120,7 +120,8 @@ def extract_secrets(config):
     # similarly to the live_config one above, if we just did
     # .options("secrets") we'd get back all the junk from DEFAULT too. bleh.
     secrets = config._sections["secrets"].copy()
-    del secrets["__name__"]  # magic value used by ConfigParser
+    # magic value used by ConfigParser (may not be present in all versions)
+    secrets.pop("__name__", None)
     return _decode_secrets(secrets)
 
 
