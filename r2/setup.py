@@ -78,7 +78,9 @@ setup(
         "captcha",
         "amqplib",
         "py-bcrypt",
-        "snudown>=1.1.0",
+        # snudown requires compilation with gperf. On Ubuntu: apt install gperf
+        # Install from GitHub: pip install https://github.com/reddit/snudown/archive/v1.5.0.tar.gz
+        "snudown @ https://github.com/reddit/snudown/archive/v1.5.0.tar.gz",
         "l2cs>=2.0.2",
         "lxml",
         "kazoo",
@@ -98,9 +100,6 @@ setup(
     # setup tests (allowing for "python setup.py test")
     tests_require=['mock', 'nose', 'coverage'],
     test_suite="nose.collector",
-    dependency_links=[
-        "https://github.com/reddit/snudown/archive/v1.1.3.tar.gz#egg=snudown-1.1.3",
-    ],
     packages=find_packages(exclude=["ez_setup"]),
     cmdclass=commands,
     ext_modules=pyx_extensions + [
