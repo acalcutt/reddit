@@ -100,7 +100,8 @@ def extract_live_config(config, plugins):
     # ConfigParser will include every value in DEFAULT (which paste abuses)
     # if we do this the way we're supposed to. sorry for the horribleness.
     live_config = config._sections["live_config"].copy()
-    del live_config["__name__"]  # magic value used by ConfigParser
+    # magic value used by ConfigParser (may not be present in all versions)
+    live_config.pop("__name__", None)
 
     # parse the config data including specs from plugins
     parsed = ConfigValueParser(live_config)
