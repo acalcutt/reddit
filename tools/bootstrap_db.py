@@ -8,8 +8,8 @@ initializes pylons app globals and triggers model/table creation when
 `db_create_tables` is enabled in the ini.
 """
 import argparse
+import importlib
 import os
-import pkg_resources
 import queue
 import sys
 import time
@@ -38,7 +38,8 @@ def main():
     repo_root = os.path.dirname(relative_to) if os.path.basename(relative_to) == 'r2' else relative_to
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
-        pkg_resources.working_set.add_entry(repo_root)
+    # Invalidate import caches so new path is recognized
+    importlib.invalidate_caches()
 
     # Some tests expect this
     try:
