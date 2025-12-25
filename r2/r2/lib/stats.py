@@ -403,8 +403,8 @@ class Stats:
 
         try:
             c.trace
-        except TypeError:
-            # the tmpl_context global isn't available out of request
+        except (TypeError, AttributeError):
+            # the tmpl_context global isn't available outside of a request
             return
 
         if c.trace:
@@ -589,8 +589,8 @@ class StatsCollectingConnectionPool(pool.ConnectionPool):
 
                 try:
                     c.trace
-                except TypeError:
-                    # the tmpl_context global isn't available out of request
+                except (TypeError, AttributeError):
+                    # the tmpl_context global isn't available outside of a request
                     cassandra_child_trace = utils.SimpleSillyStub()
                 else:
                     if c.trace:
