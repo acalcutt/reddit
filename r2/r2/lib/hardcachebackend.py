@@ -34,6 +34,27 @@ COUNT_CATEGORY = 'hc_count'
 ELAPSED_CATEGORY = 'hc_elapsed'
 TZ = pytz.timezone("MST")
 
+
+def _get_engine(table):
+    """Get the engine from a table (SQLAlchemy 2.0 compat)."""
+    return table.metadata._engine
+
+
+def _execute(table, stmt):
+    """Execute a statement and return the result."""
+    engine = _get_engine(table)
+    with engine.connect() as conn:
+        result = conn.execute(stmt)
+        conn.commit()
+        return result
+
+
+def _select(table, stmt):
+    """Execute a select statement and return all rows."""
+    engine = _get_engine(table)
+    with engine.connect() as conn:
+        return conn.execute(stmt).fetchall()
+
 def expiration_from_time(time):
     if time <= 0:
         raise ValueError ("HardCache items *must* have an expiration time")
@@ -150,15 +171,15 @@ class HardCacheBackend:
 
         prof = self.profile_start('set', category)
 
-        engine = self.engine_by_category(category, "master")
+        table = self.engine_by_category(category, "master")
 
-        engine.insert().execute(
+        _execute(table, table.insert().values(
             category=category,
             ids=ids,
             value=value,
             kind=kind,
             expiration=expiration
-            )
+        ))
 
         self.profile_stop(prof)
 
@@ -171,16 +192,16 @@ class HardCacheBackend:
 
         prof = self.profile_start('add', category)
 
-        engine = self.engine_by_category(category, "master")
+        table = self.engine_by_category(category, "master")
 
         try:
-            rp = engine.insert().execute(
+            _execute(table, table.insert().values(
                 category=category,
                 ids=ids,
                 value=value,
                 kind=kind,
                 expiration=expiration
-                )
+            ))
             self.profile_stop(prof)
             return value
 
@@ -195,19 +216,18 @@ class HardCacheBackend:
 
         prof = self.profile_start('incr', category)
 
-        engine = self.engine_by_category(category, "master")
+        table = self.engine_by_category(category, "master")
 
-        rp = engine.update(sa.and_(engine.c.category==category,
-                                   engine.c.ids==ids,
-                                   engine.c.kind=='num'),
-                           values = {
-                                   engine.c.value:
-                                           sa.cast(
-                                           sa.cast(engine.c.value, sa.Integer)
-                                           + delta, sa.String),
-                                   engine.c.expiration: expiration
-                                   }
-                           ).execute()
+        stmt = table.update().where(
+            sa.and_(table.c.category==category,
+                    table.c.ids==ids,
+                    table.c.kind=='num')
+        ).values({
+            table.c.value: sa.cast(
+                sa.cast(table.c.value, sa.Integer) + delta, sa.String),
+            table.c.expiration: expiration
+        })
+        rp = _execute(table, stmt)
 
         self.profile_stop(prof)
 
@@ -230,17 +250,14 @@ class HardCacheBackend:
         else:
             type = "readslave"
 
-        engine = self.engine_by_category(category, type)
+        table = self.engine_by_category(category, type)
 
         prof = self.profile_start('get', category)
 
-        s = sa.select([engine.c.value,
-                       engine.c.kind,
-                       engine.c.expiration],
-                      sa.and_(engine.c.category==category,
-                              engine.c.ids==ids),
-                      limit = 1)
-        rows = s.execute().fetchall()
+        s = sa.select(table.c.value, table.c.kind, table.c.expiration).where(
+            sa.and_(table.c.category==category, table.c.ids==ids)
+        ).limit(1)
+        rows = _select(table, s)
 
         self.profile_stop(prof)
 
@@ -254,16 +271,12 @@ class HardCacheBackend:
     def get_multi(self, category, idses):
         prof = self.profile_start('get_multi', category)
 
-        engine = self.engine_by_category(category, "readslave")
+        table = self.engine_by_category(category, "readslave")
 
-        s = sa.select([engine.c.ids,
-                       engine.c.value,
-                       engine.c.kind,
-                       engine.c.expiration],
-                      sa.and_(engine.c.category==category,
-                              sa.or_(*[engine.c.ids==ids
-                                       for ids in idses])))
-        rows = s.execute().fetchall()
+        s = sa.select(table.c.ids, table.c.value, table.c.kind, table.c.expiration).where(
+            sa.and_(table.c.category==category,
+                    sa.or_(*[table.c.ids==ids for ids in idses])))
+        rows = _select(table, s)
 
         self.profile_stop(prof)
 
@@ -278,49 +291,45 @@ class HardCacheBackend:
 
     def delete(self, category, ids):
         prof = self.profile_start('delete', category)
-        engine = self.engine_by_category(category, "master")
-        engine.delete(
-            sa.and_(engine.c.category==category,
-                    engine.c.ids==ids)).execute()
+        table = self.engine_by_category(category, "master")
+        _execute(table, table.delete().where(
+            sa.and_(table.c.category==category, table.c.ids==ids)))
         self.profile_stop(prof)
 
     def ids_by_category(self, category, limit=1000):
         prof = self.profile_start('ids_by_category', category)
-        engine = self.engine_by_category(category, "readslave")
-        s = sa.select([engine.c.ids],
-                      sa.and_(engine.c.category==category,
-                              engine.c.expiration > datetime.now(TZ)),
-                      limit = limit)
-        rows = s.execute().fetchall()
+        table = self.engine_by_category(category, "readslave")
+        s = sa.select(table.c.ids).where(
+            sa.and_(table.c.category==category,
+                    table.c.expiration > datetime.now(TZ))
+        ).limit(limit)
+        rows = _select(table, s)
         self.profile_stop(prof)
         return [ r.ids for r in rows ]
 
-    def clause_from_expiration(self, engine, expiration):
+    def clause_from_expiration(self, table, expiration):
         if expiration is None:
             return True
         elif expiration == "now":
-            return engine.c.expiration < datetime.now(TZ)
+            return table.c.expiration < datetime.now(TZ)
         else:
-            return engine.c.expiration < expiration
+            return table.c.expiration < expiration
 
-    def expired(self, engine, expiration_clause, limit=1000):
-        s = sa.select([engine.c.category,
-                       engine.c.ids,
-                       engine.c.expiration],
-                      expiration_clause,
-                      limit = limit,
-                      order_by = engine.c.expiration
-                      )
-        rows = s.execute().fetchall()
+    def expired(self, table, expiration_clause, limit=1000):
+        s = sa.select(table.c.category, table.c.ids, table.c.expiration).where(
+            expiration_clause
+        ).limit(limit).order_by(table.c.expiration)
+        rows = _select(table, s)
         return [ (r.expiration, r.category, r.ids) for r in rows ]
 
     def delete_if_expired(self, category, ids, expiration="now"):
         prof = self.profile_start('delete_if_expired', category)
-        engine = self.engine_by_category(category, "master")
-        expiration_clause = self.clause_from_expiration(engine, expiration)
-        engine.delete(sa.and_(engine.c.category==category,
-                              engine.c.ids==ids,
-                              expiration_clause)).execute()
+        table = self.engine_by_category(category, "master")
+        expiration_clause = self.clause_from_expiration(table, expiration)
+        _execute(table, table.delete().where(
+            sa.and_(table.c.category==category,
+                    table.c.ids==ids,
+                    expiration_clause)))
         self.profile_stop(prof)
 
 
@@ -331,17 +340,17 @@ def delete_expired(expiration="now", limit=5000):
 
     masters = set()
 
-    for engines in list(backend.mapping.values()):
-        masters.add(engines[0])
+    for tables in list(backend.mapping.values()):
+        masters.add(tables[0])
 
-    for engine in masters:
-        expiration_clause = backend.clause_from_expiration(engine, expiration)
+    for table in masters:
+        expiration_clause = backend.clause_from_expiration(table, expiration)
 
         # Get all the expired keys
-        rows = backend.expired(engine, expiration_clause, limit)
+        rows = backend.expired(table, expiration_clause, limit)
 
         if len(rows) == 0:
             continue
 
         # Delete from the backend.
-        engine.delete(expiration_clause).execute()
+        _execute(table, table.delete().where(expiration_clause))

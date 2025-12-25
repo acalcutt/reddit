@@ -21,6 +21,8 @@
 ###############################################################################
 
 
+import sqlalchemy as sa
+
 from . import tdb_sql
 
 
@@ -51,12 +53,14 @@ def exec_all(command, data=False, rel = False, print_only = False):
 
     for tt in tables:
         #print tt
-        engine = tt.bind
+        engine = tdb_sql.get_engine_from_table(tt)
         if print_only:
             print(command % dict(type=tt.name))
         else:
             try:
-                engine.execute(command % dict(type=tt.name))
+                with engine.connect() as conn:
+                    conn.execute(sa.text(command % dict(type=tt.name)))
+                    conn.commit()
             except:
                 print("FAILED!")
 

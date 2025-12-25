@@ -56,17 +56,13 @@ class TransactionSet(threading.local):
     writes.  If thing.py calls begin then these calls will actually kick in
     and start a transaction that must be committed or rolled back by thing.py.
 
-    Because this involves creating transactions at the connection level, this
-    system implicitly relies on using the threadlocal strategy for the
-    sqlalchemy engines.
-
-    This system is a bit awkward, and should be replaced with something that
-    doesn't use module-globals when doing a cleanup of tdb_sql.
+    Updated for SQLAlchemy 2.0: Now manages connections instead of relying
+    on the removed threadlocal strategy.
 
     """
 
     def __init__(self):
-        self.transacting_engines = set()
+        self.connections = {}  # engine -> connection
         self.transaction_begun = False
 
     def begin(self):
@@ -78,28 +74,37 @@ class TransactionSet(threading.local):
         if not self.transaction_begun:
             return
 
-        if engine not in self.transacting_engines:
-            engine.begin()
-            self.transacting_engines.add(engine)
+        if engine not in self.connections:
+            conn = engine.connect()
+            conn.begin()
+            self.connections[engine] = conn
+
+    def get_connection(self, engine):
+        """Get a connection for the engine, creating one if needed."""
+        if engine in self.connections:
+            return self.connections[engine]
+        return None
 
     def commit(self):
         """Commit the meta-transaction."""
         try:
-            for engine in self.transacting_engines:
-                engine.commit()
+            for conn in self.connections.values():
+                conn.commit()
+                conn.close()
         finally:
             self._clear()
 
     def rollback(self):
         """Roll back the meta-transaction."""
         try:
-            for engine in self.transacting_engines:
-                engine.rollback()
+            for conn in self.connections.values():
+                conn.rollback()
+                conn.close()
         finally:
             self._clear()
 
     def _clear(self):
-        self.transacting_engines.clear()
+        self.connections.clear()
         self.transaction_begun = False
 
 
@@ -109,19 +114,46 @@ MAX_THING_ID = 9223372036854775807 # http://www.postgresql.org/docs/8.3/static/d
 MIN_THING_ID = 0
 
 def make_metadata(engine):
-    metadata = sa.MetaData(engine)
-    metadata.bind.echo = g.sqlprinting
+    metadata = sa.MetaData()
+    # Store engine reference for SQLAlchemy 2.0 compatibility
+    metadata._engine = engine
+    engine.echo = g.sqlprinting
     return metadata
+
+def get_engine_from_table(table):
+    """Get the engine associated with a table (SQLAlchemy 2.0 compat)."""
+    return table.metadata._engine
+
+def execute_statement(table, stmt, params=None):
+    """Execute a statement using the table's engine with proper connection handling."""
+    engine = get_engine_from_table(table)
+    # Check if we have a transaction connection
+    conn = transactions.get_connection(engine)
+    if conn:
+        if params:
+            return conn.execute(stmt, params)
+        return conn.execute(stmt)
+    else:
+        # No transaction, use autocommit
+        with engine.connect() as conn:
+            if params:
+                result = conn.execute(stmt, params)
+            else:
+                result = conn.execute(stmt)
+            conn.commit()
+            return result
 
 def create_table(table, index_commands=None):
     t = table
     if g.db_create_tables:
-        #@@hackish?
-        if not t.bind.has_table(t.name):
-            t.create(checkfirst = False)
-            if index_commands:
-                for i in index_commands:
-                    t.bind.execute(i)
+        engine = get_engine_from_table(t)
+        with engine.connect() as conn:
+            if not sa.inspect(engine).has_table(t.name):
+                t.create(bind=engine, checkfirst=False)
+                if index_commands:
+                    for i in index_commands:
+                        conn.execute(sa.text(i))
+                    conn.commit()
 
 def index_str(table, name, on, where = None, unique = False):
     if unique:
@@ -264,12 +296,15 @@ def check_type(table, name, insert_vals):
         raise ConfigurationError("Expected typeid for %s" % name)
 
     # check for type in type table, create if not existent
-    r = table.select(table.c.name == name).execute().fetchone()
-    if not r:
-        r = table.insert().execute(**insert_vals)
-        type_id = r.inserted_primary_key[0]
-    else:
-        type_id = r.id
+    engine = get_engine_from_table(table)
+    with engine.connect() as conn:
+        r = conn.execute(table.select().where(table.c.name == name)).fetchone()
+        if not r:
+            result = conn.execute(table.insert().values(**insert_vals))
+            conn.commit()
+            type_id = result.inserted_primary_key[0]
+        else:
+            type_id = r.id
     return type_id
 
 #make the thing tables
@@ -419,14 +454,10 @@ def make_thing(type_id, ups, downs, date, deleted, spam, id=None):
         params['thing_id'] = id
 
     def do_insert(t):
-        transactions.add_engine(t.bind)
-        r = t.insert().execute(**params)
+        engine = get_engine_from_table(t)
+        transactions.add_engine(engine)
+        r = execute_statement(t, t.insert().values(**params))
         new_id = r.inserted_primary_key[0]
-        new_r = r.last_inserted_params()
-        for k, v in params.items():
-            if new_r[k] != v:
-                raise CreationError("There's shit in the plumbing. " +
-                                      "expected {}, got {}".format(params,  new_r))
         return new_id
 
     try:
@@ -434,7 +465,7 @@ def make_thing(type_id, ups, downs, date, deleted, spam, id=None):
         params['thing_id'] = id
         return id
     except sa.exc.DBAPIError as e:
-        if 'IntegrityError' not in e.message:
+        if 'IntegrityError' not in str(e):
             raise
         # wrap the error to prevent db layer bleeding out
         raise CreationError("Thing exists (%s)" % str(params))
@@ -448,21 +479,23 @@ def set_thing_props(type_id, thing_id, **props):
 
     #use real columns
     def do_update(t):
-        transactions.add_engine(t.bind)
+        engine = get_engine_from_table(t)
+        transactions.add_engine(engine)
         new_props = {t.c[prop]: val for prop, val in props.items()}
-        u = t.update(t.c.thing_id == thing_id, values = new_props)
-        u.execute()
+        u = t.update().where(t.c.thing_id == thing_id).values(new_props)
+        execute_statement(t, u)
 
     do_update(table)
 
 def incr_thing_prop(type_id, thing_id, prop, amount):
     table = get_thing_table(type_id, action = 'write')[0]
-    
+
     def do_update(t):
-        transactions.add_engine(t.bind)
-        u = t.update(t.c.thing_id == thing_id,
-                     values={t.c[prop] : t.c[prop] + amount})
-        u.execute()
+        engine = get_engine_from_table(t)
+        transactions.add_engine(engine)
+        u = t.update().where(t.c.thing_id == thing_id).values(
+            {t.c[prop]: t.c[prop] + amount})
+        execute_statement(t, u)
 
     do_update(table)
 
@@ -472,17 +505,19 @@ class CreationError(Exception): pass
 #TODO do the things actually exist?
 def make_relation(rel_type_id, thing1_id, thing2_id, name, date=None):
     table = get_rel_table(rel_type_id, action = 'write')[0]
-    transactions.add_engine(table.bind)
-    
+    engine = get_engine_from_table(table)
+    transactions.add_engine(engine)
+
     if not date: date = datetime.now(g.tz)
     try:
-        r = table.insert().execute(thing1_id = thing1_id,
-                                   thing2_id = thing2_id,
-                                   name = name, 
-                                   date = date)
+        r = execute_statement(table, table.insert().values(
+            thing1_id=thing1_id,
+            thing2_id=thing2_id,
+            name=name,
+            date=date))
         return r.inserted_primary_key[0]
     except sa.exc.DBAPIError as e:
-        if 'IntegrityError' not in e.message:
+        if 'IntegrityError' not in str(e):
             raise
         # wrap the error to prevent db layer bleeding out
         raise CreationError("Relation exists ({}, {}, {})".format(name, thing1_id, thing2_id))
@@ -495,10 +530,11 @@ def set_rel_props(rel_type_id, rel_id, **props):
         return
 
     #use real columns
-    transactions.add_engine(t.bind)
+    engine = get_engine_from_table(t)
+    transactions.add_engine(engine)
     new_props = {t.c[prop]: val for prop, val in props.items()}
-    u = t.update(t.c.rel_id == rel_id, values = new_props)
-    u.execute()
+    u = t.update().where(t.c.rel_id == rel_id).values(new_props)
+    execute_statement(t, u)
 
 
 def py2db(val, return_kind=False):
@@ -537,45 +573,44 @@ def db2py(val, kind):
 
 
 def update_data(table, thing_id, **vals):
-    transactions.add_engine(table.bind)
-
-    u = table.update(sa.and_(table.c.thing_id == thing_id,
-                             table.c.key == sa.bindparam('_key')))
+    engine = get_engine_from_table(table)
+    transactions.add_engine(engine)
 
     inserts = []
     for key, val in vals.items():
         val, kind = py2db(val, return_kind=True)
 
-        uresult = u.execute(_key = key, value = val, kind = kind)
+        u = table.update().where(
+            sa.and_(table.c.thing_id == thing_id, table.c.key == key)
+        ).values(value=val, kind=kind)
+        uresult = execute_statement(table, u)
         if not uresult.rowcount:
-            inserts.append({'key':key, 'value':val, 'kind': kind})
+            inserts.append({'thing_id': thing_id, 'key': key, 'value': val, 'kind': kind})
 
     #do one insert
     if inserts:
-        i = table.insert(values = dict(thing_id = thing_id))
-        i.execute(*inserts)
+        for ins in inserts:
+            execute_statement(table, table.insert().values(**ins))
 
 
 def create_data(table, thing_id, **vals):
-    transactions.add_engine(table.bind)
+    engine = get_engine_from_table(table)
+    transactions.add_engine(engine)
 
-    inserts = []
     for key, val in vals.items():
         val, kind = py2db(val, return_kind=True)
-        inserts.append(dict(key=key, value=val, kind=kind))
-
-    if inserts:
-        i = table.insert(values=dict(thing_id=thing_id))
-        i.execute(*inserts)
+        execute_statement(table, table.insert().values(
+            thing_id=thing_id, key=key, value=val, kind=kind))
 
 
 def incr_data_prop(table, type_id, thing_id, prop, amount):
     t = table
-    transactions.add_engine(t.bind)
-    u = t.update(sa.and_(t.c.thing_id == thing_id,
-                         t.c.key == prop),
-                 values={t.c.value : sa.cast(t.c.value, sa.Float) + amount})
-    u.execute()
+    engine = get_engine_from_table(t)
+    transactions.add_engine(engine)
+    u = t.update().where(
+        sa.and_(t.c.thing_id == thing_id, t.c.key == prop)
+    ).values({t.c.value: sa.cast(t.c.value, sa.Float) + amount})
+    execute_statement(t, u)
 
 def fetch_query(table, id_col, thing_id):
     """pull the columns from the thing/data tables for a list or single
@@ -585,13 +620,15 @@ def fetch_query(table, id_col, thing_id):
     if not isinstance(thing_id, iters):
         single = True
         thing_id = (thing_id,)
-    
-    s = sa.select([table], id_col.in_(thing_id))
+
+    s = sa.select(table).where(id_col.in_(thing_id))
+    engine = get_engine_from_table(table)
 
     try:
-        r = add_request_info(s).execute().fetchall()
+        with engine.connect() as conn:
+            r = conn.execute(add_request_info(s)).fetchall()
     except Exception:
-        dbm.mark_dead(table.bind)
+        dbm.mark_dead(engine)
         # this thread must die so that others may live
         raise
     return (r, single)
@@ -689,11 +726,13 @@ def del_rel(rel_type_id, rel_id):
     table = tables[0]
     data_table = tables[3]
 
-    transactions.add_engine(table.bind)
-    transactions.add_engine(data_table.bind)
+    engine = get_engine_from_table(table)
+    data_engine = get_engine_from_table(data_table)
+    transactions.add_engine(engine)
+    transactions.add_engine(data_engine)
 
-    table.delete(table.c.rel_id == rel_id).execute()
-    data_table.delete(data_table.c.thing_id == rel_id).execute()
+    execute_statement(table, table.delete().where(table.c.rel_id == rel_id))
+    execute_statement(data_table, data_table.delete().where(data_table.c.thing_id == rel_id))
 
 def sa_op(op):
     #if BooleanOp
@@ -805,8 +844,8 @@ def find_things(type_id, sort, limit, offset, constraints):
     table = get_thing_table(type_id)[0]
     constraints = deepcopy(constraints)
 
-    s = sa.select([table.c.thing_id.label('thing_id')])
-    
+    s = sa.select(table.c.thing_id.label('thing_id'))
+
     for op in operators.op_iter(constraints):
         #assume key starts with _
         #if key.startswith('_'):
@@ -815,7 +854,7 @@ def find_things(type_id, sort, limit, offset, constraints):
         op.rval = translate_thing_value(op.rval)
 
     for op in constraints:
-        s.append_whereclause(sa_op(op))
+        s = s.where(sa_op(op))
 
     if sort:
         s, cols = add_sort(sort, {'_': table}, s)
@@ -826,10 +865,12 @@ def find_things(type_id, sort, limit, offset, constraints):
     if offset:
         s = s.offset(offset)
 
+    engine = get_engine_from_table(table)
     try:
-        r = add_request_info(s).execute()
+        with engine.connect() as conn:
+            r = conn.execute(add_request_info(s))
     except Exception:
-        dbm.mark_dead(table.bind)
+        dbm.mark_dead(engine)
         # this thread must die so that others may live
         raise
     return Results(r, lambda row: row.thing_id)
@@ -856,11 +897,13 @@ def find_data(type_id, sort, limit, offset, constraints):
     constraints = deepcopy(constraints)
 
     used_first = False
-    s = None
     need_join = False
     have_data_rule = False
     first_alias = d_table.alias()
-    s = sa.select([first_alias.c.thing_id.label('thing_id')])#, distinct=True)
+
+    # Build columns and where clauses lists first
+    columns = [first_alias.c.thing_id.label('thing_id')]
+    where_clauses = []
 
     for op in operators.op_iter(constraints):
         key = op.lval_name
@@ -883,16 +926,23 @@ def find_data(type_id, sort, limit, offset, constraints):
                 id_col = first_alias.c.thing_id
 
             if id_col is not None:
-                s.append_whereclause(id_col == alias.c.thing_id)
-            
-            s.append_column(alias.c.value.label(key))
-            s.append_whereclause(alias.c.key == key)
-            
+                where_clauses.append(id_col == alias.c.thing_id)
+
+            columns.append(alias.c.value.label(key))
+            where_clauses.append(alias.c.key == key)
+
             #add the substring constraint if no other functions are there
             translate_data_value(alias, op)
 
+    # Build the select with all columns
+    s = sa.select(*columns)
+
+    # Add all where clauses
+    for clause in where_clauses:
+        s = s.where(clause)
+
     for op in constraints:
-        s.append_whereclause(sa_op(op))
+        s = s.where(sa_op(op))
 
     if not have_data_rule:
         raise Exception('Data queries must have at least one data rule.')
@@ -901,9 +951,9 @@ def find_data(type_id, sort, limit, offset, constraints):
     if sort:
         need_join = True
         s, cols = add_sort(sort, {'_':t_table}, s)
-            
+
     if need_join:
-        s.append_whereclause(first_alias.c.thing_id == t_table.c.thing_id)
+        s = s.where(first_alias.c.thing_id == t_table.c.thing_id)
 
     if limit:
         s = s.limit(limit)
@@ -911,10 +961,12 @@ def find_data(type_id, sort, limit, offset, constraints):
     if offset:
         s = s.offset(offset)
 
+    engine = get_engine_from_table(t_table)
     try:
-        r = add_request_info(s).execute()
+        with engine.connect() as conn:
+            r = conn.execute(add_request_info(s))
     except Exception:
-        dbm.mark_dead(t_table.bind)
+        dbm.mark_dead(engine)
         # this thread must die so that others may live
         raise
 
@@ -930,15 +982,13 @@ def sort_thing_ids_by_data_value(type_id, thing_ids, value_name,
     join = thing_table.join(data_table,
         data_table.c.thing_id == thing_table.c.thing_id)
 
-    query = (sa.select(
-            [thing_table.c.thing_id],
-            sa.and_(
-                thing_table.c.thing_id.in_(thing_ids),
-                thing_table.c.deleted == False,
-                thing_table.c.spam == False,
-                data_table.c.key == value_name,
-            )
-        )
+    query = (sa.select(thing_table.c.thing_id)
+        .where(sa.and_(
+            thing_table.c.thing_id.in_(thing_ids),
+            thing_table.c.deleted == False,
+            thing_table.c.spam == False,
+            data_table.c.key == value_name,
+        ))
         .select_from(join)
     )
 
@@ -950,7 +1000,9 @@ def sort_thing_ids_by_data_value(type_id, thing_ids, value_name,
     if limit:
         query = query.limit(limit)
 
-    rows = query.execute()
+    engine = get_engine_from_table(thing_table)
+    with engine.connect() as conn:
+        rows = conn.execute(query)
 
     return Results(rows, lambda row: row.thing_id)
 
@@ -981,7 +1033,10 @@ def find_rels(ret_props, rel_type_id, sort, limit, offset, constraints):
 
         columns.append(prop_to_column[prop])
 
-    s = sa.select(columns)
+    # Build where clauses and extra columns
+    where_clauses = []
+    extra_columns = []
+
     need_join1 = ('thing1_id', t1_table)
     need_join2 = ('thing2_id', t2_table)
     joins_needed = set()
@@ -990,7 +1045,7 @@ def find_rels(ret_props, rel_type_id, sort, limit, offset, constraints):
         #vals = con.rval
         key = op.lval_name
         prefix = key[:4]
-        
+
         if prefix in ('_t1_', '_t2_'):
             #not a thing attribute
             key = key[4:]
@@ -1013,14 +1068,21 @@ def find_rels(ret_props, rel_type_id, sort, limit, offset, constraints):
 
         else:
             alias = d_table.alias()
-            s.append_whereclause(r_table.c.rel_id == alias.c.thing_id)
-            s.append_column(alias.c.value.label(key))
-            s.append_whereclause(alias.c.key == key)
+            where_clauses.append(r_table.c.rel_id == alias.c.thing_id)
+            extra_columns.append(alias.c.value.label(key))
+            where_clauses.append(alias.c.key == key)
 
             translate_data_value(alias, op)
 
+    # Build select with all columns
+    s = sa.select(*(columns + extra_columns))
+
+    # Add where clauses
+    for clause in where_clauses:
+        s = s.where(clause)
+
     for op in constraints:
-        s.append_whereclause(sa_op(op))
+        s = s.where(sa_op(op))
 
     if sort:
         s, cols = add_sort(
@@ -1038,7 +1100,7 @@ def find_rels(ret_props, rel_type_id, sort, limit, offset, constraints):
 
     for j in joins_needed:
         col, table = j
-        s.append_whereclause(r_table.c[col] == table.c.thing_id)
+        s = s.where(r_table.c[col] == table.c.thing_id)
 
     if limit:
         s = s.limit(limit)
@@ -1046,10 +1108,12 @@ def find_rels(ret_props, rel_type_id, sort, limit, offset, constraints):
     if offset:
         s = s.offset(offset)
 
+    engine = get_engine_from_table(r_table)
     try:
-        r = add_request_info(s).execute()
+        with engine.connect() as conn:
+            r = conn.execute(add_request_info(s))
     except Exception:
-        dbm.mark_dead(r_table.bind)
+        dbm.mark_dead(engine)
         # this thread must die so that others may live
         raise
 

@@ -30,8 +30,10 @@ class tdb_lite:
         self.gc = gc
 
     def make_metadata(self, engine):
-        metadata = sa.MetaData(engine)
-        metadata.bind.echo = self.gc.sqlprinting
+        metadata = sa.MetaData()
+        # Store engine reference on metadata for compatibility
+        metadata._engine = engine
+        engine.echo = self.gc.sqlprinting
         return metadata
 
     def index_str(self, table, name, on, where = None):
@@ -45,12 +47,14 @@ class tdb_lite:
     def create_table(self, table, index_commands=None):
         t = table
         if self.gc.db_create_tables:
-            #@@hackish?
-            if not t.bind.has_table(t.name):
-                t.create(checkfirst = False)
-                if index_commands:
-                    for i in index_commands:
-                        t.bind.execute(i)
+            engine = t.metadata._engine
+            with engine.connect() as conn:
+                if not sa.inspect(engine).has_table(t.name):
+                    t.create(bind=engine, checkfirst=False)
+                    if index_commands:
+                        for i in index_commands:
+                            conn.execute(sa.text(i))
+                        conn.commit()
 
     def py2db(self, val, return_kind=False):
         if isinstance(val, bool):
