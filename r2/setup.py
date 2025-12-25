@@ -60,6 +60,7 @@ setup(
         "pyramid",
         "pyramid-mako",
         "Routes",
+        "baseplate",
         "mako>=0.5",
         "boto >= 2.0",
         "pytz",
