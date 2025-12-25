@@ -57,7 +57,8 @@ setup(
     # Provide a valid version string to satisfy packaging/version
     version="0.0.0",
     install_requires=[
-        "Pylons",
+        "pyramid",
+        "pyramid-mako",
         "Routes",
         "mako>=0.5",
         "boto >= 2.0",

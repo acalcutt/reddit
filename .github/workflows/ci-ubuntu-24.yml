@@ -85,7 +85,8 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          # install the DataStax Cassandra driver and other runtime deps
+          # install Pyramid and Mako, DataStax Cassandra driver and other runtime deps
+          pip install pyramid pyramid-mako
           pip install cassandra-driver
           pip install -e r2/ --no-build-isolation
           pip install pytest
