@@ -52,8 +52,8 @@ class CaptchaController(RedditController):
         use [/api/new_captcha](#POST_api_new_captcha).
         """
         image = captcha.get_image(iden)
-        f = io.StringIO()
+        f = io.BytesIO()
         image.save(f, "PNG")
-        response.content_type = "image/png;"
+        response.content_type = "image/png"
         return f.getvalue()
     

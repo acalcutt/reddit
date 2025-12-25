@@ -74,7 +74,8 @@ setup(
         # pycassa is provided by system packages on modern distros (python3-pycassa)
         # Keep it out of pip install_requires to avoid attempting to build
         # the legacy pycassa source (which is Python 2 only) during CI.
-        "pycaptcha",
+        # Modern captcha library (Python 3 compatible) replaces pycaptcha
+        "captcha",
         "amqplib",
         "py-bcrypt",
         "snudown>=1.1.0",
@@ -99,7 +100,6 @@ setup(
     test_suite="nose.collector",
     dependency_links=[
         "https://github.com/reddit/snudown/archive/v1.1.3.tar.gz#egg=snudown-1.1.3",
-        "https://s3.amazonaws.com/code.reddit.com/pycaptcha-0.4.tar.gz#egg=pycaptcha-0.4",
     ],
     packages=find_packages(exclude=["ez_setup"]),
     cmdclass=commands,
