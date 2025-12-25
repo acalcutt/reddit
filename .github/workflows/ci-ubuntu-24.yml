@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get install -y postgresql postgresql-contrib
           sudo service postgresql start
-          sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'reddit';"
+          sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'password';"
           sudo -u postgres psql -c "CREATE DATABASE reddit OWNER reddit;"
 
       # Uncomment to enable Solr for search integration tests

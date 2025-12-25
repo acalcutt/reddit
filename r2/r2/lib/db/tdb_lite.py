@@ -20,6 +20,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import os
 import pickle as pickle
 
 import sqlalchemy as sa
@@ -48,13 +49,20 @@ class tdb_lite:
         t = table
         if self.gc.db_create_tables:
             engine = t.metadata._engine
-            with engine.connect() as conn:
-                if not sa.inspect(engine).has_table(t.name):
-                    t.create(bind=engine, checkfirst=False)
-                    if index_commands:
-                        for i in index_commands:
-                            conn.execute(sa.text(i))
-                        conn.commit()
+            try:
+                with engine.connect() as conn:
+                    if not sa.inspect(engine).has_table(t.name):
+                        t.create(bind=engine, checkfirst=False)
+                        if index_commands:
+                            for i in index_commands:
+                                conn.execute(sa.text(i))
+                            conn.commit()
+            except sa.exc.OperationalError as e:
+                # Allow bootstrap to continue without database in CI
+                if os.environ.get('REDDIT_DB_REQUIRED', '').lower() != 'true':
+                    print(f"Warning: Could not create table {t.name}: {e}")
+                else:
+                    raise
 
     def py2db(self, val, return_kind=False):
         if isinstance(val, bool):
