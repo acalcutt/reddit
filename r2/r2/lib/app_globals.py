@@ -40,9 +40,9 @@ import pkg_resources
 import pytz
 from baseplate import Baseplate
 from baseplate import config as baseplate_config
-from baseplate.context.thrift import ThriftContextFactory
+from baseplate.clients.thrift import ThriftContextFactory
 from baseplate.server import einhorn
-from baseplate.thrift_pool import ThriftConnectionPool
+from baseplate.lib.thrift_pool import ThriftConnectionPool
 
 import r2.lib.amqp
 from r2.config import queues
