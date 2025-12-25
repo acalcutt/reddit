@@ -85,6 +85,8 @@ app_globals = LocalStack()
 tmpl_context = LocalStack()
 translator = LocalStack()
 url = UrlPushable()
+request = LocalStack()
+response = LocalStack()
 
 
 # Backwards-compatible aliases (sometimes code imports ``from pylons import g``)
@@ -94,5 +96,5 @@ c = tmpl_context
 
 __all__ = [
     'config', 'app_globals', 'tmpl_context', 'translator', 'url', 'g', 'c',
-    'LocalStack', 'UrlPushable',
+    'request', 'response', 'LocalStack', 'UrlPushable',
 ]
