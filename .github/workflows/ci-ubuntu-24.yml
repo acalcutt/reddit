@@ -20,7 +20,21 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget openjdk-11-jre-headless libpq-dev build-essential python3-dev python3-pip python3-six libssl-dev netcat-openbsd python3-bs4 git
+          sudo apt-get install -y \
+            wget \
+            openjdk-11-jre-headless \
+            libpq-dev \
+            build-essential \
+            python3-dev \
+            python3-pip \
+            python3-six \
+            libssl-dev \
+            netcat-openbsd \
+            python3-bs4 \
+            git \
+            gperf \
+            libmemcached-dev \
+            libsnappy-dev
 
       - name: Install and start PostgreSQL
         run: |
@@ -28,6 +42,22 @@ jobs:
           sudo service postgresql start
           sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'reddit';"
           sudo -u postgres psql -c "CREATE DATABASE reddit OWNER reddit;"
+
+      # Uncomment to enable Solr for search integration tests
+      # - name: Start Solr (docker)
+      #   run: |
+      #     docker run -d --name reddit_solr -p 8983:8983 solr:9
+      #     # Wait for Solr to be ready
+      #     for i in $(seq 1 60); do
+      #       if curl -s http://localhost:8983/solr/admin/cores >/dev/null 2>&1; then
+      #         echo 'solr up'
+      #         break
+      #       fi
+      #       sleep 2
+      #     done
+      #     # Create cores for reddit
+      #     docker exec reddit_solr solr create_core -c reddit
+      #     docker exec reddit_solr solr create_core -c reddit_subreddits
 
       - name: Start Cassandra (docker)
         run: |

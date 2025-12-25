@@ -62,26 +62,28 @@ setup(
         "mako>=0.5",
         "boto >= 2.0",
         "pytz",
-        "pycrypto",
+        # pycrypto is deprecated and doesn't build on modern systems
+        # pycryptodome is a drop-in replacement with the same API
+        "pycryptodome",
         "Babel>=1.0",
         "cython>=0.14",
         "SQLAlchemy",
         "beautifulsoup4",
         "chardet",
         "psycopg2",
-        # Modern Cassandra driver (DataStax) — prefer over pycassa
+        # Modern Cassandra driver (DataStax) replaces pycassa
         "cassandra-driver",
-        # pycassa is provided by system packages on modern distros (python3-pycassa)
-        # Keep it out of pip install_requires to avoid attempting to build
-        # the legacy pycassa source (which is Python 2 only) during CI.
         # Modern captcha library (Python 3 compatible) replaces pycaptcha
         "captcha",
         "amqplib",
-        "py-bcrypt",
-        # snudown requires compilation with gperf. On Ubuntu: apt install gperf
-        # Install from GitHub: pip install https://github.com/reddit/snudown/archive/v1.5.0.tar.gz
+        # py-bcrypt works but bcrypt is the modern maintained version
+        "bcrypt",
+        # snudown requires compilation with gperf. On Ubuntu: apt install gperf build-essential python3-dev
         "snudown @ https://github.com/reddit/snudown/archive/v1.5.0.tar.gz",
-        "l2cs>=2.0.2",
+        # l2cs (Lucene to CloudSearch) was an internal Reddit library, not publicly available.
+        # Only needed for CloudSearch provider. Use Solr provider instead (search_provider = solr)
+        # which doesn't require l2cs and is fully open source.
+        # "l2cs>=2.0.2",
         "lxml",
         "kazoo",
         "stripe",
@@ -90,11 +92,16 @@ setup(
         "unidecode",
         "PyYAML",
         "Pillow",
-        "pylibmc==1.2.2",
+        # pylibmc requires libmemcached-dev on Ubuntu: apt install libmemcached-dev
+        "pylibmc",
         "webob",
         "webtest",
+        # python-snappy requires libsnappy-dev on Ubuntu: apt install libsnappy-dev
         "python-snappy",
-        "httpagentparser==1.7.8",
+        # httpagentparser - remove version pin for latest Python 3 compatible version
+        "httpagentparser",
+        # raven is deprecated, sentry-sdk is the replacement
+        # Using raven for now as it still works, but consider migrating to sentry-sdk
         "raven",
     ],
     # setup tests (allowing for "python setup.py test")
