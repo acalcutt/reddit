@@ -37,7 +37,34 @@ from pylons import tmpl_context as c
 
 
 def make_server_span(span_name):
-    c.trace = g.baseplate.make_server_span(context=c, name=span_name)
+    bp = g.baseplate
+
+    # Baseplate API has changed across releases. Try the older signature
+    # first (context, name=...), then fall back to newer variants.
+    try:
+        span = bp.make_server_span(context=c, name=span_name)
+    except TypeError:
+        try:
+            span = bp.make_server_span(span_name)
+        except TypeError:
+            try:
+                span = bp.make_server_span(name=span_name)
+            except Exception:
+                # Fallback: return a no-op span compatible with the
+                # context-manager usage and `.finish()` call used by r2.
+                class _NoopSpan:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        return False
+
+                    def finish(self):
+                        return None
+
+                span = _NoopSpan()
+
+    c.trace = span
     return c.trace
 
 

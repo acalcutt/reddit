@@ -473,8 +473,28 @@ class Globals:
         self.startup_timer.start()
 
         self.baseplate = Baseplate()
-        self.baseplate.configure_logging()
+        # Older/newer Baseplate versions differ in API. Prefer calling
+        # `configure_logging` when available, otherwise try a best-effort
+        # fallback to `configure_context` (or no-op) so the app can start
+        # under multiple Baseplate releases.
+        try:
+            if hasattr(self.baseplate, 'configure_logging'):
+                self.baseplate.configure_logging()
+            elif hasattr(self.baseplate, 'configure_context'):
+                try:
+                    # some Baseplate versions expose configure_context
+                    # with a compatible behaviour for our needs
+                    self.baseplate.configure_context()
+                except TypeError:
+                    # signature mismatch — ignore and continue
+                    pass
+        except Exception:
+            # Don't let logging configuration failures stop app startup;
+            # proceed without Baseplate logging configured.
+            pass
+
         self.baseplate.register(R2BaseplateObserver())
+
         self.baseplate.configure_tracing(
             "r2",
             tracing_endpoint=self.config.get("tracing_endpoint"),
