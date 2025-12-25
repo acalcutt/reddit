@@ -28,7 +28,8 @@ import socket
 import threading
 import time
 
-from r2.lib.db.cassandra_compat import ColumnFamily as columnfamily, ConnectionPool as pool
+from r2.lib.db import cassandra_compat as pool
+from r2.lib.db.cassandra_compat import ColumnFamily as columnfamily
 
 from r2.lib import baseplate_integration, utils
 
