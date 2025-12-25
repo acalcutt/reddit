@@ -92,6 +92,8 @@ jobs:
           pip install simplejson
           # ensure paste and paste-deploy are available for loadwsgi
           pip install Paste PasteDeploy
+          # ensure the Pylons compatibility package is installed
+          pip install Pylons
           pip install -e r2/ --no-build-isolation
           pip install pytest
 
