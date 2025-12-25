@@ -46,8 +46,19 @@ try:
     import configparser
 
     mod = sys.modules.setdefault('boto.vendored.six', types.ModuleType('boto.vendored.six'))
-    # expose standard six.moves
-    setattr(mod, 'moves', six.moves)
+    # Copy important attributes from the real `six` module so checks like
+    # `six.PY3` and type aliases work when boto inspects the vendored module.
+    copy_names = [
+        'PY2', 'PY3', 'string_types', 'text_type', 'binary_type',
+        'integer_types', 'iteritems', 'iterkeys', 'itervalues',
+        'BytesIO', 'StringIO', 'u', 'b', 'moves',
+    ]
+    for name in copy_names:
+        try:
+            if hasattr(six, name):
+                setattr(mod, name, getattr(six, name))
+        except Exception:
+            pass
 
     # IO helpers used by boto.compat
     try:

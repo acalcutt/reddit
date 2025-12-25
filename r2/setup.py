@@ -62,7 +62,8 @@ setup(
         "Routes",
         "baseplate",
         "mako>=0.5",
-        "boto >= 2.0",
+        # boto3 replaces boto (which is Python 2 only)
+        "boto3",
         "pytz",
         # pycrypto is deprecated and doesn't build on modern systems
         # pycryptodome is a drop-in replacement with the same API
