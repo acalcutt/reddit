@@ -52,12 +52,8 @@ def get_engine(name, db_host='', db_user='', db_pass='', db_port='5432',
 
     engine = sqlalchemy.create_engine(
         'postgresql:///?dsn=' + dsn,
-        strategy='threadlocal',
         pool_size=int(pool_size),
         max_overflow=int(max_overflow),
-        # our code isn't ready for str to appear
-        # in place of strings yet
-        use_native_unicode=False,
     )
 
     if g_override:
@@ -119,7 +115,8 @@ class db_manager:
 
     def test_engine(self, engine, g_override=None):
         try:
-            list(engine.execute("select 1"))
+            with engine.connect() as conn:
+                conn.execute(sqlalchemy.text("select 1"))
             if engine in self.dead:
                 logger.error("db_manager: marking connection alive: %r",
                              engine)
