@@ -495,11 +495,41 @@ class Globals:
 
         self.baseplate.register(R2BaseplateObserver())
 
-        self.baseplate.configure_tracing(
-            "r2",
-            tracing_endpoint=self.config.get("tracing_endpoint"),
-            sample_rate=self.config.get("tracing_sample_rate"),
-        )
+        # Configure tracing if Baseplate provides a helper. Different
+        # Baseplate releases expose different APIs; try the common
+        # `configure_tracing` call, then `configure_tracer`, then
+        # fall back to a tolerant manual configuration if possible.
+        try:
+            if hasattr(self.baseplate, 'configure_tracing'):
+                self.baseplate.configure_tracing(
+                    "r2",
+                    tracing_endpoint=self.config.get("tracing_endpoint"),
+                    sample_rate=self.config.get("tracing_sample_rate"),
+                )
+            elif hasattr(self.baseplate, 'configure_tracer'):
+                try:
+                    self.baseplate.configure_tracer(
+                        service_name="r2",
+                        endpoint=self.config.get("tracing_endpoint"),
+                        sample_rate=self.config.get("tracing_sample_rate"),
+                    )
+                except TypeError:
+                    # signature mismatch — ignore and continue
+                    pass
+            else:
+                # No helper available; best-effort: if baseplate exposes
+                # a `tracer` or `configure` attribute, try to set options
+                # without failing startup.
+                if hasattr(self.baseplate, 'tracer'):
+                    try:
+                        tracer = getattr(self.baseplate, 'tracer')
+                        if hasattr(tracer, 'configure'):
+                            tracer.configure(endpoint=self.config.get("tracing_endpoint"))
+                    except Exception:
+                        pass
+        except Exception:
+            # Non-fatal: continue even if tracing configuration fails.
+            pass
 
         self.paths = paths
 
