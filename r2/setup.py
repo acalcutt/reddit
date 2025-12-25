@@ -77,7 +77,8 @@ setup(
         "cassandra-driver",
         # Modern captcha library (Python 3 compatible) replaces pycaptcha
         "captcha",
-        "amqplib",
+        # amqp is the modern Python 3 replacement for amqplib
+        "amqp",
         # py-bcrypt works but bcrypt is the modern maintained version
         "bcrypt",
         # snudown requires compilation with gperf. On Ubuntu: apt install gperf build-essential python3-dev

@@ -41,7 +41,7 @@ from datetime import datetime
 from queue import Queue
 from threading import Thread, local
 
-from amqplib import client_0_8 as amqp
+import amqp as amqp_lib
 
 cfg = None
 worker = None
@@ -111,12 +111,11 @@ class ConnectionManager(local):
     def get_connection(self):
         while not self.connection:
             try:
-                self.connection = amqp.Connection(
+                self.connection = amqp_lib.Connection(
                     host=cfg.amqp_host,
                     userid=cfg.amqp_user,
                     password=cfg.amqp_pass,
                     virtual_host=cfg.amqp_virtual_host,
-                    insist=False,
                 )
             except OSError as e:
                 print('error connecting to amqp %s @ %s (%r)' %
@@ -187,9 +186,9 @@ def _add_item(routing_key, body, message_id = None,
         exchange = cfg.amqp_exchange
 
     chan = connection_manager.get_channel()
-    msg = amqp.Message(body,
-                       timestamp = datetime.now(),
-                       delivery_mode = delivery_mode)
+    msg = amqp_lib.Message(body,
+                           timestamp=datetime.now(),
+                           delivery_mode=delivery_mode)
     if message_id:
         msg.properties['message_id'] = message_id
 
