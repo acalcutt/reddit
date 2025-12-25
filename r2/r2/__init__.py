@@ -34,18 +34,51 @@ import _strptime
 import sys
 import types
 
-# Provide a shim for old `boto.vendored.six.moves` imports. Some boto
-# releases expect a vendored `six` package under `boto.vendored.six.moves`.
-# Modern environments install `six` separately; map that into the expected
-# name so legacy boto modules continue to work.
+# Provide a shim for old `boto.vendored.six` and `boto.vendored.six.moves`
+# imports. Legacy boto expects several names exported from a vendored six
+# package (e.g. `moves`, `BytesIO`, `StringIO`, `ConfigParser`, etc.).
+# Map those to modern stdlib / `six` equivalents so boto can import on
+# Python 3 without modifying site packages.
 try:
     import six
-    # expose the `moves` module under the legacy import path
-    sys.modules.setdefault('boto.vendored.six', types.ModuleType('boto.vendored.six'))
-    sys.modules['boto.vendored.six.moves'] = six.moves
+    import io
+    import os
+    import configparser
+
+    mod = sys.modules.setdefault('boto.vendored.six', types.ModuleType('boto.vendored.six'))
+    # expose standard six.moves
+    setattr(mod, 'moves', six.moves)
+
+    # IO helpers used by boto.compat
+    try:
+        setattr(mod, 'BytesIO', io.BytesIO)
+    except Exception:
+        pass
+    try:
+        setattr(mod, 'StringIO', io.StringIO)
+    except Exception:
+        pass
+
+    # Config helpers expected by boto.compat
+    try:
+        setattr(mod, 'ConfigParser', configparser.ConfigParser)
+        setattr(mod, 'NoOptionError', configparser.NoOptionError)
+        setattr(mod, 'NoSectionError', configparser.NoSectionError)
+    except Exception:
+        pass
+
+    # small utilities
+    try:
+        setattr(mod, 'expanduser', os.path.expanduser)
+    except Exception:
+        pass
+
+    # Also map the moves module into sys.modules so `from boto.vendored.six.moves import ...`
+    # works as expected.
+    sys.modules.setdefault('boto.vendored.six.moves', six.moves)
 except Exception:
-    # If six isn't available or something else goes wrong, don't fail import;
-    # the real error will surface when boto is actually used.
+    # If anything goes wrong, don't break import-time; errors will surface
+    # later when boto is actually used.
     pass
 
 
