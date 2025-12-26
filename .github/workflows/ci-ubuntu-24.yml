@@ -92,12 +92,13 @@ jobs:
         run: |
           python -c "import r2; print('r2 loaded from:', r2.__file__)"
           python -c "import r2.lib.db.sorts as s; print('epoch_seconds present:', hasattr(s,'epoch_seconds'))"
+          python -c "from r2.r2.lib import loid; print('loid OK:', len(loid.LOID_CHARSPACE))"
 
       - name: Run unit tests (r2)
         env:
           DATABASE_URL: "postgresql://reddit:password@127.0.0.1/reddit"
         run: |
-          python -m pytest r2/r2/tests -q
+          python -m pytest r2/r2/tests --tb=short
 
       - name: Archive test logs
         if: failure()
