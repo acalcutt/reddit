@@ -30,19 +30,11 @@ from sqlalchemy import func
 
 from r2.lib.inventory_optimization import get_maximized_pageviews
 from r2.lib.utils import to_date, tup
-from r2.models import (
-    NO_TRANSACTION,
-    Bid,
-    FakeSubreddit,
-    LocalizedDefaultSubreddits,
-    Location,
-    PromoCampaign,
-    PromotionWeights,
-    Subreddit,
-    traffic,
-)
+from r2.models.bidding import Bid, PromotionWeights
+from r2.models.promo import NO_TRANSACTION, Location, PromoCampaign
+from r2.models.subreddit import DefaultSR, FakeSubreddit, LocalizedDefaultSubreddits, Subreddit
+from r2.models import traffic
 from r2.models.promo_metrics import LocationPromoMetrics, PromoMetrics
-from r2.models.subreddit import DefaultSR
 
 NDAYS_TO_QUERY = 14  # how much history to use in the estimate
 MIN_DAILY_CASS_KEY = 'min_daily_pageviews.GET_listing'

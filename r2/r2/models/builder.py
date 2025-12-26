@@ -53,8 +53,9 @@ from r2.lib.utils import (
   tup,
 )
 from r2.lib.wrapped import Wrapped
-from r2.models import (
-  Account,
+from r2.lib.db.thing import Thing
+from r2.models.account import Account
+from r2.models.link import (
   Comment,
   CommentSavesByAccount,
   Link,
@@ -63,10 +64,9 @@ from r2.models import (
   MoreChildren,
   MoreMessages,
   MoreRecursion,
-  Subreddit,
-  Thing,
-  wiki,
 )
+from r2.models.subreddit import Subreddit
+from r2.models import wiki
 from r2.models.admintools import ip_span
 from r2.models.comment_tree import CommentTree
 from r2.models.flair import Flair
