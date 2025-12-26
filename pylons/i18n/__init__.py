@@ -66,7 +66,46 @@ def lazy_ugettext(message):
     return ugettext(message)
 
 
+def get_lang():
+    """Return the currently active language for the translator.
+
+    Prefer the translator installed on `pylons.translator` (a LocalStack),
+    falling back to the thread-local translator used by this shim.
+    Returns the `pylons_lang` attribute set by translators or `None`.
+    """
+    # Prefer Pylons translator if available
+    try:
+        import pylons
+    except Exception:
+        pylons = None
+
+    if pylons is not None:
+        try:
+            lang = getattr(pylons.translator, 'pylons_lang', None)
+        except Exception:
+            lang = None
+        if not lang:
+            t = getattr(_translator_local, 'translator', None)
+            lang = getattr(t, 'pylons_lang', None) if t is not None else None
+        if lang:
+            return lang
+
+    # Pyramid fallback: return a list like ['en'] to match existing callers
+    try:
+        from pyramid.threadlocal import get_current_request
+        from pyramid.i18n import get_locale_name
+        req = get_current_request()
+        if req is not None:
+            loc = get_locale_name(req)
+            if loc:
+                return [loc]
+    except Exception:
+        pass
+
+    return None
+
+
 __all__ = [
     '_', 'ungettext', 'ugettext', 'ngettext', 'N_', 'lazy_ugettext',
-    'get_translator', 'set_translator', '_get_translator',
+    'get_translator', 'set_translator', 'get_lang', '_get_translator',
 ]
