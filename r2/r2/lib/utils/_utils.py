@@ -53,6 +53,12 @@ def tup(item, ret_is_single=False):
 
 
 def _strips(direction, text, remove):
+    # Normalize bytes to text for safe startswith/endswith comparisons.
+    if isinstance(text, bytes):
+        text = text.decode('latin-1')
+    if isinstance(remove, bytes):
+        remove = remove.decode('latin-1')
+
     if direction == 'l':
         if text.startswith(remove):
             return text[len(remove):]
@@ -119,6 +125,9 @@ def string2js(s):
     """adapted from http://svn.red-bean.com/bob/simplejson/trunk/simplejson/encoder.py"""
     for i in range(20):
         ESCAPE_DCT.setdefault(chr(i), '\\u%04x' % (i,))
+
+    if isinstance(s, bytes):
+        s = s.decode('latin-1')
 
     return '"' + ESCAPE.sub(_string2js_replace, s) + '"'
 
