@@ -36,8 +36,7 @@ from r2.lib.filters import websafe
 from r2.lib.hooks import HookRegistrar
 from r2.lib.utils import fetch_things2, tup
 from r2.models.account import Account
-from r2.models.link import Comment, Link
-from r2.models.message import Message
+from r2.models.link import Comment, Link, Message
 from r2.models.report import Report
 from r2.models.subreddit import Subreddit
 from r2.models.award import Award
