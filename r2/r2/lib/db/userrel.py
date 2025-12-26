@@ -167,7 +167,7 @@ def UserRel(name, relation, disable_ids_fn=False, disable_reverse_ids_fn=False,
     class UR:
         @classmethod
         def _bind(cls, fn):
-            return types.UnboundMethodType(fn, None, cls)
+            return fn
 
     setattr(UR, 'is_' + name, UR._bind(mgr.get))
     setattr(UR, 'get_' + name, UR._bind(mgr.get))
