@@ -39,6 +39,7 @@ class DelMsgTest(RedditControllerTestCase):
 
     def test_del_msg_success(self):
         """Del_msg succeeds: Returns 200 and sets del_on_recipient."""
+        print("test_del_msg_success starting")
         message = MagicMock()
         message.__class__ = type('MockMessage', (Message,), {})
         message.name = "msg_1"
