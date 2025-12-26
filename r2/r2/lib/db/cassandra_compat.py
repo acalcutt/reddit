@@ -27,6 +27,10 @@ from cassandra import InvalidRequest
 # Compatibility constants for pycassa types
 UTF8_TYPE = 'org.apache.cassandra.db.marshal.UTF8Type'
 ASCII_TYPE = 'org.apache.cassandra.db.marshal.AsciiType'
+TIME_UUID_TYPE = 'org.apache.cassandra.db.marshal.TimeUUIDType'
+LONG_TYPE = 'org.apache.cassandra.db.marshal.LongType'
+INT_TYPE = 'org.apache.cassandra.db.marshal.Int32Type'
+COUNTER_COLUMN_TYPE = 'org.apache.cassandra.db.marshal.CounterColumnType'
 
 class NotFoundException(Exception):
     pass

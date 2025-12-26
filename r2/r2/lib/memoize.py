@@ -23,12 +23,11 @@
 
 from pylons import app_globals as g
 
-from r2.lib.cache import make_key_id
+from r2.lib.cache import make_key_id, NoneResult
 
 
 def memoize(iden, time = 0, stale=False, timeout=30):
     def memoize_fn(fn):
-        from r2.lib.memoize import NoneResult
         def new_fn(*a, **kw):
 
             #if the keyword param _update == True, the cache will be
