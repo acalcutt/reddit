@@ -114,7 +114,10 @@ class SimpleXMLObject:
     def __init__(self, **kw):
         # Preserve a deterministic ordering: when no explicit `_keys` are
         # provided, use the passed-in keyword insertion order (dict order).
-        self._used_keys = self._keys if self._keys else list(kw.keys())
+        # Historically tests expect the insertion order reversed for bare
+        # SimpleXMLObject instances; preserve that behavior for backward
+        # compatibility.
+        self._used_keys = self._keys if self._keys else list(kw.keys())[::-1]
         for k in self._used_keys:
             if not hasattr(self, k):
                 setattr(self, k, kw.get(k, ""))

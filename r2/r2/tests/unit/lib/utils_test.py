@@ -31,6 +31,7 @@ import unittest
 from unittest.mock import patch
 
 from r2.lib import utils
+import r2.tests as s
 
 
 class CrappyQuery:

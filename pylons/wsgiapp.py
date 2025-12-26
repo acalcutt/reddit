@@ -4,6 +4,9 @@ Provides a lightweight `PylonsApp` fallback that establishes the
 minimal objects expected by `r2` middleware for migration to Pyramid.
 """
 from types import SimpleNamespace
+from importlib import import_module
+from webob import Request as WebObRequest, Response as WebObResponse
+import pylons
 
 
 class PylonsApp:
@@ -28,19 +31,99 @@ class PylonsApp:
         # Provide a minimal pylons.pylons-style object expected by code
         pylons_obj = SimpleNamespace()
         pylons_obj.config = self.config
-        pylons_obj.request = SimpleNamespace()
-        pylons_obj.response = SimpleNamespace()
         pylons_obj.app_globals = self.globals
         pylons_obj.h = self.helpers
         pylons_obj.tmpl_context = SimpleNamespace()
         pylons_obj.translator = SimpleNamespace()
 
+        # Create real WebOb request/response objects and push them onto
+        # pylons' LocalStack objects so controllers and helpers can use
+        # `from pylons import request, response` as expected.
+        request_obj = WebObRequest(environ)
+        response_obj = WebObResponse()
+
+        pylons.request._push_object(request_obj)
+        pylons.response._push_object(response_obj)
+        pylons.tmpl_context._push_object(pylons_obj.tmpl_context)
+        pylons.translator._push_object(pylons_obj.translator)
+
         environ['pylons.pylons'] = pylons_obj
         environ['pylons.environ_config'] = self.environ_config
 
     def __call__(self, environ, start_response):
-        start_response('404 Not Found', [('Content-Type', 'text/plain')])
-        return [b'Not Found']
+        # Ensure environment is prepared (push request/response, tmpl context)
+        try:
+            self.setup_app_env(environ, start_response)
+        except Exception:
+            start_response('500 Internal Server Error', [('Content-Type', 'text/plain')])
+            return [b'Internal Server Error']
+
+        # RoutesMiddleware (or other routing) places routing args here.
+        routing = environ.get('wsgiorg.routing_args')
+        if routing:
+            environ['pylons.routes_dict'] = routing[1]
+
+        routes_dict = environ.get('pylons.routes_dict', {})
+        controller_name = routes_dict.get('controller')
+
+        if not controller_name:
+            start_response('404 Not Found', [('Content-Type', 'text/plain')])
+            return [b'Not Found']
+
+        # Try to resolve the controller class and call it as a WSGI app.
+        controller_cls = None
+        # Prefer a find_controller hook if the app implements it (RedditApp)
+        find_fn = getattr(self, 'find_controller', None)
+        if callable(find_fn):
+            try:
+                controller_cls = find_fn(controller_name)
+            except Exception:
+                controller_cls = None
+
+        if controller_cls is None:
+            try:
+                controllers_mod = import_module(self.package_name + '.controllers')
+                controller_cls = controllers_mod.get_controller(controller_name)
+            except Exception:
+                controller_cls = None
+
+        if controller_cls is None:
+            start_response('404 Not Found', [('Content-Type', 'text/plain')])
+            return [b'Not Found']
+
+        try:
+            # Instantiate and call the controller (WSGIController subclass).
+            controller = controller_cls()
+            resp_iter = controller(environ, start_response)
+
+            # Ensure pushed pylons locals are popped when the response is
+            # finished or the iterator is closed.
+            def closing_iterator(it):
+                try:
+                    for chunk in it:
+                        yield chunk
+                finally:
+                    try:
+                        pylons.request._pop_object()
+                    except Exception:
+                        pass
+                    try:
+                        pylons.response._pop_object()
+                    except Exception:
+                        pass
+                    try:
+                        pylons.tmpl_context._pop_object()
+                    except Exception:
+                        pass
+                    try:
+                        pylons.translator._pop_object()
+                    except Exception:
+                        pass
+
+            return closing_iterator(resp_iter)
+        except Exception as e:
+            start_response('500 Internal Server Error', [('Content-Type', 'text/plain')])
+            return [str(e).encode('utf-8')]
 
 
 __all__ = ['PylonsApp']

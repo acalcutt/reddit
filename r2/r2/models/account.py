@@ -856,19 +856,31 @@ def valid_password(a, password, compare_password=None):
         convert_password = True
         compare_password = a.password
 
-    # standardize on utf-8 encoding
-    password = filters._force_utf8(password)
+    # standardize on utf-8 encoding (as text) but produce bytes when
+    # interacting with bcrypt which expects byte-strings.
+    password_text = filters._force_utf8(password)
+    password_bytes = (password_text if isinstance(password_text, (bytes, bytearray))
+                      else password_text.encode('utf-8'))
 
-    if compare_password.startswith('$2a$'):
+    # ensure we can safely call .startswith on the stored password
+    compare_password_str = (compare_password.decode('utf-8', 'ignore')
+                            if isinstance(compare_password, (bytes, bytearray))
+                            else compare_password)
+
+    if compare_password_str.startswith('$2a$'):
         # it's bcrypt.
 
         try:
-            expected_hash = bcrypt.hashpw(password, compare_password)
+            expected_hash = bcrypt.hashpw(password_bytes,
+                                          (compare_password if isinstance(compare_password, (bytes, bytearray))
+                                           else compare_password.encode('utf-8')))
         except ValueError:
             # password is invalid because it contains null characters
             return False
 
-        if not constant_time_compare(compare_password, expected_hash):
+        if not constant_time_compare((compare_password if isinstance(compare_password, (bytes, bytearray))
+                          else compare_password.encode('utf-8')),
+                         expected_hash):
             return False
 
         # if it's using the current work factor, we're done, but if it's not
@@ -884,7 +896,7 @@ def valid_password(a, password, compare_password=None):
         salt = ''
         if len(compare_password) == 43:
             salt = compare_password[:3]
-        expected_hash = passhash(a.name, password, salt)
+        expected_hash = passhash(a.name, password_text, salt)
 
         if not constant_time_compare(compare_password, expected_hash):
             return False
@@ -892,7 +904,7 @@ def valid_password(a, password, compare_password=None):
     # since we got this far, it's a valid password but in an old format
     # let's upgrade it
     if convert_password:
-        a.password = bcrypt_password(password)
+        a.password = bcrypt_password(password_text)
         a._commit()
     return a
 
