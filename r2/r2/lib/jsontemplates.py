@@ -30,7 +30,7 @@ from pylons import app_globals as g
 from pylons import response
 from pylons import tmpl_context as c
 from pylons.i18n import _
-from wrapped import CacheStub, StringTemplate, Wrapped
+from r2.lib.wrapped import CacheStub, StringTemplate, Wrapped
 
 from r2.config import feature
 from r2.config.extensions import get_api_subtype

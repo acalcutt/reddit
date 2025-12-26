@@ -125,6 +125,9 @@ class sort:
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def __hash__(self):
+        return hash((self.__class__.__name__, self.col))
+
 
 class asc(sort): pass
 class desc(sort):pass
