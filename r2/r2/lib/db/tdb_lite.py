@@ -23,45 +23,7 @@
 import os
 import pickle as pickle
 
-try:
-    import sqlalchemy as sa
-except Exception:
-    # Minimal fallback when SQLAlchemy isn't installed during local test
-    # collection. This stub provides just enough API so import-time
-    # operations don't fail; actual DB operations will raise at runtime.
-    class _Engine:
-        pass
-
-    class _MetaData:
-        def __init__(self):
-            self._engine = None
-
-    class _Inspector:
-        def __init__(self, engine):
-            self.engine = engine
-
-        def has_table(self, name):
-            return False
-
-    class _Exc:
-        class OperationalError(Exception):
-            pass
-
-    def _inspect(engine):
-        return _Inspector(engine)
-
-    def _text(s):
-        return s
-
-    class _SAStub:
-        MetaData = _MetaData
-        class engine:
-            Engine = _Engine
-        inspect = staticmethod(_inspect)
-        text = staticmethod(_text)
-        exc = _Exc
-
-    sa = _SAStub()
+import sqlalchemy as sa
 
 
 class tdb_lite:
