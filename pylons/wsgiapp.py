@@ -76,9 +76,10 @@ class PylonsApp:
         # Ensure environment is prepared (push request/response, tmpl context)
         try:
             self.setup_app_env(environ, start_response)
-        except Exception:
+        except Exception as e:
+            tb = traceback.format_exc()
             start_response('500 Internal Server Error', [('Content-Type', 'text/plain')])
-            return [b'Internal Server Error']
+            return [f"Setup error: {e}\n\n{tb}".encode('utf-8')]
 
         # RoutesMiddleware (or other routing) places routing args here.
         routing = environ.get('wsgiorg.routing_args')
