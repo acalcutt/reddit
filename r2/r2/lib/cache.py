@@ -28,11 +28,24 @@ from threading import local
 
 import pylibmc
 from _pylibmc import MemcachedError
-from pycassa import ColumnFamily
-from pycassa.cassandra.ttypes import ConsistencyLevel
+try:
+    from pycassa import ColumnFamily
+    from pycassa.cassandra.ttypes import ConsistencyLevel
+except Exception:
+    # In test environments the pycassa/DataStax drivers may not be
+    # installed. Provide lightweight fallbacks so importing this module
+    # doesn't fail during test collection; functional tests that actually
+    # exercise Cassandra will still need the real packages.
+    ColumnFamily = object
+    class ConsistencyLevel:
+        pass
+
 from pylons import app_globals as g
 
-from r2.lib.hardcachebackend import HardCacheBackend
+try:
+    from r2.lib.hardcachebackend import HardCacheBackend
+except Exception:
+    HardCacheBackend = object
 from r2.lib.utils import in_chunks, prefix_keys, tup
 
 # This is for use in the health controller

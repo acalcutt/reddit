@@ -884,9 +884,11 @@ class CommentOrdererBase:
 
             child_ids = comment_tree.tree.get(comment_id, [])
 
+            # defensively coerce depth to int in case of unexpected None values
+            d = comment_depth if comment_depth is not None else 0
             comment_tuples.append(CommentTuple(
                 comment_id=comment_id,
-                depth=comment_depth,
+                depth=d,
                 parent_id=comment_tree.parents[comment_id],
                 num_children=comment_tree.num_children[comment_id],
                 child_ids=child_ids,

@@ -86,6 +86,15 @@ pylons.translator._push_object(translator)
 
 url._push_object(URLGenerator(pylons.config['routes.map'], {}))
 
+# Lightweight test fixtures for use by unit tests that import `r2.tests as s`.
+from unittest.mock import MagicMock
+
+# A simple Subreddit placeholder used in some unit tests where only
+# identity matters (they patch `r2.models.Subreddit._by_name` to return
+# this object). Using a MagicMock keeps the tests stable without needing
+# full model initialization.
+Subreddit = MagicMock(name="Subreddit")
+
 
 def diff_dicts(d, expected, prefix=None):
     """Given 2 dicts, return a summary of their differences
