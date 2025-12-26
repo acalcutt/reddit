@@ -37,9 +37,8 @@ jobs:
             git \
             gperf \
             libmemcached-dev \
-            libsnappy-dev
-          # install memcached server for tests that use pylibmc
-          sudo apt-get install -y memcached
+            libsnappy-dev \
+            memcached
 
       - name: Install and start PostgreSQL
         run: |
