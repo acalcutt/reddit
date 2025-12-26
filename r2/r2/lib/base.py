@@ -245,8 +245,7 @@ class BaseController(WSGIController):
         response.headers['Location'] = dest
 
 
-class EmbedHandler(urllib.request.BaseHandler, urllib.request.HTTPHandler,
-                   urllib.request.HTTPErrorProcessor, urllib.request.HTTPDefaultErrorHandler):
+class EmbedHandler(urllib.request.BaseHandler):
 
     def http_redirect(self, req, fp, code, msg, hdrs):
         to = hdrs['Location']
@@ -259,8 +258,7 @@ class EmbedHandler(urllib.request.BaseHandler, urllib.request.HTTPHandler,
     http_error_303 = http_redirect
     http_error_307 = http_redirect
 
-embedopen = urllib.request.OpenerDirector()
-embedopen.add_handler(EmbedHandler())
+embedopen = urllib.request.build_opener(EmbedHandler())
 
 def proxyurl(url):
     r = urllib.request.Request(url, None, {})
