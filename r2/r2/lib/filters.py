@@ -235,7 +235,10 @@ def wikimarkdown(text, include_toc=True, target=None):
                             renderer=snudown.RENDERER_WIKI)
     
     # TODO: We should test how much of a load this adds to the app
-    soup = BeautifulSoup(text.decode('utf-8'))
+    if isinstance(text, bytes):
+        soup = BeautifulSoup(text.decode('utf-8'))
+    else:
+        soup = BeautifulSoup(text)
     images = soup.findAll('img')
     
     if images:

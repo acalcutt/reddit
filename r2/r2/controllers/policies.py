@@ -82,7 +82,10 @@ class PoliciesController(RedditController):
             display_rev = revs[0]
 
         doc_html = wikimarkdown(display_rev.content, include_toc=False)
-        soup = BeautifulSoup(doc_html.decode('utf-8'))
+        if isinstance(doc_html, bytes):
+            soup = BeautifulSoup(doc_html.decode('utf-8'))
+        else:
+            soup = BeautifulSoup(doc_html)
         toc = generate_table_of_contents(soup, prefix='section')
         self._number_sections(soup)
         self._linkify_headings(soup)

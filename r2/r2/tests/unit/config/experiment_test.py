@@ -49,13 +49,13 @@ class TestExperiment(TestFeatureBase):
 
     def get_loggedin_users(self, num_users):
         users = []
-        for i in range(num_users):
+        for i in range(int(num_users)):
             users.append(MockAccount(name=str(i), _fullname="t2_%s" % str(i)))
         return users
 
     @staticmethod
     def get_loggedout_users(num_users):
-        return [None for _ in range(num_users)]
+        return [None for _ in range(int(num_users))]
 
     def test_calculate_bucket(self):
         """Test FeatureState's _calculate_bucket function."""

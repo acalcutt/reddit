@@ -223,6 +223,14 @@ class ColumnFamily:
         od = self.get(key)
         return len(od)
 
+    def batch(self, write_consistency_level=None):
+        """Return a Mutator context manager to emulate pycassa's batch API.
+
+        The legacy code expects `with cf.batch() as m:` to be available; provide
+        a simple Mutator backed by the driver's session.
+        """
+        return Mutator(self.pool)
+
 
 class Mutator:
     """Batch mutator backed by DataStax driver's BatchStatement.

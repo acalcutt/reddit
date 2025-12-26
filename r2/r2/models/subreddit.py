@@ -423,7 +423,10 @@ class Subreddit(Thing, Printable, BaseSite):
 
         for name in names:
             try:
-                ascii_only = str(name.decode("ascii", errors="ignore"))
+                if isinstance(name, bytes):
+                    ascii_only = name.decode("ascii", errors="ignore")
+                else:
+                    ascii_only = str(name)
             except UnicodeEncodeError:
                 continue
 
@@ -2622,7 +2625,10 @@ class DomainSR(FakeSubreddit):
         self.title = _("%(domain)s on %(reddit.com)s") % {
             "domain": domain, "reddit.com": g.domain}
         try:
-            idn = domain.decode('idna')
+            if isinstance(domain, bytes):
+                idn = domain.decode('idna')
+            else:
+                idn = domain
             if idn != domain:
                 self.idn = idn
         except UnicodeError:

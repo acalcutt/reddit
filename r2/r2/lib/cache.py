@@ -1092,22 +1092,26 @@ class SelfEmptyingCache(LocalCache):
 
 
 def _make_hashable(s):
-    if isinstance(s, str):
+    # Always return bytes suitable for hashing. Encode `str` to UTF-8,
+    # pass through `bytes` unchanged, and recursively convert containers
+    # to a deterministic byte representation.
+    if isinstance(s, bytes):
         return s
-    elif isinstance(s, str):
+    if isinstance(s, str):
         return s.encode('utf-8')
-    elif isinstance(s, (tuple, list)):
-        return ','.join(_make_hashable(x) for x in s)
-    elif isinstance(s, dict):
-        return ','.join('{}:{}'.format(_make_hashable(k), _make_hashable(v))
-                        for (k, v) in sorted(s.items()))
-    else:
-        return str(s)
+    if isinstance(s, (tuple, list)):
+        return b','.join(_make_hashable(x) for x in s)
+    if isinstance(s, dict):
+        parts = [b'%b:%b' % (_make_hashable(k), _make_hashable(v))
+                 for (k, v) in sorted(s.items())]
+        return b','.join(parts)
+    return str(s).encode('utf-8')
 
 
 def make_key_id(*a, **kw):
     h = md5()
     h.update(_make_hashable(a))
+    h.update(b'|')
     h.update(_make_hashable(kw))
     return h.hexdigest()
 
