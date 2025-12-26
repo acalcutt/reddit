@@ -40,8 +40,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_success(self):
         """Del_msg succeeds: Returns 200 and sets del_on_recipient."""
         message = MagicMock()
-        message.__class__ = Message
-        message.__class__.__mro__ = Message.__mro__
+        message.__class__ = type('MockMessage', (Message,), {})
         message.name = "msg_1"
         message.to_id = self.id
         message.del_on_recipient = False
@@ -55,8 +54,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_failure_with_link(self):
         """Del_msg fails: Returns 200 and does not set del_on_recipient."""
         link = MagicMock()
-        link.__class__ = Link
-        link.__class__.__mro__ = Link.__mro__
+        link.__class__ = type('MockLink', (Link,), {})
         link.del_on_recipient = False
         link.name = "msg_2"
 
@@ -69,8 +67,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_failure_with_null_msg(self):
         """Del_msg fails: Returns 200 and does not set del_on_recipient."""
         message = MagicMock()
-        message.__class__ = Message
-        message.__class__.__mro__ = Message.__mro__
+        message.__class__ = type('MockMessage', (Message,), {})
         message.name = "msg_3"
         message.to_id = self.id
         message.del_on_recipient = False
@@ -84,8 +81,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_failure_with_sender(self):
         """Del_msg fails: Returns 200 and does not set del_on_recipient."""
         message = MagicMock()
-        message.__class__ = Message
-        message.__class__.__mro__ = Message.__mro__
+        message.__class__ = type('MockMessage', (Message,), {})
         message.name = "msg_3"
         message.to_id = self.id + 1
         message.del_on_recipient = False
