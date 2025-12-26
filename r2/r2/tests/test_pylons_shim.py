@@ -3,16 +3,24 @@ from pylons.i18n.translation import _get_translator
 
 
 def test_config_push_and_get():
-    # ensure no object is pushed initially
-    assert not bool(pylons.config)
-    assert pylons.config.get('nonexistent', 'default') == 'default'
+    # Ensure deterministic behavior even if package import-time setup
+    # has pushed a config object (tests import the package which may push
+    # a default config). Temporarily clear the stack for the duration of
+    # the assertions and restore it afterwards.
+    original_stack = list(pylons.config._stack)
+    try:
+        pylons.config._stack.clear()
+        assert not bool(pylons.config)
+        assert pylons.config.get('nonexistent', 'default') == 'default'
 
-    pylons.config._push_object({'lang': 'en', 'foo': 'bar'})
-    assert pylons.config.get('lang') == 'en'
-    assert pylons.config['foo'] == 'bar'
+        pylons.config._push_object({'lang': 'en', 'foo': 'bar'})
+        assert pylons.config.get('lang') == 'en'
+        assert pylons.config['foo'] == 'bar'
 
-    pylons.config._pop_object()
-    assert pylons.config.get('lang') is None
+        pylons.config._pop_object()
+        assert pylons.config.get('lang') is None
+    finally:
+        pylons.config._stack[:] = original_stack
 
 
 def test_translator_push_and_get():

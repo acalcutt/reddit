@@ -314,20 +314,30 @@ class Account(Thing):
     def make_cookie(self, timestr=None):
         timestr = timestr or time.strftime(COOKIE_TIMESTAMP_FORMAT)
         id_time = str(self._id) + ',' + timestr
-        to_hash = ','.join((id_time, self.password, g.secrets["SECRET"]))
-        return id_time + ',' + hashlib.sha1(to_hash).hexdigest()
+        # Build a bytes payload for hashing. Some components (like stored
+        # `self.password`) may already be bytes (bcrypt hashes); normalize
+        # by encoding strings to UTF-8 and joining with a byte comma.
+        parts = [id_time, self.password, g.secrets["SECRET"]]
+        parts_b = [p.encode('utf-8') if isinstance(p, str) else p for p in parts]
+        to_hash_b = b','.join(parts_b)
+        return id_time + ',' + hashlib.sha1(to_hash_b).hexdigest()
 
     def make_admin_cookie(self, first_login=None, last_request=None):
         first_login = first_login or datetime.utcnow().strftime(COOKIE_TIMESTAMP_FORMAT)
         last_request = last_request or datetime.utcnow().strftime(COOKIE_TIMESTAMP_FORMAT)
-        hashable = ','.join((first_login, last_request, request.ip, request.user_agent, self.password))
-        mac = hmac.new(g.secrets["SECRET"], hashable, hashlib.sha1).hexdigest()
+        parts = [first_login, last_request, request.ip, request.user_agent, self.password]
+        parts_b = [p.encode('utf-8') if isinstance(p, str) else p for p in parts]
+        hashable_b = b','.join(parts_b)
+        mac = hmac.new(g.secrets["SECRET"], hashable_b, hashlib.sha1).hexdigest()
         return ','.join((first_login, last_request, mac))
 
     def make_otp_cookie(self, timestamp=None):
         timestamp = timestamp or datetime.utcnow().strftime(COOKIE_TIMESTAMP_FORMAT)
         secrets = [request.user_agent, self.otp_secret, self.password]
-        signature = hmac.new(g.secrets["SECRET"], ','.join([timestamp] + secrets), hashlib.sha1).hexdigest()
+        parts = [timestamp] + secrets
+        parts_b = [p.encode('utf-8') if isinstance(p, str) else p for p in parts]
+        signature_bytes = b','.join(parts_b)
+        signature = hmac.new(g.secrets["SECRET"], signature_bytes, hashlib.sha1).hexdigest()
 
         return ",".join((timestamp, signature))
 

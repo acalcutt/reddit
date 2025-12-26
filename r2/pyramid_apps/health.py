@@ -37,5 +37,10 @@ def make_app(global_conf=None, **settings):
 
     config = Configurator(settings=cfg_settings)
     config.add_route("health", "/health")
-    config.scan(__name__)
+    # Register the view directly to avoid relying on package scanning in tests.
+    # Scanning can be brittle in test contexts; adding the view ensures the
+    # route is handled and the view receives the Configurator settings.
+    from .health import health_view
+    config.add_view(health_view, route_name="health", renderer="json",
+                    request_method="GET")
     return config.make_wsgi_app()

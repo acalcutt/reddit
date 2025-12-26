@@ -217,8 +217,9 @@ def is_valid_click_url(link, click_url, click_hash):
 def get_click_url_hmac(link, click_url):
     secret = g.secrets["adserver_click_url_secret"]
     data = "|".join([link._fullname, click_url])
-
-    return hmac.new(secret, data, hashlib.sha256).hexdigest()
+    # ensure we pass bytes to HMAC/hash functions
+    data_b = data.encode("utf-8") if isinstance(data, str) else data
+    return hmac.new(secret, data_b, hashlib.sha256).hexdigest()
 
 
 def add_trackers(items, sr, adserver_click_urls=None):
@@ -239,7 +240,10 @@ def add_trackers(items, sr, adserver_click_urls=None):
 
         # construct the impression pixel url
         pixel_mac = hmac.new(
-            g.tracking_secret, tracking_name, hashlib.sha1).hexdigest()
+            g.tracking_secret,
+            tracking_name.encode('utf-8') if isinstance(tracking_name, str) else tracking_name,
+            hashlib.sha1,
+        ).hexdigest()
         pixel_query = {
             "id": tracking_name,
             "hash": pixel_mac,
@@ -255,7 +259,8 @@ def add_trackers(items, sr, adserver_click_urls=None):
         # construct the click redirect url
         item_url = adserver_click_urls.get(item.campaign) or item.url
         url = _force_utf8(item_url)
-        hashable = ''.join((url, tracking_name.encode("utf-8")))
+        # build a bytes payload for HMAC to avoid mixing str and bytes
+        hashable = (url + tracking_name).encode('utf-8')
         click_mac = hmac.new(
             g.tracking_secret, hashable, hashlib.sha1).hexdigest()
         click_query = {

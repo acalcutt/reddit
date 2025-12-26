@@ -34,7 +34,8 @@ DELETE = datetime(1970, 0o1, 0o1, 0, 0, 1)
 
 class Cookies(dict):
     def add(self, name, value, *k, **kw):
-        name = name.encode('utf-8')
+        # Keep cookie names as native strings (tests and templates expect
+        # string keys); encoding to bytes causes many downstream errors.
         self[name] = Cookie(value, *k, **kw)
 
 
