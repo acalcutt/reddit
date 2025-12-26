@@ -54,8 +54,8 @@ from r2.lib.utils import timedelta_by_name, tup
 from r2.models.link import Link
 
 engine = g.dbm.get_engine("traffic")
-Session = scoped_session(sessionmaker(bind=engine, autocommit=True))
-Base = declarative_base(bind=engine)
+Session = scoped_session(sessionmaker(bind=engine))
+Base = declarative_base()
 
 
 def memoize_traffic(**memoize_kwargs):
