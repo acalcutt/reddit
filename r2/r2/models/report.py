@@ -27,7 +27,9 @@ from pylons import tmpl_context as c
 
 from r2.lib.db.thing import MultiRelation, Relation
 from r2.lib.utils import tup
-from r2.models import Account, Comment, Link, Message, Subreddit
+from r2.models.account import Account
+from r2.models.link import Comment, Link, Message
+from r2.models.subreddit import Subreddit
 
 _LinkReport = Relation(Account, Link)
 _CommentReport = Relation(Account, Comment)
