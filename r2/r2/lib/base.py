@@ -246,7 +246,7 @@ class BaseController(WSGIController):
 
 
 class EmbedHandler(urllib.request.BaseHandler, urllib.request.HTTPHandler,
-                   urllib2.HTTPErrorProcessor, urllib.request.HTTPDefaultErrorHandler):
+                   urllib.request.HTTPErrorProcessor, urllib.request.HTTPDefaultErrorHandler):
 
     def http_redirect(self, req, fp, code, msg, hdrs):
         to = hdrs['Location']
