@@ -30,9 +30,7 @@ from time import time
 import pytz
 import sqlalchemy as sa
 import stripe
-from pycassa import NotFoundException
-from pycassa.system_manager import ASCII_TYPE, INT_TYPE, TIME_UUID_TYPE, UTF8_TYPE
-from pycassa.util import convert_uuid_to_time
+from r2.lib.db.cassandra_compat import NotFoundException, ASCII_TYPE, INT_TYPE, TIME_UUID_TYPE, UTF8_TYPE, convert_uuid_to_time
 from pylons import app_globals as g
 from pylons import tmpl_context as c
 from pylons.i18n import _, ungettext
@@ -64,7 +62,7 @@ METADATA = make_metadata(ENGINE)
 TIMEZONE = pytz.timezone("America/Los_Angeles")
 
 Session = scoped_session(sessionmaker(bind=ENGINE))
-Base = declarative_base(bind=ENGINE)
+Base = declarative_base()
 
 gold_table = sa.Table('reddit_gold', METADATA,
                       sa.Column('trans_id', sa.String, nullable = False,

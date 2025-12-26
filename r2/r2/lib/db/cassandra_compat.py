@@ -32,6 +32,20 @@ LONG_TYPE = 'org.apache.cassandra.db.marshal.LongType'
 INT_TYPE = 'org.apache.cassandra.db.marshal.Int32Type'
 COUNTER_COLUMN_TYPE = 'org.apache.cassandra.db.marshal.CounterColumnType'
 
+
+def convert_uuid_to_time(uuid_obj):
+    """Convert a UUID1 to a Unix timestamp.
+
+    UUID1 timestamps are measured in 100-nanosecond intervals since
+    October 15, 1582 (the date of Gregorian calendar reform).
+    """
+    # UUID1 timestamp is 100-nanosecond intervals since Oct 15, 1582
+    # Unix epoch is Jan 1, 1970
+    # Difference is 122192928000000000 (100-ns intervals)
+    EPOCH_DIFF = 0x01b21dd213814000
+    timestamp = (uuid_obj.time - EPOCH_DIFF) / 1e7
+    return timestamp
+
 class NotFoundException(Exception):
     pass
 
