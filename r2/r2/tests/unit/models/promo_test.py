@@ -46,14 +46,14 @@ class CollectionStorageTest(RedditTestCase):
         # Assert that a bad attribute will raise NotFoundException
         with self.assertRaises(AttributeError) as e:
             CollectionStorage._set_attributes(self.name, invalid_attribute)
-        self.assertEqual(e.exception.message, attribute_error_message %
+        self.assertEqual(str(e.exception), attribute_error_message %
             (self.name, list(invalid_attribute.keys())[0]))
 
         # Should throw even if there's a bad attribute AND valid attribute
         with self.assertRaises(AttributeError) as e:
             CollectionStorage._set_attributes(self.name,
             dict(invalid_attribute, **valid_attribute))
-        self.assertEqual(e.exception.message, attribute_error_message %
+        self.assertEqual(str(e.exception), attribute_error_message %
             (self.name, list(invalid_attribute.keys())[0]))
 
         CollectionStorage._set_values = MagicMock()

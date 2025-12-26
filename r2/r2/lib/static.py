@@ -57,8 +57,8 @@ def generate_static_name(name, base=None):
     else:
         path = name
 
-    sha = hashlib.sha1(open(path).read()).digest()
-    shorthash = base64.urlsafe_b64encode(sha[0:8]).rstrip("=")
+    sha = hashlib.sha1(open(path, 'rb').read()).digest()
+    shorthash = base64.urlsafe_b64encode(sha[0:8]).rstrip(b"=").decode('ascii')
     name, ext = os.path.splitext(name)
     return name + '.' + shorthash + ext
 

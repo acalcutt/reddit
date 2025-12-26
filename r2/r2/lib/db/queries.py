@@ -132,7 +132,7 @@ class CachedResults:
             for r in rules:
                 i += str(r)
 
-        return hashlib.sha1(i).hexdigest()
+        return hashlib.sha1(i.encode('utf-8')).hexdigest()
 
     @property
     def sort(self):

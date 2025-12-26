@@ -32,10 +32,10 @@ from r2.lib.cache import LocalCache
 
 class RateLimitStandaloneFunctionsTest(unittest.TestCase):
     def setUp(self):
-        self.patch('ratelimit.time.time', lambda: self.now)
+        self.patch('r2.lib.ratelimit.time.time', lambda: self.now)
 
         self.cache = LocalCache()
-        self.patch('ratelimit.g.ratelimitcache', self.cache)
+        self.patch('r2.lib.ratelimit.g.ratelimitcache', self.cache)
 
     def patch(self, *a, **kw):
         p = patch(*a,  **kw)
@@ -128,10 +128,10 @@ class RateLimitTest(unittest.TestCase):
         seconds = 3600
 
     def setUp(self):
-        self.patch('ratelimit.time.time', lambda: self.now)
+        self.patch('r2.lib.ratelimit.time.time', lambda: self.now)
 
         self.cache = LocalCache()
-        self.patch('ratelimit.g.ratelimitcache', self.cache)
+        self.patch('r2.lib.ratelimit.g.ratelimitcache', self.cache)
 
     def patch(self, *a, **kw):
         p = patch(*a,  **kw)

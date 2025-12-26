@@ -94,7 +94,7 @@ class ImgixImageResizingProvider(ImageResizingProvider):
           signvalue += query_string(url.query_dict)
 
         # Calculate MD5 of the signing value.
-        signature = hashlib.md5(signvalue).hexdigest()
+        signature = hashlib.md5(signvalue.encode('utf-8')).hexdigest()
 
         url.update_query(s=signature)
         return url

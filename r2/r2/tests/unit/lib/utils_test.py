@@ -200,7 +200,7 @@ class UtilsTest(unittest.TestCase):
                 self.assertTrue(any([x[3] == "raise ValueError(\"foo %d\" % ret)" for x in traceback.extract_tb(sys.exc_info()[2])]))
                 error = e
 
-            self.assertEqual(error.message, "foo %d" % num_retries)
+            self.assertEqual(str(error), "foo %d" % num_retries)
 
         with patch('time.sleep'):
             # check that exception is rethrown if we pass
@@ -221,7 +221,7 @@ class UtilsTest(unittest.TestCase):
             except ValueError as e:
                 error = e
 
-            self.assertEqual(error.message, "foo 0")
+            self.assertEqual(str(error), "foo 0")
 
     def test_retriable_fetch_things_passthrough(self):
         # test simple pass through case
@@ -270,7 +270,7 @@ class UtilsTest(unittest.TestCase):
             # getting the first chunk should have failed
             self.assertEqual(0, crappy_query.num_after_was_called)
             self.assertEqual("FOO %d %d %d" % (0, 0, num_retries + 1),
-                              error.message)
+                              str(error))
 
         # test same thing but failing in subsequent chunk
         with self.check_exponential_backoff_sleep_times(1, num_retries):
@@ -286,7 +286,7 @@ class UtilsTest(unittest.TestCase):
             # we should have generated some partial results
             self.assertEqual(generated, list(range(0, chunk_size * 2)))
             self.assertEqual("FOO %d %d %d" % (10, 2, num_retries + 1),
-                              error.message)
+                              str(error))
             self.assertEqual(2, crappy_query.num_after_was_called)
 
     def test_retriable_fetch_things_recover_from_fail(self):

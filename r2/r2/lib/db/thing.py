@@ -1184,7 +1184,7 @@ class Query:
 
         cache_key = "query:{kind}.{id}".format(
             kind=self._kind.__name__,
-            id=hashlib.sha1(fingerprint).hexdigest()
+            id=hashlib.sha1(fingerprint.encode('utf-8')).hexdigest()
         )
         return cache_key
 
@@ -1343,7 +1343,7 @@ class RelationsPropsOnly(Relations):
 
         cache_key = "query:{kind}.{id}".format(
             kind=self._kind.__name__,
-            id=hashlib.sha1(fingerprint).hexdigest()
+            id=hashlib.sha1(fingerprint.encode('utf-8')).hexdigest()
         )
         return cache_key
 

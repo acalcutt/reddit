@@ -106,11 +106,9 @@ class UserMessageBuilderTest(RedditTestCase):
 
     def mock_preparation(self, is_admin=False):
         """ Context manager for mocking function calls. """
-
-        return contextlib.nested(
-            patch.object(c, "user", self.user, create=True),
-            patch.object(c, "user_is_admin", is_admin, create=True),
-            patch.object(MessageBuilder,
-                         "_viewable_message", return_value=True)
-        )
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.object(c, "user", self.user, create=True))
+        stack.enter_context(patch.object(c, "user_is_admin", is_admin, create=True))
+        stack.enter_context(patch.object(MessageBuilder, "_viewable_message", return_value=True))
+        return stack
 

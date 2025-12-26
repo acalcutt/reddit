@@ -82,7 +82,7 @@ class TestFeatureBase(RedditTestCase):
 
     @classmethod
     def generate_loid(cls):
-        return ''.join(random.sample(string.letters + string.digits, 16))
+        return ''.join(random.sample(string.ascii_letters + string.digits, 16))
 
 
 class TestFeature(TestFeatureBase):
