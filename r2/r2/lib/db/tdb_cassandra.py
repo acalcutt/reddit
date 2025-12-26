@@ -29,7 +29,7 @@ from itertools import chain
 from uuid import UUID, uuid1
 
 import pytz
-from r2.lib.db.cassandra_compat import ColumnFamily, NotFoundException, ConnectionPool, SystemManager, UTF8_TYPE, TIME_UUID_TYPE
+from r2.lib.db.cassandra_compat import ColumnFamily, NotFoundException, ConnectionPool, SystemManager, UTF8_TYPE, TIME_UUID_TYPE, ASCII_TYPE
 from cassandra import ReadTimeout
 from cassandra import ConsistencyLevel
 from cassandra.util import datetime_from_uuid1
