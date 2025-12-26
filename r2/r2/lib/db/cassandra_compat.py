@@ -21,7 +21,7 @@ from collections import OrderedDict
 from typing import Dict, Iterable, Optional
 
 from cassandra.cluster import Cluster
-from cassandra.query import SimpleStatement
+from cassandra.query import SimpleStatement, BatchStatement, BatchType
 from cassandra import InvalidRequest
 
 # Compatibility constants for pycassa types
@@ -208,3 +208,71 @@ class ColumnFamily:
     def get_count(self, key: str):
         od = self.get(key)
         return len(od)
+
+
+class Mutator:
+    """Batch mutator backed by DataStax driver's BatchStatement.
+
+    This implements a small subset of the pycassa Mutator API used by r2:
+    - context manager usage (`with Mutator(pool) as m:`)
+    - `insert(cf, key, columns, ttl=None)`
+    - `remove(cf, key, columns=None, timestamp=None)`
+    - `send()` commits the batch
+
+    The implementation translates the legacy map-based CF operations to CQL
+    and executes them as a single BatchStatement against the session.
+    """
+
+    def __init__(self, pool_or_session):
+        # accept either a ConnectionPool or a Session
+        if hasattr(pool_or_session, 'session'):
+            self.session = pool_or_session.session
+        else:
+            self.session = pool_or_session
+        self._ops = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            self.send()
+        except Exception:
+            # don't raise during cleanup
+            return False
+
+    def insert(self, cf, key, columns, ttl=None):
+        # columns expected to be a dict of name->value (already serialized by callers)
+        # We'll serialize here using pickle to match ColumnFamily.insert behaviour
+        ser = {k: pickle.dumps(v) for k, v in columns.items()}
+        if ttl:
+            cql = "UPDATE %s.%s USING TTL %d SET columns = columns + %%s WHERE key = %%s" % (cf.keyspace, cf.table, int(ttl))
+            params = (ser, key)
+        else:
+            cql = "UPDATE %s.%s SET columns = columns + %%s WHERE key = %%s" % (cf.keyspace, cf.table)
+            params = (ser, key)
+        self._ops.append(("insert", cql, params))
+
+    def remove(self, cf, key, columns=None, timestamp=None):
+        if columns is None:
+            cql = "DELETE FROM %s.%s WHERE key = %%s" % (cf.keyspace, cf.table)
+            params = (key,)
+            self._ops.append(("delete_row", cql, params))
+        else:
+            # delete each map entry
+            for col in columns:
+                cql = "DELETE columns[%%s] FROM %s.%s WHERE key = %%s" % (cf.keyspace, cf.table)
+                params = (col, key)
+                self._ops.append(("delete_col", cql, params))
+
+    def send(self):
+        if not self._ops:
+            return
+        batch = BatchStatement(batch_type=BatchType.UNLOGGED)
+        # add statements to the batch
+        for kind, cql, params in self._ops:
+            stmt = SimpleStatement(cql)
+            batch.add(stmt, params)
+        # execute the batch
+        self.session.execute(batch)
+        self._ops = []
