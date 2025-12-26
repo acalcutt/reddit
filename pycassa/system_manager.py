@@ -12,6 +12,9 @@ UTF8_TYPE = 'UTF8Type'
 TIME_UUID_TYPE = 'TimeUUIDType'
 DATE_TYPE = 'DateType'
 INT_TYPE = 'IntType'
+DOUBLE_TYPE = 'DoubleType'
+FLOAT_TYPE = 'FloatType'
+LONG_TYPE = 'LongType'
 
 # Expose the SystemManager API
 class SystemManager(_SystemManager):
