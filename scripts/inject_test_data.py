@@ -103,7 +103,7 @@ class TextGenerator:
                     generated.append(weighted_lottery(frequencies))
                     break
             else:
-                generated.append(random.choice(string.lowercase))
+                generated.append(random.choice(string.ascii_lowercase))
 
         return "".join(generated)
 
