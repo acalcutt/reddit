@@ -46,6 +46,7 @@ class ConnectionPool:
         if not server_list:
             server_list = ["127.0.0.1"]
         # server_list items may be host:port
+        self.server_list = server_list  # Store for compatibility
         hosts = [s.split(':', 1)[0] for s in server_list]
         self.cluster = Cluster(hosts)
         self.session = self.cluster.connect()
