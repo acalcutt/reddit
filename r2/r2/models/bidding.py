@@ -46,18 +46,18 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from r2.lib.db.thing import NotFound, Thing
 from r2.lib.utils import Enum, to_date
-from r2.models import Frontpage
+from r2.models.subreddit import Frontpage
 from r2.models.account import Account
 
 engine = g.dbm.get_engine('authorize')
-# Allocate a session maker for communicating object changes with the back end  
+# Allocate a session maker for communicating object changes with the back end
 Session = sessionmaker(autocommit = True, autoflush = True, bind = engine)
 # allocate a SQLalchemy base class for auto-creation of tables based
-# on class fields.  
+# on class fields.
 # NB: any class that inherits from this class will result in a table
 # being created, and subclassing doesn't work, hence the
 # object-inheriting interface classes.
-Base = declarative_base(bind = engine)
+Base = declarative_base()
 
 class Sessionized:
     """
