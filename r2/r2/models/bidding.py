@@ -51,7 +51,7 @@ from r2.models.account import Account
 
 engine = g.dbm.get_engine('authorize')
 # Allocate a session maker for communicating object changes with the back end
-Session = sessionmaker(autocommit = True, autoflush = True, bind = engine)
+Session = sessionmaker(autoflush=True, bind=engine)
 # allocate a SQLalchemy base class for auto-creation of tables based
 # on class fields.
 # NB: any class that inherits from this class will result in a table
