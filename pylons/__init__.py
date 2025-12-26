@@ -137,7 +137,9 @@ class _DefaultTmplContext(SimpleNamespace):
         self.user = None
 
 
-config._push_object(PylonsConfig())
+# Do not push a default `PylonsConfig` object so that `bool(pylons.config)` is
+# initially False — tests expect no object pushed at import time. Tests that
+# need a config can push one explicitly via `_push_object`.
 app_globals._push_object(SimpleNamespace())
 tmpl_context._push_object(_DefaultTmplContext())
 translator._push_object(_DefaultTranslator())
