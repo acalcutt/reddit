@@ -40,6 +40,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_success(self):
         """Del_msg succeeds: Returns 200 and sets del_on_recipient."""
         message = MagicMock(spec=Message)
+        message.__class__ = Message
         message.name = "msg_1"
         message.to_id = self.id
         message.del_on_recipient = False
@@ -65,6 +66,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_failure_with_null_msg(self):
         """Del_msg fails: Returns 200 and does not set del_on_recipient."""
         message = MagicMock(spec=Message)
+        message.__class__ = Message
         message.name = "msg_3"
         message.to_id = self.id
         message.del_on_recipient = False
@@ -78,6 +80,7 @@ class DelMsgTest(RedditControllerTestCase):
     def test_del_msg_failure_with_sender(self):
         """Del_msg fails: Returns 200 and does not set del_on_recipient."""
         message = MagicMock(spec=Message)
+        message.__class__ = Message
         message.name = "msg_3"
         message.to_id = self.id + 1
         message.del_on_recipient = False
