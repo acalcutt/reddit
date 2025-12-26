@@ -916,9 +916,6 @@ def passhash(username, password, salt = ''):
     if salt is True:
         salt = randstr(3)
     tohash = '{}{} {}'.format(salt, username, password)
-    # hashlib requires bytes on Python 3
-    if isinstance(tohash, str):
-        tohash = tohash.encode('utf-8')
     return salt + hashlib.sha1(tohash).hexdigest()
 
 def change_password(user, newpassword):
