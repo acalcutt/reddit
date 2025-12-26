@@ -48,11 +48,11 @@ def _pad_message(text):
 
     """
     block_size = AES.block_size
-    # Ensure `text` is bytes for the cipher; accept `str` and encode to UTF-8.
-    if isinstance(text, str):
-        text = text.encode('utf-8')
+    # Keep operation in text (str) form so tests that expect string
+    # padding continue to work. When interacting with the cipher we will
+    # encode/decode using latin-1 to preserve raw byte values.
     padding_size = (block_size - len(text) % block_size) or block_size
-    padding = bytes([padding_size]) * padding_size
+    padding = chr(padding_size) * padding_size
     return text + padding
 
 
@@ -61,23 +61,20 @@ def _unpad_message(text):
     if not text:
         return ""
 
-    # `text` should be bytes; determine padding from last byte.
-    if isinstance(text, str):
-        text = text.encode('utf-8')
+    # Accept either str or bytes. If bytes, interpret as latin-1 so we can
+    # round-trip the original Python2 semantics where `str` was raw bytes.
+    if isinstance(text, bytes):
+        data = text
+    else:
+        data = text.encode('latin-1')
 
-    padding_size = text[-1]
+    padding_size = data[-1]
     if padding_size > AES.block_size:
         return ""
 
-    unpadded, padding = text[:-padding_size], text[-padding_size:]
-    if any(b != padding_size for b in padding):
-        return ""
-
-    try:
-        return unpadded.decode('utf-8')
-    except Exception:
-        # Fallback to latin-1 to preserve bytes if UTF-8 decoding fails
-        return unpadded.decode('latin-1')
+    unpadded = data[:-padding_size]
+    # Return as text using latin-1 to preserve original byte values.
+    return unpadded.decode('latin-1')
 
 
 def _make_cipher(initialization_vector, secret):
@@ -116,10 +113,12 @@ def _encrypt(salt, plaintext, secret):
     # `salt` is text (ASCII base64). Ensure `salt` and plaintext are handled
     # correctly as bytes for the cipher.
     cipher = _make_cipher(salt.encode('ascii') if isinstance(salt, str) else salt,
-                          secret if isinstance(secret, bytes) else secret.encode('utf-8'))
+                          secret if isinstance(secret, bytes) else secret.encode('latin-1'))
 
     padded = _pad_message(plaintext)
-    ciphertext = cipher.encrypt(padded)
+    # Use latin-1 to convert the padded text to raw bytes for AES
+    padded_bytes = padded.encode('latin-1')
+    ciphertext = cipher.encrypt(padded_bytes)
     encoded = base64.b64encode(ciphertext).decode('ascii')
 
     return urllib.parse.quote_plus(salt + encoded, safe="")
@@ -140,7 +139,7 @@ def _decrypt(encrypted, secret):
     salt, encoded = encrypted[:SALT_SIZE], encrypted[SALT_SIZE:]
     ciphertext = base64.b64decode(encoded)
     cipher = _make_cipher(salt.encode('ascii') if isinstance(salt, str) else salt,
-                          secret if isinstance(secret, bytes) else secret.encode('utf-8'))
+                          secret if isinstance(secret, bytes) else secret.encode('latin-1'))
     padded = cipher.decrypt(ciphertext)
     return _unpad_message(padded)
 
