@@ -120,3 +120,71 @@ jobs:
           path: |
             cassandra.out
             r2/r2/tests/**/test*.log
+
+  test-with-extensions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install system packages for build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            python3-dev \
+            libssl-dev
+
+      - name: Start Cassandra (docker)
+        run: |
+          docker run -d --name reddit_cassandra -p 9042:9042 cassandra:4.1.10
+          ready=1
+          for i in $(seq 1 300); do
+            if docker exec reddit_cassandra cqlsh -e "describe keyspaces" >/dev/null 2>&1; then
+              echo 'cassandra up'
+              ready=0
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 0 ]; then
+            echo 'timed out waiting for cassandra'
+            docker logs reddit_cassandra || true
+            docker rm -f reddit_cassandra || true
+            exit 2
+          fi
+          docker exec reddit_cassandra cqlsh -e "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class':'SimpleStrategy','replication_factor':'1'};"
+
+      - name: Install Python build deps and project (with C extensions)
+        run: |
+          python -m pip install --upgrade pip setuptools wheel cython
+          pip install pyramid pyramid-mako cassandra-driver simplejson Paste PasteDeploy Pylons pytest
+          # Install editable and allow building C extensions (no --no-build-isolation)
+          pip install -e r2/
+
+      - name: Verify compiled extensions
+        run: |
+          python -c "import importlib, pkgutil; print('r2 package:', importlib.import_module('r2').__file__)"
+          python -c "import r2.lib.db.sorts as s; print('has epoch_seconds:', hasattr(s,'epoch_seconds'))"
+
+      - name: Run unit tests (r2) with extensions
+        env:
+          DATABASE_URL: "postgresql://reddit:password@127.0.0.1/reddit"
+        run: |
+          python -m pytest r2/r2/tests -q
+
+      - name: Archive test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-with-extensions
+          path: |
+            cassandra.out
+            r2/r2/tests/**/test*.log
