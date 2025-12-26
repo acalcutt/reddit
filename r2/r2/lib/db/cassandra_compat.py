@@ -24,6 +24,9 @@ from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 from cassandra import InvalidRequest
 
+# Compatibility constants for pycassa types
+UTF8_TYPE = 'org.apache.cassandra.db.marshal.UTF8Type'
+ASCII_TYPE = 'org.apache.cassandra.db.marshal.AsciiType'
 
 class NotFoundException(Exception):
     pass

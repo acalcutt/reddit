@@ -1,5 +1,5 @@
 from webtest import TestApp
-from r2.pyramid_apps.health import make_app
+from pyramid_apps.health import make_app
 
 
 def test_health_endpoint_returns_versions():

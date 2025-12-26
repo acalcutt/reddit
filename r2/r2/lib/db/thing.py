@@ -28,7 +28,6 @@ from copy import copy, deepcopy
 from datetime import datetime, timedelta
 from functools import reduce
 
-import new
 from _pylibmc import MemcachedError
 from pylons import app_globals as g
 
@@ -1510,7 +1509,7 @@ def MultiRelation(name, *relations):
     for rel in relations:
         t1, t2 = rel._type1, rel._type2
         clsname = name + '_' + t1.__name__.lower() + '_' + t2.__name__.lower()
-        cls = new.classobj(clsname, (rel,), {'__module__':t1.__module__})
+        cls = type(clsname, (rel,), {'__module__':t1.__module__})
         setattr(sys.modules[t1.__module__], clsname, cls)
         rels_tmp[(t1, t2)] = cls
 

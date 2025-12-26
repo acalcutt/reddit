@@ -41,7 +41,7 @@ import lxml.html
 import requests
 from PIL import Image, ImageFile
 from pylons import app_globals as g
-from urllib2 import (
+from urllib.error import (
     HTTPError,
     URLError,
 )
