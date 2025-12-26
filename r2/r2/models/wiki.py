@@ -21,7 +21,12 @@
 ###############################################################################
 
 from collections import OrderedDict
-from configparser import SafeConfigParser
+try:
+    from configparser import SafeConfigParser as _SafeConfigParser
+except Exception:
+    # SafeConfigParser was removed in recent Python; use ConfigParser as a
+    # compatible fallback.
+    from configparser import ConfigParser as _SafeConfigParser
 from datetime import timedelta
 from io import StringIO
 
@@ -510,8 +515,10 @@ class WikiPageIniItem:
         except NotFound:
             return items if return_dict else list(items.values())
         wp_content = StringIO(wp.content)
-        cfg = SafeConfigParser(allow_no_value=True)
-        cfg.readfp(wp_content)
+        cfg = _SafeConfigParser(allow_no_value=True)
+        # readfp was deprecated and removed; use read_file which accepts a
+        # file-like object.
+        cfg.read_file(wp_content)
 
         for section in cfg.sections():
             def_values = {'id': section}
