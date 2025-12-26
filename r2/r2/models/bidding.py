@@ -455,5 +455,5 @@ class PromotionWeights(Sessionized, Base):
 
 # do all the leg work of creating/connecting to tables
 if g.db_create_tables:
-    Base.metadata.create_all()
+    Base.metadata.create_all(bind=engine)
 
