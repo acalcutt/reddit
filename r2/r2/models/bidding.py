@@ -91,15 +91,25 @@ class Sessionized:
         """
         Commits current object to the db.
         """
-        with self.session.begin():
-            self.session.add(self)
+        # Use begin_nested() for savepoint if transaction already active
+        if self.session.in_transaction():
+            with self.session.begin_nested():
+                self.session.add(self)
+        else:
+            with self.session.begin():
+                self.session.add(self)
 
     def _delete(self):
         """
-        Deletes current object from the db. 
+        Deletes current object from the db.
         """
-        with self.session.begin():
-            self.session.delete(self)
+        # Use begin_nested() for savepoint if transaction already active
+        if self.session.in_transaction():
+            with self.session.begin_nested():
+                self.session.delete(self)
+        else:
+            with self.session.begin():
+                self.session.delete(self)
 
     @classmethod
     def query(cls, **kw):

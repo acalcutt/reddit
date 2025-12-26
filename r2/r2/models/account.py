@@ -867,7 +867,7 @@ def valid_password(a, password, compare_password=None):
                             if isinstance(compare_password, (bytes, bytearray))
                             else compare_password)
 
-    if compare_password_str.startswith('$2a$'):
+    if compare_password_str.startswith(('$2a$', '$2b$')):
         # it's bcrypt.
 
         try:
@@ -885,8 +885,8 @@ def valid_password(a, password, compare_password=None):
 
         # if it's using the current work factor, we're done, but if it's not
         # we'll have to rehash.
-        # the format is $2a$workfactor$salt+hash
-        work_factor = int(compare_password.split("$")[2])
+        # the format is $2a$workfactor$salt+hash or $2b$workfactor$salt+hash
+        work_factor = int(compare_password_str.split("$")[2])
         if work_factor == g.bcrypt_work_factor:
             return a
     else:

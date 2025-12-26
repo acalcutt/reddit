@@ -129,6 +129,7 @@ class CommentOrderTest(RedditTestCase):
         self.link.sticky_comment_id = None
         self.link.precomputed_sorts = None
         self.link.responder_ids = ()
+        self.link.num_comments = 11  # Total comments in TREE
 
         comment_scores = make_comment_scores()
         self.autopatch(

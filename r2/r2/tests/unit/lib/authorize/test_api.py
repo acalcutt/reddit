@@ -92,9 +92,8 @@ class SimpleXMLObjectTest(RedditTestCase):
                                     "<something>else</something>" +
                                     "</dog>")
         constructed = TestXML.fromXML(parsed)
-        expected = SimpleXMLObject(color="black",
-                                   breed="mixed",
-                                   )
+        # Use the same class with _keys to ensure consistent ordering
+        expected = TestXML(color="black", breed="mixed")
         self.assertEqual(constructed.toXML(), expected.toXML(),
                          "Constructed does not match expected")
 
