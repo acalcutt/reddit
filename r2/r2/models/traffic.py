@@ -650,4 +650,4 @@ class SubscriptionsBySubreddit(Base):
 
 # create the tables if they don't exist
 if g.db_create_tables:
-    Base.metadata.create_all()
+    Base.metadata.create_all(bind=engine)
