@@ -25,7 +25,7 @@ import email.utils
 import hashlib
 import time
 from email.errors import HeaderParseError
-from email.MIMEText import MIMEText
+from email.mime.text import MIMEText
 
 import sqlalchemy as sa
 from pylons import app_globals as g
