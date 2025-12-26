@@ -73,5 +73,12 @@ class PylonsConfig(dict):
             'error_message': global_conf.get('error_message', 'An error occurred'),
         }
 
+    def __getattr__(self, name):
+        # Allow attribute-style access for common configuration keys.
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
 
 __all__ = ['PylonsConfig']

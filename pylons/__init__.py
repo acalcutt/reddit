@@ -5,6 +5,9 @@ Provides simple LocalStack objects for `config`, `app_globals`, `tmpl_context`, 
 and intended to be replaced by Pyramid-specific code during migration.
 """
 from typing import Any, List
+from types import SimpleNamespace
+
+from .configuration import PylonsConfig
 
 
 class LocalStack:
@@ -92,6 +95,54 @@ response = LocalStack()
 # Backwards-compatible aliases (sometimes code imports ``from pylons import g``)
 g = app_globals
 c = tmpl_context
+
+# Push sensible defaults so tests and code that expect a current config/globals
+# don't fail with "no object pushed to LocalStack". Tests can still push
+# their own objects and pop them when needed.
+class _DefaultTranslator:
+    def gettext(self, s):
+        return s
+
+    def ngettext(self, s, p, n):
+        return s if n == 1 else p
+
+    def __call__(self, s):
+        return s
+
+
+class _DefaultRequest(SimpleNamespace):
+    def __init__(self):
+        super().__init__()
+        self.environ = {}
+        self.GET = {}
+        self.POST = {}
+        self.host = ''
+        self.path = ''
+        self.remote_addr = ''
+
+
+class _DefaultResponse(SimpleNamespace):
+    def __init__(self):
+        super().__init__()
+        self.headers = {}
+        self.status = 200
+
+
+class _DefaultTmplContext(SimpleNamespace):
+    def __init__(self):
+        super().__init__()
+        # commonly referenced flags/attributes in templates/tests
+        self.have_sent_bucketing_event = False
+        self.subdomain = None
+        self.user = None
+
+
+config._push_object(PylonsConfig())
+app_globals._push_object(SimpleNamespace())
+tmpl_context._push_object(_DefaultTmplContext())
+translator._push_object(_DefaultTranslator())
+request._push_object(_DefaultRequest())
+response._push_object(_DefaultResponse())
 
 
 __all__ = [

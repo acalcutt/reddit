@@ -38,4 +38,6 @@ def _force_unicode(text):
 
 
 def _force_utf8(text):
-    return _force_unicode(text).encode('utf-8')
+    # Return a Unicode string (UTF-8 decoded). Historically this helper
+    # returned bytes; modern code and tests expect text to be `str`.
+    return _force_unicode(text)
