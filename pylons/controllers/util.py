@@ -1,5 +1,5 @@
 # Pylons controllers.util compatibility shim
-# Provides abort() function using webob.exc
+# Provides abort() and redirect() functions using webob.exc
 
 from webob import exc as webob_exc
 
@@ -45,3 +45,19 @@ def abort(status_code, detail=None, headers=None, comment=None):
                 exc.headers.add(header[0], header[1])
 
     raise exc
+
+
+def redirect(url, code=302):
+    """Redirect to a URL.
+
+    This is a compatibility shim for pylons.controllers.util.redirect
+    that uses webob.exc exceptions.
+    """
+    if code == 301:
+        raise webob_exc.HTTPMovedPermanently(location=url)
+    elif code == 303:
+        raise webob_exc.HTTPSeeOther(location=url)
+    elif code == 307:
+        raise webob_exc.HTTPTemporaryRedirect(location=url)
+    else:
+        raise webob_exc.HTTPFound(location=url)

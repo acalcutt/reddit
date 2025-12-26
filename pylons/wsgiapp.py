@@ -3,6 +3,7 @@
 Provides a lightweight `PylonsApp` fallback that establishes the
 minimal objects expected by `r2` middleware for migration to Pyramid.
 """
+import traceback
 from types import SimpleNamespace
 from importlib import import_module
 from webob import Request as WebObRequest, Response as WebObResponse
@@ -143,8 +144,9 @@ class PylonsApp:
 
             return closing_iterator(resp_iter)
         except Exception as e:
+            tb = traceback.format_exc()
             start_response('500 Internal Server Error', [('Content-Type', 'text/plain')])
-            return [str(e).encode('utf-8')]
+            return [f"Error: {e}\n\n{tb}".encode('utf-8')]
 
 
 __all__ = ['PylonsApp']
