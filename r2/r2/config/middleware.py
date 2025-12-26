@@ -425,6 +425,35 @@ class SafetyMiddleware:
         return self.app(environ, safe_start_response)
 
 
+class TestVariablesMiddleware:
+    """Middleware to handle /_test_vars endpoint for Pylons test infrastructure.
+
+    This middleware provides support for paste.fixture.TestApp by:
+    1. Intercepting requests to /_test_vars
+    2. Saving the registry state for later restoration
+    3. Returning a unique request ID that can be used to restore state
+    """
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        from paste.evalexception.middleware import get_debug_count
+        from paste import registry
+
+        if environ.get('PATH_INFO') == '/_test_vars':
+            # Get a unique request ID for this test
+            request_id = get_debug_count(environ)
+
+            # Save the registry state so it can be restored later
+            registry.restorer.save_registry_state(environ)
+
+            # Return the request ID as the response body
+            start_response('200 OK', [('Content-Type', 'text/plain')])
+            return [str(request_id).encode('utf-8')]
+
+        return self.app(environ, start_response)
+
+
 class RedditApp(PylonsApp):
 
     test_mode = False
@@ -537,6 +566,10 @@ def make_app(global_conf, full_stack=True, **app_conf):
 
     # Establish the Registry for this application
     app = RegistryManager(app)
+
+    # Add test variables middleware for paste.fixture.TestApp support
+    # This must come after RegistryManager so it has access to paste.registry
+    app = TestVariablesMiddleware(app)
 
     # Static files
     static_app = StaticURLParser(config['pylons.paths']['static_files'])
