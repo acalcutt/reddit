@@ -34,7 +34,9 @@ class tdb_lite:
         metadata = sa.MetaData()
         # Store engine reference on metadata for compatibility
         metadata._engine = engine
-        engine.echo = self.gc.sqlprinting
+        # Only set echo on real engines (not mocks during testing)
+        if isinstance(engine, sa.engine.Engine):
+            engine.echo = self.gc.sqlprinting
         return metadata
 
     def index_str(self, table, name, on, where = None):
@@ -49,6 +51,9 @@ class tdb_lite:
         t = table
         if self.gc.db_create_tables:
             engine = t.metadata._engine
+            # Skip if engine is a mock (during testing)
+            if not isinstance(engine, sa.engine.Engine):
+                return
             try:
                 with engine.connect() as conn:
                     if not sa.inspect(engine).has_table(t.name):
