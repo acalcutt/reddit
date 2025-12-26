@@ -1588,16 +1588,16 @@ def constant_time_compare(actual, expected):
     The time taken is dependent on the number of characters provided
     instead of the number of characters that match.
 
-    When we upgrade to Python 2.7.7 or newer, we should use hmac.compare_digest
-    instead.
+    Uses hmac.compare_digest for constant-time comparison.
+    Both arguments must be the same type (both bytes or both strings).
     """
-    actual_len   = len(actual)
-    expected_len = len(expected)
-    result = actual_len ^ expected_len
-    if expected_len > 0:
-        for i in range(actual_len):
-            result |= ord(actual[i]) ^ ord(expected[i % expected_len])
-    return result == 0
+    import hmac
+    # Ensure both are the same type - convert strings to bytes if needed
+    if isinstance(actual, str) and isinstance(expected, bytes):
+        actual = actual.encode('utf-8')
+    elif isinstance(actual, bytes) and isinstance(expected, str):
+        expected = expected.encode('utf-8')
+    return hmac.compare_digest(actual, expected)
 
 
 def extract_urls_from_markdown(md):

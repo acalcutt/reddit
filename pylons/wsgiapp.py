@@ -9,6 +9,27 @@ from webob import Request as WebObRequest, Response as WebObResponse
 import pylons
 
 
+class _DefaultTranslator:
+    """Minimal translator that returns strings unchanged."""
+    def gettext(self, s):
+        return s
+
+    def ngettext(self, s, p, n):
+        return s if n == 1 else p
+
+    def __call__(self, s):
+        return s
+
+
+class _DefaultTmplContext(SimpleNamespace):
+    """Default template context with common attributes."""
+    def __init__(self):
+        super().__init__()
+        self.have_sent_bucketing_event = False
+        self.subdomain = None
+        self.user = None
+
+
 class PylonsApp:
     """A very small PylonsApp polyfill.
 
@@ -33,8 +54,8 @@ class PylonsApp:
         pylons_obj.config = self.config
         pylons_obj.app_globals = self.globals
         pylons_obj.h = self.helpers
-        pylons_obj.tmpl_context = SimpleNamespace()
-        pylons_obj.translator = SimpleNamespace()
+        pylons_obj.tmpl_context = _DefaultTmplContext()
+        pylons_obj.translator = _DefaultTranslator()
 
         # Create real WebOb request/response objects and push them onto
         # pylons' LocalStack objects so controllers and helpers can use

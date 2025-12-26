@@ -10,7 +10,9 @@ def test_config_push_and_get():
     original_stack = list(pylons.config._stack)
     try:
         pylons.config._stack.clear()
-        assert not bool(pylons.config)
+        # After clearing, the stack should be empty
+        assert len(pylons.config._stack) == 0, f"Stack should be empty but has {len(pylons.config._stack)} items"
+        assert not bool(pylons.config), "bool(pylons.config) should be False when stack is empty"
         assert pylons.config.get('nonexistent', 'default') == 'default'
 
         pylons.config._push_object({'lang': 'en', 'foo': 'bar'})

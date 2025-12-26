@@ -128,6 +128,7 @@ class CommentOrderTest(RedditTestCase):
         self.link._id = 1000
         self.link.sticky_comment_id = None
         self.link.precomputed_sorts = None
+        self.link.responder_ids = ()
 
         comment_scores = make_comment_scores()
         self.autopatch(

@@ -106,9 +106,6 @@ class CrappyQuery:
         self.i += 1
         return ret
 
-    def __next__(self):
-        return self.__next__()
-
     def __call__(self):
         self._reset_state()
         return self
