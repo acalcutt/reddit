@@ -22,7 +22,7 @@
 import contextlib
 from unittest.mock import MagicMock, patch
 
-from pylons import app_globals as g
+from pylons import app_globals as g, tmpl_context as c
 
 from r2.lib.validator import VByName, VModhash, VUser
 from r2.models import Account, Link, Message
@@ -101,6 +101,7 @@ class DelMsgTest(RedditControllerTestCase):
         stack.enter_context(patch.object(thing, "_commit", side_effect=None))
         stack.enter_context(patch.object(Account, "_id", self.id, create=True))
         stack.enter_context(patch.object(g.events, "message_event", side_effect=None))
+        stack.enter_context(patch.object(c, 'user', MagicMock(_id=self.id)))
         return stack
 
     def do_del_msg(self, name, **kw):
