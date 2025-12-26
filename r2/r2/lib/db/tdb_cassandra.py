@@ -136,7 +136,15 @@ class ThingMeta(type):
                                    % (cls._type_prefix, name))
 
             if cls._type_prefix in thing_types:
-                raise InvariantException("Redefining type %r?" % (cls._type_prefix))
+                # Allow re-imports/reloads when the already-registered class
+                # has the same module and name (common in some test runners
+                # or import patterns). In that case, replace the mapping
+                # with the newly created class object. Only raise if a
+                # different class is trying to claim the same prefix.
+                existing = thing_types[cls._type_prefix]
+                if not (getattr(existing, '__module__', None) == cls.__module__ and
+                        getattr(existing, '__name__', None) == name):
+                    raise InvariantException("Redefining type %r?" % (cls._type_prefix))
 
             # if we weren't given a specific _cf_name, we can use the
             # classes's name
