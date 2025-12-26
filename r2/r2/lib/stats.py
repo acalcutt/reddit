@@ -72,7 +72,9 @@ class TimingStatBuffer:
             total_time, count = v.real, v.imag
             divisor = count or 1
             mean = total_time / divisor
-            yield k, str(mean * 1000) + '|ms'
+            # Format to a single decimal place to avoid binary-fraction
+            # artifacts in float stringification across Python versions.
+            yield k, '{:.1f}|ms'.format(mean * 1000)
 
     def start_logging(self):
         self.log.timings = []

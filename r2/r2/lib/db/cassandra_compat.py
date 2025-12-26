@@ -164,6 +164,32 @@ class ColumnFamily:
             ret[str(row.key)] = od
         return ret
 
+    def get_range(self, start: Optional[str] = None, row_count: Optional[int] = None):
+        """Return an iterator of (key, columns) over rows in the table.
+
+        This mirrors pycassa's `get_range` minimal usage in the legacy code.
+        Parameters `start` and `row_count` are supported where `start`
+        indicates the starting key (inclusive) and `row_count` limits the
+        number of rows returned.
+        """
+        params = ()
+        where = ''
+        if start is not None:
+            where = ' WHERE key >= %s'
+            params = (start,)
+        limit = ''
+        if row_count is not None:
+            limit = ' LIMIT %d' % int(row_count)
+
+        cql = 'SELECT key, columns FROM %s.%s%s%s' % (self.keyspace, self.table, where, limit)
+        rows = self.session.execute(cql, params)
+        out = []
+        for row in rows:
+            raw = row.columns if hasattr(row, 'columns') else row[1]
+            od = self._deserialize_map(raw)
+            out.append((str(row.key), od))
+        return out
+
     def get(self, key: str, columns: Optional[Iterable[str]] = None):
         cql = "SELECT columns FROM %s.%s WHERE key = %%s" % (self.keyspace, self.table)
         row = self.session.execute(cql, (key,)).one()

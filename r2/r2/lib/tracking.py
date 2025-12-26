@@ -48,8 +48,11 @@ def _pad_message(text):
 
     """
     block_size = AES.block_size
+    # Ensure `text` is bytes for the cipher; accept `str` and encode to UTF-8.
+    if isinstance(text, str):
+        text = text.encode('utf-8')
     padding_size = (block_size - len(text) % block_size) or block_size
-    padding = chr(padding_size) * padding_size
+    padding = bytes([padding_size]) * padding_size
     return text + padding
 
 
@@ -58,15 +61,23 @@ def _unpad_message(text):
     if not text:
         return ""
 
-    padding_size = ord(text[-1])
+    # `text` should be bytes; determine padding from last byte.
+    if isinstance(text, str):
+        text = text.encode('utf-8')
+
+    padding_size = text[-1]
     if padding_size > AES.block_size:
         return ""
 
     unpadded, padding = text[:-padding_size], text[-padding_size:]
-    if any(ord(x) != padding_size for x in padding):
+    if any(b != padding_size for b in padding):
         return ""
 
-    return unpadded
+    try:
+        return unpadded.decode('utf-8')
+    except Exception:
+        # Fallback to latin-1 to preserve bytes if UTF-8 decoding fails
+        return unpadded.decode('latin-1')
 
 
 def _make_cipher(initialization_vector, secret):
@@ -95,17 +106,21 @@ def _make_salt():
     # so we'll calculate how many bytes we need to get SALT_SIZE characters of
     # base64 output. because of padding, this only works for SALT_SIZE % 4 == 0
     assert SALT_SIZE % 4 == 0
-    salt_byte_count = (SALT_SIZE / 4) * 3
+    salt_byte_count = int((SALT_SIZE // 4) * 3)
     salt_bytes = get_random_bytes(salt_byte_count)
-    return base64.b64encode(salt_bytes)
+    # Return a text string (base64 is ASCII-safe) to mirror Python2 behavior
+    return base64.b64encode(salt_bytes).decode('ascii')
 
 
 def _encrypt(salt, plaintext, secret):
-    cipher = _make_cipher(salt, secret)
+    # `salt` is text (ASCII base64). Ensure `salt` and plaintext are handled
+    # correctly as bytes for the cipher.
+    cipher = _make_cipher(salt.encode('ascii') if isinstance(salt, str) else salt,
+                          secret if isinstance(secret, bytes) else secret.encode('utf-8'))
 
     padded = _pad_message(plaintext)
     ciphertext = cipher.encrypt(padded)
-    encoded = base64.b64encode(ciphertext)
+    encoded = base64.b64encode(ciphertext).decode('ascii')
 
     return urllib.parse.quote_plus(salt + encoded, safe="")
 
@@ -124,7 +139,8 @@ def _decrypt(encrypted, secret):
     encrypted = urllib.parse.unquote_plus(encrypted)
     salt, encoded = encrypted[:SALT_SIZE], encrypted[SALT_SIZE:]
     ciphertext = base64.b64decode(encoded)
-    cipher = _make_cipher(salt, secret)
+    cipher = _make_cipher(salt.encode('ascii') if isinstance(salt, str) else salt,
+                          secret if isinstance(secret, bytes) else secret.encode('utf-8'))
     padded = cipher.decrypt(ciphertext)
     return _unpad_message(padded)
 
