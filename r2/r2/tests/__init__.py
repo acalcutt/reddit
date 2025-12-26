@@ -76,7 +76,7 @@ if writable_ev is None:
     baseplate_events.EventQueue = queue.Queue
 else:
     baseplate_events.EventQueue = queue.Queue
-wsgiapp = loadapp('config:test.ini', relative_to=conf_dir)
+wsgiapp = loadapp('config:example.ini', relative_to=conf_dir)
 pylons.app_globals._push_object(wsgiapp.config['pylons.app_globals'])
 pylons.config._push_object(wsgiapp.config)
 

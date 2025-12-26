@@ -108,7 +108,7 @@ jobs:
 
       - name: Run unit tests (r2)
         env:
-          DATABASE_URL: "postgresql://reddit:reddit@127.0.0.1/reddit"
+          DATABASE_URL: "postgresql://reddit:password@127.0.0.1/reddit"
         run: |
           python -m pytest r2/r2/tests -q
 
