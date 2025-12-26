@@ -25,7 +25,50 @@ from datetime import datetime
 from datetime import timedelta as timedelta
 
 import pytz
-import sqlalchemy as sa
+try:
+    import sqlalchemy as sa
+except Exception:
+    # Minimal fallback namespace when SQLAlchemy isn't installed during test
+    # collection. This stub only exists to avoid import-time failures; any
+    # actual use of the DB-backed hardcache will raise at runtime.
+    class _SAExc:
+        class IntegrityError(Exception):
+            pass
+
+    def _raise_missing(*a, **kw):
+        raise RuntimeError("sqlalchemy is required for HardCacheBackend")
+
+    class _SAStub:
+        exc = _SAExc
+        Integer = int
+        String = str
+        DateTime = object
+
+        @staticmethod
+        def select(*a, **kw):
+            return _raise_missing()
+
+        @staticmethod
+        def Table(*a, **kw):
+            return _raise_missing()
+
+        @staticmethod
+        def Column(*a, **kw):
+            return _raise_missing()
+
+        @staticmethod
+        def and_(*a, **kw):
+            return _raise_missing()
+
+        @staticmethod
+        def or_(*a, **kw):
+            return _raise_missing()
+
+        @staticmethod
+        def cast(*a, **kw):
+            return _raise_missing()
+
+    sa = _SAStub()
 from pylons import app_globals as g
 
 from r2.lib.db.tdb_lite import tdb_lite
