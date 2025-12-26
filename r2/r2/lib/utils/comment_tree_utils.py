@@ -24,6 +24,20 @@
 # This provides the same functionality without requiring Cython compilation.
 
 
+def _sort_key_none_first(x):
+    """Sort key that puts None first, then sorts numerically."""
+    if x is None:
+        return (0, 0)
+    return (1, x)
+
+
+def _sort_key_none_last(x):
+    """Sort key that puts None last, then sorts numerically."""
+    if x is None:
+        return (1, 0)
+    return (0, x)
+
+
 def get_tree_details(tree):
     """Get details about a comment tree.
 
@@ -40,7 +54,7 @@ def get_tree_details(tree):
     depth = {}
     parents = {}
 
-    for parent_id in sorted(tree):
+    for parent_id in sorted(tree, key=_sort_key_none_first):
         child_ids = tree[parent_id]
 
         cids.extend(child_ids)
@@ -64,7 +78,7 @@ def calc_num_children(tree):
     """
     num_children = {}
 
-    for parent_id in sorted(tree, reverse=True):
+    for parent_id in sorted(tree, key=_sort_key_none_last, reverse=True):
         if parent_id is None:
             continue
 

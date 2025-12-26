@@ -916,7 +916,7 @@ def passhash(username, password, salt = ''):
     if salt is True:
         salt = randstr(3)
     tohash = '{}{} {}'.format(salt, username, password)
-    return salt + hashlib.sha1(tohash).hexdigest()
+    return salt + hashlib.sha1(tohash.encode('utf-8')).hexdigest()
 
 def change_password(user, newpassword):
     user.password = bcrypt_password(newpassword)

@@ -28,10 +28,9 @@ import math
 import sys
 import traceback
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from r2.lib import utils
-import r2.tests as s
 
 
 class CrappyQuery:
@@ -490,18 +489,20 @@ class TestUrlToThing(unittest.TestCase):
 
     def test_subreddit_noslash(self):
         with patch('r2.models.Subreddit') as MockSubreddit:
-            MockSubreddit._by_name.return_value = s.Subreddit
+            mock_sr = MagicMock()
+            MockSubreddit._by_name.return_value = mock_sr
             self.assertEqual(
                 utils.url_to_thing('http://reddit.local/r/pics'),
-                s.Subreddit,
+                mock_sr,
             )
 
     def test_subreddit(self):
         with patch('r2.models.Subreddit') as MockSubreddit:
-            MockSubreddit._by_name.return_value = s.Subreddit
+            mock_sr = MagicMock()
+            MockSubreddit._by_name.return_value = mock_sr
             self.assertEqual(
                 utils.url_to_thing('http://reddit.local/r/pics/'),
-                s.Subreddit,
+                mock_sr,
             )
 
     def test_frontpage(self):

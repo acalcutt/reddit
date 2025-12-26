@@ -159,7 +159,7 @@ def consume_link_vote_queue(qname="vote_link_q"):
                 )
             except TypeError as e:
                 # a vote on an invalid type got in the queue, just skip it
-                g.log.exception("Invalid type: %r", e.message)
+                g.log.exception("Invalid type: %r", str(e))
                 return
 
             vote.commit()
@@ -369,7 +369,7 @@ def consume_comment_vote_queue(qname="vote_comment_q"):
             )
         except TypeError as e:
             # a vote on an invalid type got in the queue, just skip it
-            g.log.exception("Invalid type: %r", e.message)
+            g.log.exception("Invalid type: %r", str(e))
             return
 
         vote.commit()
