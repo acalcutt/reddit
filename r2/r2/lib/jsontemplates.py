@@ -35,15 +35,11 @@ from r2.lib.wrapped import CacheStub, StringTemplate, Wrapped
 from r2.config import feature
 from r2.config.extensions import get_api_subtype
 from r2.lib.filters import _force_unicode, safemarkdown, spaceCompress
-from r2.models import (
-    Account,
-    Comment,
-    Link,
-    Report,
-    Subreddit,
-    SubredditUserRelations,
-    Trophy,
-)
+from r2.models.account import Account
+from r2.models.link import Comment, Link
+from r2.models.report import Report
+from r2.models.subreddit import Subreddit, SubredditUserRelations
+from r2.models.award import Trophy
 from r2.models.token import OAuth2Scope, extra_oauth2_scope
 from r2.models.wiki import ImagesByWikiPage
 

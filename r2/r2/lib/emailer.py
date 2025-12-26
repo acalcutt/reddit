@@ -38,7 +38,11 @@ from r2.config import feature
 from r2.lib import hooks
 from r2.lib.ratelimit import SimpleRateLimit
 from r2.lib.utils import timeago
-from r2.models import Account, Award, Comment, DefaultSR, Email
+from r2.models.account import Account
+from r2.models.award import Award
+from r2.models.link import Comment
+from r2.models.subreddit import DefaultSR
+from r2.models.mail_queue import Email
 from r2.models.token import EmailVerificationToken, PasswordResetToken
 
 trylater_hooks = hooks.HookRegistrar()

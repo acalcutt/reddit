@@ -30,7 +30,7 @@ from r2.lib.menus import (
     OffsiteButton,
     menu,
 )
-from r2.lib.pages import LinkInfoBar, Reddit
+from r2.lib.pages.pages import LinkInfoBar, Reddit
 from r2.lib.utils import timesince
 from r2.lib.wrapped import Templated
 
