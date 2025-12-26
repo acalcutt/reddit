@@ -183,7 +183,14 @@ def get_comment_scores(link, sort, comment_ids, timer):
             scores_by_id.update(scores_by_missing)
             timer.intermediate('sort')
 
+    # Normalize any None scores to 0 so downstream sorting/comparisons
+    # do not raise TypeError when arithmetic is performed.
+    for _k, _v in list(scores_by_id.items()):
+        if _v is None:
+            scores_by_id[_k] = 0
+
     return scores_by_id
+
 
 
 # message conversation functions
