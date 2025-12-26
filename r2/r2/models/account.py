@@ -887,8 +887,8 @@ def valid_password(a, password, compare_password=None):
     return a
 
 def bcrypt_password(password):
-    salt = bcrypt.gensalt(log_rounds=g.bcrypt_work_factor)
-    return bcrypt.hashpw(password, salt)
+    salt = bcrypt.gensalt(rounds=g.bcrypt_work_factor)
+    return bcrypt.hashpw(password.encode('utf-8'), salt)
 
 def passhash(username, password, salt = ''):
     if salt is True:
