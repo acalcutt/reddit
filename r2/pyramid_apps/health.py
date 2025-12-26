@@ -26,7 +26,16 @@ def make_app(global_conf=None, **settings):
     health view. This factory allows standalone testing and later mounting
     inside a larger Pyramid application.
     """
-    config = Configurator(settings=settings)
+    # Some callers (tests) pass a single `settings` kwarg containing the
+    # real settings mapping (eg. `make_app(settings={"versions": {...}})`).
+    # Normalize that shape so the Pyramid Configurator receives the actual
+    # settings mapping.
+    if 'settings' in settings and isinstance(settings['settings'], dict):
+        cfg_settings = settings['settings']
+    else:
+        cfg_settings = settings
+
+    config = Configurator(settings=cfg_settings)
     config.add_route("health", "/health")
     config.scan(__name__)
     return config.make_wsgi_app()
