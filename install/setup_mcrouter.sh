@@ -94,104 +94,105 @@ if [ ! -f /etc/mcrouter/global.conf ]; then
 }
 MCROUTER
 fi
-  if [ -x /etc/init.d/mcrouter ]; then
-    /etc/init.d/mcrouter restart || true
+
+if [ -x /etc/init.d/mcrouter ]; then
+  /etc/init.d/mcrouter restart || true
+else
+  echo "mcrouter service not found; skipping restart" >&2
+fi
+
+# If mcrouter binary is not present, try building it under /opt/mcrouter using
+# the community build scripts and copy the installed binary to /usr/local/bin.
+if [ ! -x /usr/local/bin/mcrouter ]; then
+  echo "mcrouter binary not found in /usr/local/bin; attempting build in /opt/mcrouter"
+  if [ ! -d /opt/mcrouter ]; then
+    git clone https://github.com/facebook/mcrouter.git /opt/mcrouter || true
+  fi
+  pushd /opt/mcrouter >/dev/null 2>&1 || true
+  # add known upstream fix branch if not already present
+  git remote add markbhasawut https://github.com/markbhasawut/mcrouter.git 2>/dev/null || true
+  git fetch markbhasawut 2>/dev/null || true
+  git merge --no-edit markbhasawut/fix-oss-build 2>/dev/null || true
+
+  # run the Ubuntu 24.04 helper to install deps and mcrouter
+  if [ -x ./mcrouter/scripts/install_ubuntu_24.04.sh ]; then
+    ./mcrouter/scripts/install_ubuntu_24.04.sh "$(pwd)"/mcrouter-install deps || true
+    ./mcrouter/scripts/install_ubuntu_24.04.sh "$(pwd)"/mcrouter-install mcrouter || true
+  fi
+  popd >/dev/null 2>&1 || true
+
+  # copy resulting binary into /usr/local/bin if present
+  if [ -x /opt/mcrouter/mcrouter-install/install/bin/mcrouter ]; then
+    cp /opt/mcrouter/mcrouter-install/install/bin/mcrouter /usr/local/bin/mcrouter || true
+    chmod +x /usr/local/bin/mcrouter || true
+  elif [ -x /opt/mcrouter/mcrouter ]; then
+    cp /opt/mcrouter/mcrouter /usr/local/bin/mcrouter || true
+    chmod +x /usr/local/bin/mcrouter || true
+  fi
+fi
+
+# Install a service wrapper: prefer systemd unit if available, otherwise
+# create a SysV init.d script that sources /etc/default/mcrouter.
+if [ -x /usr/local/bin/mcrouter ]; then
+  if command -v systemctl >/dev/null 2>&1; then
+    cat > /etc/systemd/system/mcrouter.service <<'UNIT'
+[Unit]
+Description=mcrouter
+After=network.target
+
+[Service]
+Type=simple
+User=mcrouter
+ExecStart=/usr/local/bin/mcrouter -f /etc/mcrouter/global.conf $MCROUTER_FLAGS
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload || true
+    systemctl enable --now mcrouter.service || true
   else
-    echo "mcrouter service not found; skipping restart" >&2
+    cat > /etc/init.d/mcrouter <<'SH'
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          mcrouter
+# Required-Start:    $network $local_fs
+# Required-Stop:     $network $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: mcrouter
+### END INIT INFO
+. /lib/lsb/init-functions
+[ -f /etc/default/mcrouter ] && . /etc/default/mcrouter
+MCROUTER_BIN=/usr/local/bin/mcrouter
+case "$1" in
+  start)
+  log_daemon_msg "Starting mcrouter"
+  start-stop-daemon --start --background --exec $MCROUTER_BIN -- $MCROUTER_FLAGS
+  log_end_msg $?
+  ;;
+  stop)
+  log_daemon_msg "Stopping mcrouter"
+  start-stop-daemon --stop --exec $MCROUTER_BIN
+  log_end_msg $?
+  ;;
+  restart)
+  $0 stop
+  sleep 1
+  $0 start
+  ;;
+  status)
+  status_of_proc $MCROUTER_BIN mcrouter
+  ;;
+  *)
+  echo "Usage: $0 {start|stop|restart|status}"
+  exit 2
+  ;;
+esac
+exit 0
+SH
+    chmod +x /etc/init.d/mcrouter || true
+    update-rc.d mcrouter defaults || true
+    /etc/init.d/mcrouter restart || true
   fi
-
-  # If mcrouter binary is not present, try building it under /opt/mcrouter using
-  # the community build scripts and copy the installed binary to /usr/local/bin.
-  if [ ! -x /usr/local/bin/mcrouter ]; then
-    echo "mcrouter binary not found in /usr/local/bin; attempting build in /opt/mcrouter"
-    if [ ! -d /opt/mcrouter ]; then
-      git clone https://github.com/facebook/mcrouter.git /opt/mcrouter || true
-    fi
-    pushd /opt/mcrouter >/dev/null 2>&1 || true
-    # add known upstream fix branch if not already present
-    git remote add markbhasawut https://github.com/markbhasawut/mcrouter.git 2>/dev/null || true
-    git fetch markbhasawut 2>/dev/null || true
-    git merge --no-edit markbhasawut/fix-oss-build 2>/dev/null || true
-
-    # run the Ubuntu 24.04 helper to install deps and mcrouter
-    if [ -x ./mcrouter/scripts/install_ubuntu_24.04.sh ]; then
-      ./mcrouter/scripts/install_ubuntu_24.04.sh "$(pwd)"/mcrouter-install deps || true
-      ./mcrouter/scripts/install_ubuntu_24.04.sh "$(pwd)"/mcrouter-install mcrouter || true
-    fi
-    popd >/dev/null 2>&1 || true
-
-    # copy resulting binary into /usr/local/bin if present
-    if [ -x /opt/mcrouter/mcrouter-install/install/bin/mcrouter ]; then
-      cp /opt/mcrouter/mcrouter-install/install/bin/mcrouter /usr/local/bin/mcrouter || true
-      chmod +x /usr/local/bin/mcrouter || true
-    elif [ -x /opt/mcrouter/mcrouter ]; then
-      cp /opt/mcrouter/mcrouter /usr/local/bin/mcrouter || true
-      chmod +x /usr/local/bin/mcrouter || true
-    fi
-  fi
-
-  # Install a service wrapper: prefer systemd unit if available, otherwise
-  # create a SysV init.d script that sources /etc/default/mcrouter.
-  if [ -x /usr/local/bin/mcrouter ]; then
-    if command -v systemctl >/dev/null 2>&1; then
-      cat > /etc/systemd/system/mcrouter.service <<'UNIT'
-  [Unit]
-  Description=mcrouter
-  After=network.target
-
-  [Service]
-  Type=simple
-  User=mcrouter
-  ExecStart=/usr/local/bin/mcrouter -f /etc/mcrouter/global.conf $MCROUTER_FLAGS
-  Restart=on-failure
-
-  [Install]
-  WantedBy=multi-user.target
-  UNIT
-      systemctl daemon-reload || true
-      systemctl enable --now mcrouter.service || true
-    else
-      cat > /etc/init.d/mcrouter <<'SH'
-  #!/bin/sh
-  ### BEGIN INIT INFO
-  # Provides:          mcrouter
-  # Required-Start:    $network $local_fs
-  # Required-Stop:     $network $local_fs
-  # Default-Start:     2 3 4 5
-  # Default-Stop:      0 1 6
-  # Short-Description: mcrouter
-  ### END INIT INFO
-  . /lib/lsb/init-functions
-  [ -f /etc/default/mcrouter ] && . /etc/default/mcrouter
-  MCROUTER_BIN=/usr/local/bin/mcrouter
-  case "$1" in
-    start)
-    log_daemon_msg "Starting mcrouter"
-    start-stop-daemon --start --background --exec $MCROUTER_BIN -- $MCROUTER_FLAGS
-    log_end_msg $?
-    ;;
-    stop)
-    log_daemon_msg "Stopping mcrouter"
-    start-stop-daemon --stop --exec $MCROUTER_BIN
-    log_end_msg $?
-    ;;
-    restart)
-    $0 stop
-    sleep 1
-    $0 start
-    ;;
-    status)
-    status_of_proc $MCROUTER_BIN mcrouter
-    ;;
-    *)
-    echo "Usage: $0 {start|stop|restart|status}"
-    exit 2
-    ;;
-  esac
-  exit 0
-  SH
-      chmod +x /etc/init.d/mcrouter || true
-      update-rc.d mcrouter defaults || true
-      /etc/init.d/mcrouter restart || true
-    fi
-  fi
+fi
