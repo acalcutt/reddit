@@ -571,6 +571,34 @@ class Globals:
 
         self.queues = queues.declare_queues(self)
 
+        # Compatibility shim: older code expects a pkg_resources-style
+        # "working_set" object available on the app globals. Newer code
+        # uses importlib.metadata directly, but tests and some plugins
+        # still reference `g.pkg_resources_working_set`. Provide a thin
+        # wrapper that exposes `iter_entry_points()` so callers keep working
+        # whether pkg_resources is present or not.
+        try:
+            import pkg_resources
+            self.pkg_resources_working_set = pkg_resources.working_set
+        except Exception:
+            try:
+                from r2.lib.plugin import _iter_entry_points
+
+                class _WorkingSetCompat:
+                    def iter_entry_points(self, group, name=None):
+                        return _iter_entry_points(group=group, name=name)
+
+                self.pkg_resources_working_set = _WorkingSetCompat()
+            except Exception:
+                # Last-resort fallback: provide an object with the method
+                # but which yields nothing. This keeps code from crashing
+                # during import when no entry points are available.
+                class _EmptyWorkingSet:
+                    def iter_entry_points(self, group, name=None):
+                        return iter(())
+
+                self.pkg_resources_working_set = _EmptyWorkingSet()
+
         self.extension_subdomains = dict(
             simple="mobile",
             i="compact",
