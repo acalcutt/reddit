@@ -23,29 +23,32 @@
 
 import fnmatch
 import os
+import sys
 
 from setuptools import Extension, find_packages, setup
 
-commands = {}
-
-
-try:
-    from Cython.Build import cythonize
-except ImportError:
-    print("Cannot find Cython. Skipping Cython build.")
-    pyx_extensions = []
-else:
-    pyx_files = []
-    for root, directories, files in os.walk('.'):
-        for f in fnmatch.filter(files, '*.pyx'):
-            pyx_files.append(os.path.join(root, f))
-    # Some Cython sources in this project use Python 2 style syntax (print
-    # statements, etc.). For a quick compatibility fix keep Cython in
-    # Python-2 language mode when translating those .pyx files.
-    pyx_extensions = cythonize(
-        pyx_files,
-        compiler_directives={"language_level": "2"},
-    )
+# Avoid doing expensive or build-time only operations during metadata
+# generation (e.g. `egg_info`) which may run setup.py without the build
+# commands. Only attempt to locate and cythonize .pyx files when an actual
+# build is requested.
+pyx_extensions = []
+build_commands = {"build", "build_ext", "bdist_wheel", "bdist_egg", "install"}
+if build_commands.intersection(sys.argv):
+    try:
+        from Cython.Build import cythonize
+    except Exception:
+        print("Cannot find Cython. Skipping Cython build.")
+        pyx_extensions = []
+    else:
+        pyx_files = []
+        for root, directories, files in os.walk('.'):
+            for f in fnmatch.filter(files, '*.pyx'):
+                pyx_files.append(os.path.join(root, f))
+        # Some Cython sources in this project use Python 2 style syntax.
+        pyx_extensions = cythonize(
+            pyx_files,
+            compiler_directives={"language_level": "2"},
+        )
 
 
 # guard against import errors in case this is the first run of setup.py and we
@@ -53,11 +56,11 @@ else:
 try:
     # baseplate 1.0+ moved integration -> frameworks
     from baseplate.frameworks.thrift.command import ThriftBuildPyCommand
-except ImportError:
+except Exception:
     try:
         # fallback for older baseplate versions
         from baseplate.integration.thrift.command import ThriftBuildPyCommand
-    except ImportError:
+    except Exception:
         print("Cannot find Baseplate. Skipping Thrift build.")
         ThriftBuildPyCommand = None
 
