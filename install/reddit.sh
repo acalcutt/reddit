@@ -164,11 +164,7 @@ for repo in activity websockets; do
     fi
 done
 
-# Convert i18n Python 2 scripts to Python 3
-if [ -d "$REDDIT_SRC/i18n" ]; then
-    # Convert all Python files in i18n directory
-    find "$REDDIT_SRC/i18n" -name "*.py" -exec 2to3 -w -n {} \; || true
-fi
+# (legacy) i18n Python 2 conversion will run after the virtualenv is created
 
 ###############################################################################
 # Configure Services
@@ -212,6 +208,14 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     pylibmc \
     simplejson \
     pytest
+
+# Convert legacy Python 2 sources in i18n to Python 3 using lib2to3
+if [ -d "$REDDIT_SRC/i18n" ]; then
+    echo "Converting i18n Python files to Python 3 with lib2to3"
+    for pyf in $(find "$REDDIT_SRC/i18n" -name "*.py"); do
+        sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" python3 -m lib2to3 -w "$pyf" || true
+    done
+fi
 
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
