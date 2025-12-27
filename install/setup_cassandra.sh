@@ -25,11 +25,35 @@
 # Configure Cassandra
 ###############################################################################
 
-# update the per-thread stack size. this used to be set to 256k in cassandra
-# version 1.2.19, but we recently downgraded to 1.2.11 where it's set too low
-sed -i -e 's/-Xss180k/-Xss256k/g' /etc/cassandra/cassandra-env.sh
+# load configuration
+RUNDIR=$(dirname $0)
+source $RUNDIR/install.cfg
 
-python <<END
+source /etc/lsb-release
+
+if [ "$DISTRIB_RELEASE" == "24.04" ]; then
+    ###########################################################################
+    # Ubuntu 24.04 - Use cqlsh and cassandra-driver (Python 3)
+    ###########################################################################
+
+    # Create keyspace using cqlsh
+    cqlsh -e "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};" || true
+
+    # Create permacache table
+    cqlsh -e "CREATE TABLE IF NOT EXISTS reddit.permacache (key text PRIMARY KEY, value blob);" || true
+
+    echo "Cassandra keyspace and tables created."
+
+else
+    ###########################################################################
+    # Ubuntu 14.04 - Use pycassa (Python 2)
+    ###########################################################################
+
+    # update the per-thread stack size. this used to be set to 256k in cassandra
+    # version 1.2.19, but we recently downgraded to 1.2.11 where it's set too low
+    sed -i -e 's/-Xss180k/-Xss256k/g' /etc/cassandra/cassandra-env.sh
+
+    python <<END
 import pycassa
 sys = pycassa.SystemManager("localhost:9160")
 
@@ -43,3 +67,5 @@ if "permacache" not in sys.get_keyspace_column_families("reddit"):
     sys.create_column_family("reddit", "permacache")
     print "done"
 END
+
+fi

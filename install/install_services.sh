@@ -29,8 +29,36 @@
 RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
-# install prerequisites
-cat <<PACKAGES | xargs apt-get install $APTITUDE_OPTIONS
+source /etc/lsb-release
+
+if [ "$DISTRIB_RELEASE" == "24.04" ]; then
+    ###########################################################################
+    # Ubuntu 24.04 - Updated package names
+    ###########################################################################
+
+    # install prerequisites (mcrouter not available in 24.04)
+    cat <<PACKAGES | xargs apt-get install $APTITUDE_OPTIONS
+memcached
+postgresql
+postgresql-contrib
+rabbitmq-server
+haproxy
+nginx
+gunicorn
+redis-server
+PACKAGES
+
+    # Start services
+    sudo systemctl enable memcached postgresql rabbitmq-server redis-server
+    sudo systemctl start memcached postgresql rabbitmq-server redis-server
+
+else
+    ###########################################################################
+    # Ubuntu 14.04 - Legacy packages
+    ###########################################################################
+
+    # install prerequisites
+    cat <<PACKAGES | xargs apt-get install $APTITUDE_OPTIONS
 mcrouter
 memcached
 postgresql
@@ -42,6 +70,8 @@ gunicorn
 redis-server
 PACKAGES
 
+fi
+
 ###############################################################################
 # Wait for all the services to be up
 ###############################################################################
@@ -51,7 +81,12 @@ echo "Waiting for services to be available, see source for port meanings..."
 # 5432 - postgres
 # 5672 - rabbitmq
 for port in 11211 5432 5672; do
-    while ! nc -vz localhost $port; do
+    echo "Waiting for port $port..."
+    for i in $(seq 1 30); do
+        if nc -vz localhost $port 2>/dev/null; then
+            echo "Port $port is up!"
+            break
+        fi
         sleep 1
     done
 done

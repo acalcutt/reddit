@@ -25,22 +25,59 @@
 RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
-if [ ! -e $CASSANDRA_SOURCES_LIST ]; then
-    echo "Cassandra repo not added.  Running `install_apt.sh`"
-    $RUNDIR/install_apt.sh
+source /etc/lsb-release
+
+if [ "$DISTRIB_RELEASE" == "24.04" ]; then
+    ###########################################################################
+    # Ubuntu 24.04 - Install Cassandra 4.x from Apache
+    ###########################################################################
+
+    # Install Java (required for Cassandra)
+    apt-get install $APTITUDE_OPTIONS openjdk-11-jre-headless
+
+    # Add Apache Cassandra repository
+    echo "deb https://debian.cassandra.apache.org 41x main" | sudo tee /etc/apt/sources.list.d/cassandra.sources.list
+    curl -fsSL https://www.apache.org/dist/cassandra/KEYS | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/cassandra.gpg
+
+    apt-get update
+    apt-get install $APTITUDE_OPTIONS cassandra
+
+    # Start Cassandra
+    sudo systemctl enable cassandra
+    sudo systemctl start cassandra
+
+    # Wait for Cassandra to be available (CQL native port 9042)
+    echo "Waiting for Cassandra to be available..."
+    for i in $(seq 1 60); do
+        if nc -vz localhost 9042 2>/dev/null; then
+            echo "Cassandra is up!"
+            break
+        fi
+        sleep 2
+    done
+
+else
+    ###########################################################################
+    # Ubuntu 14.04 - Legacy Cassandra 1.2.x installation
+    ###########################################################################
+
+    if [ ! -e $CASSANDRA_SOURCES_LIST ]; then
+        echo "Cassandra repo not added.  Running install_apt.sh"
+        $RUNDIR/install_apt.sh
+    fi
+
+    # install cassandra
+    sudo apt-get install $APTITUDE_OPTIONS cassandra=1.2.19
+
+    # we don't want to upgrade to C* 2.0 yet, so we'll put it on hold
+    apt-mark hold cassandra || true
+
+    # cassandra doesn't auto-start after install
+    sudo service cassandra start
+
+    # check each port for connectivity (Thrift port 9160)
+    echo "Waiting for cassandra to be available..."
+    while ! nc -vz localhost 9160; do
+        sleep 1
+    done
 fi
-
-# install cassandra
-sudo apt-get install $APTITUDE_OPTIONS cassandra=1.2.19
-
-# we don't want to upgrade to C* 2.0 yet, so we'll put it on hold
-apt-mark hold cassandra || true
-
-# cassandra doesn't auto-start after install
-sudo service cassandra start
-
-# check each port for connectivity
-echo "Waiting for cassandra to be available..."
-while ! nc -vz localhost 9160; do
-    sleep 1
-done
