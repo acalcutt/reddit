@@ -369,8 +369,7 @@ class RedditControllerTestCase(RedditTestCase):
             headers.setdefault(k, v)
         headers = {k: v for k, v in headers.items() if v is not None}
         return self.app.post(
-            url_for(controller=self.CONTROLLER,
-                    action=self.ACTIONS.get(action, action)),
+            f'/{self.CONTROLLER}/{self.ACTIONS.get(action, action)}'.rstrip('/'),
             extra_environ={"REMOTE_ADDR": "1.2.3.4"},
             headers=headers,
             params=body,
