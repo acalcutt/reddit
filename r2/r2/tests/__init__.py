@@ -30,7 +30,7 @@ from unittest.mock import MagicMock, patch
 from baseplate.lib import events as baseplate_events
 import paste.fixture
 import paste.script.appinstall
-import pkg_resources
+from importlib.metadata import version, PackageNotFoundError
 import pylons
 from paste.deploy import loadapp
 from pylons import url
@@ -46,9 +46,9 @@ here_dir = os.path.dirname(os.path.abspath(__file__))
 conf_dir = os.path.dirname(os.path.dirname(here_dir))
 
 sys.path.insert(0, conf_dir)
-pkg_resources.working_set.add_entry(conf_dir)
-pkg_resources.require('Paste')
-pkg_resources.require('PasteScript')
+# conf_dir added to sys.path above
+version('Paste')  # Verify Paste is installed
+version('PasteScript')  # Verify PasteScript is installed
 
 
 # on case-insensitive file systems, Captcha gets masked by

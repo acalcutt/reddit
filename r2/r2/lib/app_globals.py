@@ -36,7 +36,7 @@ import sys
 from datetime import datetime
 from urllib.parse import urlparse
 
-import pkg_resources
+import importlib.resources
 import pytz
 from baseplate import Baseplate
 from baseplate.lib import config as baseplate_config
@@ -462,12 +462,10 @@ class Globals:
         # meaning that new plugins will be picked up on regular app reload
         # rather than having to restart the master process as well.
         importlib.reload(site)
-        self.pkg_resources_working_set = pkg_resources.WorkingSet()
 
         self.config = ConfigValueParser(global_conf)
         self.config.add_spec(self.spec)
-        self.plugins = PluginLoader(self.pkg_resources_working_set,
-                                    self.config.get("plugins", []))
+        self.plugins = PluginLoader(plugin_names=self.config.get("plugins", []))
 
         self.stats = Stats(self.config.get('statsd_addr'),
                            self.config.get('statsd_sample_rate'))
@@ -681,9 +679,8 @@ class Globals:
         self.log = logging.LoggerAdapter(log, {"pool": pool})
 
         # set locations
-        locations = pkg_resources.resource_stream(__name__,
-                                                  "../data/locations.json")
-        self.locations = json.loads(locations.read())
+        locations_file = importlib.resources.files('r2').joinpath('data/locations.json')
+        self.locations = json.loads(locations_file.read_text())
 
         if not self.media_domain:
             self.media_domain = self.domain

@@ -24,7 +24,28 @@ import os.path
 import sys
 from collections import OrderedDict
 
-import pkg_resources
+from importlib.metadata import entry_points as get_entry_points, distributions
+
+
+def _iter_entry_points(group, name=None):
+    """Get entry points for a group, optionally filtered by name.
+
+    Compatible replacement for pkg_resources working_set.iter_entry_points().
+    """
+    eps = get_entry_points(group=group)
+    if name is not None:
+        eps = [ep for ep in eps if ep.name == name]
+    return iter(eps)
+
+
+def _get_dist_location(entry_point):
+    """Get the location (path) of a distribution from an entry point."""
+    if hasattr(entry_point, 'dist') and entry_point.dist:
+        dist = entry_point.dist
+        # In importlib.metadata, dist._path points to the metadata directory
+        if hasattr(dist, '_path') and dist._path:
+            return str(dist._path.parent)
+    return None
 
 
 class Plugin:
@@ -86,10 +107,11 @@ class Plugin:
 
 class PluginLoader:
     def __init__(self, working_set=None, plugin_names=None):
-        self.working_set = working_set or pkg_resources.WorkingSet()
+        # working_set parameter kept for backwards compatibility but ignored
+        # We now use importlib.metadata directly
 
         if plugin_names is None:
-            entry_points = self.available_plugins()
+            entry_points = list(self.available_plugins())
         else:
             entry_points = []
             for name in plugin_names:
@@ -129,7 +151,7 @@ class PluginLoader:
         return self.plugins[key]
 
     def available_plugins(self, name=None):
-        return self.working_set.iter_entry_points('r2.plugin', name)
+        return _iter_entry_points('r2.plugin', name)
 
     def declare_queues(self, queues):
         for plugin in self:
@@ -140,8 +162,10 @@ class PluginLoader:
         for plugin in self:
             # Record plugin version
             entry = plugin.entry_point
-            git_dir = os.path.join(entry.dist.location, '.git')
-            g.record_repo_version(entry.name, git_dir)
+            dist_location = _get_dist_location(entry)
+            if dist_location:
+                git_dir = os.path.join(dist_location, '.git')
+                g.record_repo_version(entry.name, git_dir)
 
             # Load plugin
             g.config.add_spec(plugin.config)
