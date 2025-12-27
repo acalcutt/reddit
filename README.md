@@ -15,46 +15,47 @@ original upstream project and documentation refer to the upstream repository.
 
 ### Quickstart (Ubuntu 24.04)
 
-The following steps produce a development-ready environment on Ubuntu 24.04. They assume you're running as root while creating the local `apprunner` user and installing system packages; adapt commands for your environment.
+The following steps produce a development-ready environment on Ubuntu 24.04.
 
-1. Update apt and install system dependencies:
-
-```bash
-apt update
-apt install -y git python3 python3-venv python3-dev build-essential libpq-dev libmemcached-dev gperf wget curl
-```
-
-2. Create the runtime user and directories (adjust `apprunner` as needed):
+1. Create the runtime user (adjust `reddit` as needed):
 
 ```bash
-useradd -m -s /bin/bash apprunner || true
-mkdir -p /home/apprunner/src
-chown apprunner:apprunner /home/apprunner/src
+useradd -m -s /bin/bash reddit
 ```
 
-3. Create a Python virtualenv for builds and installs:
+2. Clone the repository:
 
 ```bash
-sudo -u apprunner python3 -m venv /home/apprunner/venv
-sudo -u apprunner /home/apprunner/venv/bin/pip install --upgrade pip setuptools wheel build
+git clone https://github.com/acalcutt/reddit.git /opt/reddit
+cd /opt/reddit
 ```
 
-4. Clone the repositories into `/home/apprunner/src` and install local packages editable:
+3. Run the installer as root, specifying the user and domain:
 
 ```bash
-# Example for baseplate
-sudo -u apprunner git clone https://github.com/your-fork/baseplate /home/apprunner/src/baseplate
-sudo -u apprunner /home/apprunner/venv/bin/pip install -e /home/apprunner/src/baseplate
+REDDIT_USER=reddit REDDIT_DOMAIN=reddit.local ./install-reddit.sh
 ```
 
-5. Run the installer from the repo root as root (it will invoke per-user build steps):
+The installer will handle system dependencies, Python setup, database configuration, and service installation.
+
+4. Add the domain to your hosts file (on the host machine if using a VM):
 
 ```bash
-cd /path/to/reddit
-./install-reddit.sh
+echo "127.0.0.1 reddit.local" >> /etc/hosts
 ```
 
-Notes:
-- Use the venv's `python` for manual package builds when necessary: `/home/apprunner/venv/bin/python setup.py build`.
-- If the OS blocks system pip installs, prefer editable installs into the apprunner venv.
-- If you encounter locale errors when creating the Postgres DB, generate `en_US.UTF-8` with `localedef -i en_US -f UTF-8 en_US.UTF-8`.
+### Configuration Options
+
+You can customize the install by setting environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDDIT_USER` | (required) | User to run reddit as |
+| `REDDIT_DOMAIN` | `reddit.local` | Domain for the site (must contain a dot) |
+| `REDDIT_HOME` | `/home/$REDDIT_USER` | Base directory for install |
+| `REDDIT_PLUGINS` | `about gold` | Plugins to install |
+
+### Notes
+
+- If you encounter locale errors when creating the Postgres DB, run: `localedef -i en_US -f UTF-8 en_US.UTF-8`
+- The domain must contain a dot (e.g., `reddit.local`) as browsers don't support cookies for dotless domains.
