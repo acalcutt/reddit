@@ -1,6 +1,6 @@
-## Development fork
+## Reddit Python 3 fork
 
-This repository is a development fork of the original reddit codebase updated
+This repository is a fork of the original reddit codebase updated
 for modern systems. Highlights:
 
 - **Python:** Upgraded to Python 3 (tested with Python 3.12).
