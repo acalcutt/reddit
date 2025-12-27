@@ -29,7 +29,7 @@ source $RUNDIR/install.cfg
 # Configure PostgreSQL
 ###############################################################################
 SQL="SELECT COUNT(1) FROM pg_catalog.pg_database WHERE datname = 'reddit';"
-IS_DATABASE_CREATED=$(sudo -u postgres psql -t -c "$SQL" | tr -d '[:space:]')
+IS_DATABASE_CREATED=$(sudo -u postgres env LC_ALL=C psql -t -c "$SQL" | tr -d '[:space:]')
 
 # Ensure the proper locale is generated and available. Prefer en_US.UTF-8 but
 # tolerate variants like en_US.utf8 which PostgreSQL may expect.
@@ -53,25 +53,27 @@ done
 if [ "$IS_DATABASE_CREATED" != "1" ]; then
     # Try creating the DB specifying LC_COLLATE/LC_CTYPE if we detected a usable locale.
     if [ -n "$LOCALE_NAME" ]; then
-        if sudo -u postgres psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='${LOCALE_NAME}' LC_CTYPE='${LOCALE_NAME}';" 2>/tmp/createdb.err; then
+        if sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='${LOCALE_NAME}' LC_CTYPE='${LOCALE_NAME}';" 2>/tmp/createdb.err; then
             echo "Database created with locale ${LOCALE_NAME}"
         else
             echo "Failed to create database with locale ${LOCALE_NAME}, retrying without explicit locale..."
             cat /tmp/createdb.err || true
-            sudo -u postgres psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
+            sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
         fi
     else
-        sudo -u postgres psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
+        sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
     fi
 fi
 
 # Create role if it doesn't exist
-ROLE_EXISTS=$(sudo -u postgres psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='reddit';" | tr -d '[:space:]')
+ROLE_EXISTS=$(sudo -u postgres env LC_ALL=C psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='reddit';" | tr -d '[:space:]')
 if [ "$ROLE_EXISTS" != "1" ]; then
-    sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'password';" || true
+    sudo -u postgres env LC_ALL=C psql -c "CREATE USER reddit WITH PASSWORD 'password';" || true
+else
+    sudo -u postgres env LC_ALL=C psql -c "ALTER USER reddit WITH PASSWORD 'password';" || true
 fi
 
-sudo -u postgres psql reddit <<FUNCTIONSQL
+sudo -u postgres env LC_ALL=C psql reddit <<FUNCTIONSQL
 create or replace function hot(ups integer, downs integer, date timestamp with time zone) returns numeric as \$\$
     select round(cast(log(greatest(abs(\$1 - \$2), 1)) * sign(\$1 - \$2) + (date_part('epoch', \$3) - 1134028003) / 45000.0 as numeric), 7)
 \$\$ language sql immutable;
