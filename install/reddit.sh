@@ -195,8 +195,8 @@ function install_reddit_repo {
     pushd $REDDIT_SRC/$1
     sudo -u $REDDIT_USER python3 setup.py build
     # Use pip install -e instead of setup.py develop (deprecated and blocked by PEP 668)
-    # --no-build-isolation ensures we use system setuptools (pinned to <81)
-    pip3 install --break-system-packages --no-build-isolation --no-deps -e .
+    # Allow build isolation so `pyproject.toml` build requirements are respected.
+    pip3 install --break-system-packages --no-deps -e .
     popd
 }
 
