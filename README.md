@@ -1,22 +1,60 @@
-## This repository is archived.
+## Development fork
 
-This repository is archived and will not receive any updates or accept issues or pull requests.
+This repository is a development fork of the original reddit codebase updated
+for modern systems. Highlights:
 
-To report bugs in reddit.com please make a post in [/r/bugs](http://www.reddit.com/r/bugs).
+- **Python:** Upgraded to Python 3 (tested with Python 3.12).
+- **Platform:** Targeted for Ubuntu 24.04 (noble).
+- **Compatibility:** Includes compatibility shims and updated install/build
+	scripts to work with current packaging and system tooling.
 
-If you have found a bug that can in some way compromise the security of the
-site or its users, please exercise [responsible
-disclosure](http://www.reddit.com/wiki/whitehat) and e-mail
-security@reddit.com.
+This fork is intended for local development and experimentation. For the
+original upstream project and documentation refer to the upstream repository.
 
 ---
 
-### API
+### Quickstart (Ubuntu 24.04)
 
-For notices about reddit API changes and discussion of reddit API client development, subscribe to the [/r/redditdev](http://www.reddit.com/r/redditdev) and [/r/changelog](http://www.reddit.com/r/changelog) subreddits.
+The following steps produce a development-ready environment on Ubuntu 24.04. They assume you're running as root while creating the local `apprunner` user and installing system packages; adapt commands for your environment.
 
-To learn more about reddit's API, check out our [automated API documentation](http://www.reddit.com/dev/api) and the [API wiki page](https://github.com/reddit/reddit/wiki/API). Please use a unique User-Agent string and take care to abide by our [API rules](https://github.com/reddit/reddit/wiki/API#wiki-rules).
+1. Update apt and install system dependencies:
 
-### Quickstart
+```bash
+apt update
+apt install -y git python3 python3-venv python3-dev build-essential libpq-dev libmemcached-dev gperf wget curl
+```
 
-To set up your own instance of reddit see the [install guide](https://github.com/reddit/reddit/wiki/Install-guide).
+2. Create the runtime user and directories (adjust `apprunner` as needed):
+
+```bash
+useradd -m -s /bin/bash apprunner || true
+mkdir -p /home/apprunner/src
+chown apprunner:apprunner /home/apprunner/src
+```
+
+3. Create a Python virtualenv for builds and installs:
+
+```bash
+sudo -u apprunner python3 -m venv /home/apprunner/venv
+sudo -u apprunner /home/apprunner/venv/bin/pip install --upgrade pip setuptools wheel build
+```
+
+4. Clone the repositories into `/home/apprunner/src` and install local packages editable:
+
+```bash
+# Example for baseplate
+sudo -u apprunner git clone https://github.com/your-fork/baseplate /home/apprunner/src/baseplate
+sudo -u apprunner /home/apprunner/venv/bin/pip install -e /home/apprunner/src/baseplate
+```
+
+5. Run the installer from the repo root as root (it will invoke per-user build steps):
+
+```bash
+cd /path/to/reddit
+./install-reddit.sh
+```
+
+Notes:
+- Use the venv's `python` for manual package builds when necessary: `/home/apprunner/venv/bin/python setup.py build`.
+- If the OS blocks system pip installs, prefer editable installs into the apprunner venv.
+- If you encounter locale errors when creating the Postgres DB, generate `en_US.UTF-8` with `localedef -i en_US -f UTF-8 en_US.UTF-8`.
