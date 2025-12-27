@@ -207,7 +207,8 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/python setup.py build
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --no-deps -e .
+    # --no-build-isolation uses the venv's packages (like baseplate) instead of isolated env
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --no-build-isolation --no-deps -e .
     popd
 }
 
