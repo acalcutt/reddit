@@ -186,9 +186,10 @@ $RUNDIR/setup_rabbitmq.sh
 
 # Install baseplate - required for building websockets and activity services
 # --break-system-packages is required on Ubuntu 24.04 (PEP 668)
+# --ignore-installed avoids conflicts with system packages installed by apt
 # Install both system-wide (for root's setup.py develop) and for the user (for build)
-pip3 install --break-system-packages baseplate
-sudo -u $REDDIT_USER pip3 install --user --break-system-packages baseplate
+pip3 install --break-system-packages --ignore-installed baseplate
+sudo -u $REDDIT_USER pip3 install --user --break-system-packages --ignore-installed baseplate
 
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
