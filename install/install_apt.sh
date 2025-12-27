@@ -46,6 +46,7 @@ python3-dev
 python3-pip
 python3-setuptools
 python3-venv
+python3-lib2to3
 python3-six
 python3-tz
 python3-babel

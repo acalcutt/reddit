@@ -164,6 +164,11 @@ for repo in activity websockets; do
     fi
 done
 
+# Convert i18n Python 2 scripts to Python 3
+if [ -f "$REDDIT_SRC/i18n/gendata.py" ]; then
+    2to3 -w -n "$REDDIT_SRC/i18n/gendata.py" || true
+fi
+
 ###############################################################################
 # Configure Services
 ###############################################################################
