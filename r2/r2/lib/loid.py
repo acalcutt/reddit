@@ -16,7 +16,7 @@ EXPIRES_RELATIVE = timedelta(days=2 * 365)
 
 GLOBAL_VERSION = 0
 LOID_LENGTH = 18
-LOID_CHARSPACE = string.ascii_uppercase + string.ascii_lowercase + string.digits
+LOID_CHARSPACE = string.uppercase + string.lowercase + string.digits
 
 
 def isodate(d):
