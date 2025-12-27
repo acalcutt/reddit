@@ -194,7 +194,8 @@ sudo -u $REDDIT_USER pip3 install --user --break-system-packages --ignore-instal
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
     sudo -u $REDDIT_USER python3 setup.py build
-    python3 setup.py develop --no-deps
+    # Use pip install -e instead of setup.py develop (deprecated and blocked by PEP 668)
+    pip3 install --break-system-packages --no-deps -e .
     popd
 }
 
