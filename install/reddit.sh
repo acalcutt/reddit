@@ -121,7 +121,18 @@ fi
 
 function copy_upstart {
     if [ -d ${1}/upstart ]; then
-        cp ${1}/upstart/* /etc/init/
+        # Prefer Upstart directory if present (older Ubuntu), otherwise
+        # place the files in /etc/init.d so they are available on systemd
+        # hosts for later conversion or wrapper usage.
+        if [ -d /etc/init ]; then
+            cp ${1}/upstart/* /etc/init/
+        else
+            mkdir -p /etc/init.d
+            cp ${1}/upstart/* /etc/init.d/
+            # Make copied files executable so they can be used as simple
+            # wrappers or inspected by administrators.
+            chmod +x /etc/init.d/* || true
+        fi
     fi
 }
 
