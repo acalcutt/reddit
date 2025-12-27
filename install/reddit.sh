@@ -184,6 +184,10 @@ $RUNDIR/setup_rabbitmq.sh
 # Install and configure the reddit code
 ###############################################################################
 
+# Pin setuptools to compatible version and install packaging
+# Newer setuptools (81+) has breaking changes with canonicalize_version()
+pip3 install --break-system-packages --ignore-installed 'setuptools<81' 'packaging<24'
+
 # Install baseplate - required for building websockets and activity services
 # --break-system-packages is required on Ubuntu 24.04 (PEP 668)
 # --ignore-installed avoids conflicts with system packages installed by apt
@@ -195,7 +199,8 @@ function install_reddit_repo {
     pushd $REDDIT_SRC/$1
     sudo -u $REDDIT_USER python3 setup.py build
     # Use pip install -e instead of setup.py develop (deprecated and blocked by PEP 668)
-    pip3 install --break-system-packages --no-deps -e .
+    # --no-build-isolation ensures we use system setuptools (pinned to <81)
+    pip3 install --break-system-packages --no-build-isolation --no-deps -e .
     popd
 }
 
