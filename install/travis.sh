@@ -22,8 +22,11 @@
 ###############################################################################
 
 ###############################################################################
-# reddit travis environment installer
-# -----------------------------------
+# reddit travis environment installer (LEGACY - Ubuntu 14.04 only)
+# -----------------------------------------------------------------
+# NOTE: This script is for legacy Ubuntu 14.04 environments only.
+# For Ubuntu 24.04, use install-reddit.sh which creates a Python venv.
+#
 # This script installs a reddit stack suitable for running on travis-ci.
 # As such, this is a minimal build to allow for running "nosetests"
 # and not much more.

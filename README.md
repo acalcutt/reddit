@@ -36,7 +36,7 @@ cd /opt/reddit
 REDDIT_USER=reddit REDDIT_DOMAIN=reddit.local ./install-reddit.sh
 ```
 
-The installer will handle system dependencies, Python setup, database configuration, and service installation.
+The installer will handle system dependencies, Python virtual environment setup, database configuration, and service installation. A Python venv is created at `/home/reddit/venv`.
 
 4. Add the domain to your hosts file (on the host machine if using a VM):
 
@@ -53,6 +53,7 @@ You can customize the install by setting environment variables:
 | `REDDIT_USER` | (required) | User to run reddit as |
 | `REDDIT_DOMAIN` | `reddit.local` | Domain for the site (must contain a dot) |
 | `REDDIT_HOME` | `/home/$REDDIT_USER` | Base directory for install |
+| `REDDIT_VENV` | `/home/$REDDIT_USER/venv` | Python virtual environment location |
 | `REDDIT_PLUGINS` | `about gold` | Plugins to install |
 
 ### Notes

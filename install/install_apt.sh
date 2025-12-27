@@ -89,14 +89,9 @@ thrift-compiler
 memcached
 PACKAGES
 
-    # Install additional Python packages via pip
-    pip3 install --break-system-packages \
-        pyramid-mako \
-        Paste \
-        PasteDeploy \
-        pylibmc \
-        simplejson \
-        pytest
+    # Note: Python packages are installed via pip in the venv created by reddit.sh
+    # The following packages are installed there: pyramid-mako, Paste, PasteDeploy,
+    # pylibmc, simplejson, pytest, baseplate, gunicorn, PasteScript
 
 else
     ###########################################################################

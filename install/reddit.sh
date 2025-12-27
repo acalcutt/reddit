@@ -184,19 +184,30 @@ $RUNDIR/setup_rabbitmq.sh
 # Install and configure the reddit code
 ###############################################################################
 
-# Install baseplate - required for building websockets and activity services
-# --break-system-packages is required on Ubuntu 24.04 (PEP 668)
-# --ignore-installed avoids conflicts with system packages installed by apt
-# Install both system-wide (for root's setup.py develop) and for the user (for build)
-pip3 install --break-system-packages --ignore-installed baseplate
-sudo -u $REDDIT_USER pip3 install --user --break-system-packages --ignore-installed baseplate
+# Create Python virtual environment for reddit
+# This avoids PEP 668 issues and keeps dependencies isolated
+echo "Creating Python virtual environment at $REDDIT_VENV"
+sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
+
+# Upgrade pip and install build tools in venv
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
+
+# Install baseplate and other runtime dependencies
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+    baseplate \
+    gunicorn \
+    PasteScript \
+    pyramid-mako \
+    Paste \
+    PasteDeploy \
+    pylibmc \
+    simplejson \
+    pytest
 
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
-    sudo -u $REDDIT_USER python3 setup.py build
-    # Use pip install -e instead of setup.py develop (deprecated and blocked by PEP 668)
-    # Allow build isolation so `pyproject.toml` build requirements are respected.
-    pip3 install --break-system-packages --no-deps -e .
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/python setup.py build
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --no-deps -e .
     popd
 }
 
@@ -302,12 +313,12 @@ function helper-script() {
 
 helper-script /usr/local/bin/reddit-run <<REDDITRUN
 #!/bin/bash
-exec paster --plugin=r2 run $REDDIT_SRC/reddit/r2/run.ini "\$@"
+exec $REDDIT_VENV/bin/paster --plugin=r2 run $REDDIT_SRC/reddit/r2/run.ini "\$@"
 REDDITRUN
 
 helper-script /usr/local/bin/reddit-shell <<REDDITSHELL
 #!/bin/bash
-exec paster --plugin=r2 shell $REDDIT_SRC/reddit/r2/run.ini
+exec $REDDIT_VENV/bin/paster --plugin=r2 shell $REDDIT_SRC/reddit/r2/run.ini
 REDDITSHELL
 
 helper-script /usr/local/bin/reddit-start <<REDDITSTART
@@ -332,7 +343,7 @@ REDDITFLUSH
 
 helper-script /usr/local/bin/reddit-serve <<REDDITSERVE
 #!/bin/bash
-exec paster serve --reload $REDDIT_SRC/reddit/r2/run.ini
+exec $REDDIT_VENV/bin/paster serve --reload $REDDIT_SRC/reddit/r2/run.ini
 REDDITSERVE
 
 ###############################################################################
@@ -352,6 +363,7 @@ CONFIG = {
     "working_dir": "$REDDIT_SRC/reddit/scripts",
     "user": "$REDDIT_USER",
     "group": "$REDDIT_USER",
+    "python": "$REDDIT_VENV/bin/python",
     "args": (
         "--bind=unix:/var/opt/reddit/click.sock",
         "--workers=1",
@@ -361,7 +373,7 @@ CONFIG = {
 CLICK
 fi
 
-service gunicorn start
+service gunicorn start || true
 
 ###############################################################################
 # nginx
@@ -565,7 +577,7 @@ kill timeout 15
 
 limit nofile 65535 65535
 
-exec baseplate-serve2 --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+exec $REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 UPSTART_WEBSOCKETS
 fi
 
@@ -586,7 +598,7 @@ respawn
 respawn limit 10 5
 kill timeout 15
 
-exec baseplate-serve2 --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+exec $REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9002 $REDDIT_SRC/activity/example.ini
 UPSTART_ACTIVITY
 fi
 
@@ -602,6 +614,7 @@ CONFIG = {
     "working_dir": "$REDDIT_SRC/reddit/scripts",
     "user": "$REDDIT_USER",
     "group": "$REDDIT_USER",
+    "python": "$REDDIT_VENV/bin/python",
     "args": (
         "--bind=127.0.0.1:5000",
         "--workers=1",
@@ -612,7 +625,7 @@ CONFIG = {
 GEOIP
 fi
 
-service gunicorn start
+service gunicorn start || true
 
 ###############################################################################
 # Job Environment
