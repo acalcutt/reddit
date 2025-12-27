@@ -20,27 +20,25 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from account import *
-from link import *
-from vote import *
-from report import *
-from subreddit import DefaultSR, AllSR, Frontpage, Subreddit
-from pylons import i18n, request
+import time
+from collections import namedtuple
+
 from pylons import app_globals as g
+from pylons import request
 from pylons.i18n import _
 
-from r2.config import feature
-from r2.lib.wrapped import Wrapped, CachedVariable
 from r2.lib import utils
-from r2.lib.db import operators
+from r2.lib.wrapped import CachedVariable, Wrapped
 from r2.models import rules
 
-from collections import namedtuple
-from copy import deepcopy, copy
-import time
+from .account import *
+from .link import *
+from .report import *
+from .subreddit import AllSR, DefaultSR, Frontpage
+from .vote import *
 
 
-class Listing(object):
+class Listing:
     # class used in Javascript to manage these objects
     _js_cls = "Listing"
 
@@ -285,8 +283,8 @@ class InvitedModListing(UserListing):
 
     @property
     def permissions_form(self):
-        from r2.lib.permissions import ModeratorPermissionSet
         from r2.lib.pages import ModeratorPermissions
+        from r2.lib.permissions import ModeratorPermissionSet
         return ModeratorPermissions(
             user=None,
             permissions_type=self.type,

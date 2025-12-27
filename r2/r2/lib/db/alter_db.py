@@ -20,25 +20,27 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import tdb_sql
+
 import sqlalchemy as sa
 
+from . import tdb_sql
+
+
 def thing_tables():
-    for type in tdb_sql.types_id.values():
+    for type in list(tdb_sql.types_id.values()):
         yield type.thing_table
 
-    for table in tdb_sql.extra_thing_tables.values():
-        yield table
+    yield from list(tdb_sql.extra_thing_tables.values())
 
 def rel_tables():
-    for type in tdb_sql.rel_types_id.values():
+    for type in list(tdb_sql.rel_types_id.values()):
         yield type.rel_table[0]
 
 def dtables():
-    for type in tdb_sql.types_id.values():
+    for type in list(tdb_sql.types_id.values()):
         yield type.data_table[0]
 
-    for type in tdb_sql.rel_types_id.values():
+    for type in list(tdb_sql.rel_types_id.values()):
         yield type.rel_table[3]
 
 def exec_all(command, data=False, rel = False, print_only = False):
@@ -51,14 +53,16 @@ def exec_all(command, data=False, rel = False, print_only = False):
 
     for tt in tables:
         #print tt
-        engine = tt.bind
+        engine = tdb_sql.get_engine_from_table(tt)
         if print_only:
-            print command % dict(type=tt.name)
+            print(command % dict(type=tt.name))
         else:
             try:
-                engine.execute(command % dict(type=tt.name))
+                with engine.connect() as conn:
+                    conn.execute(sa.text(command % dict(type=tt.name)))
+                    conn.commit()
             except:
-                print "FAILED!"
+                print("FAILED!")
 
 "alter table %(type)s add primary key (thing_id, key)"
 "drop index idx_thing_id_%(type)s"

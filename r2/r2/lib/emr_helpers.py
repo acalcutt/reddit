@@ -112,11 +112,11 @@ def modify_slave_count(emr_connection, jobflow_name, num_slaves=1):
         return
 
     msg = 'Modifying slave instance count of %s (%s -> %s)'
-    print msg % (jobflow_name, instancegroup.requestedinstancecount, num_slaves)
+    print(msg % (jobflow_name, instancegroup.requestedinstancecount, num_slaves))
     emr_connection.modify_instance_groups(instancegroup.id, num_slaves)
 
 
-class EmrJob(object):
+class EmrJob:
     def __init__(self, emr_connection, name, steps=[], setup_steps=[],
                  bootstrap_actions=[], log_uri=None, keep_alive=True,
                  ec2_keyname=None, hadoop_version='1.0.3',

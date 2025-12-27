@@ -20,13 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from webob.exc import HTTPBadRequest, HTTPForbidden, status_map
-from r2.lib.utils import Storage, tup
-from pylons import request
+
 from pylons import app_globals as g
 from pylons.i18n import _
-from copy import copy
+from webob.exc import HTTPBadRequest, HTTPForbidden, status_map
 
+from r2.lib.utils import Storage, tup
 
 error_list = dict((
         ('USER_REQUIRED', _("Please log in to do that.")),
@@ -191,7 +190,7 @@ error_list = dict((
         ('POST_NOT_ACCESSIBLE', _("Cannot access this post.")),
     ))
 
-errors = Storage([(e, e) for e in error_list.keys()])
+errors = Storage([(e, e) for e in list(error_list.keys())])
 
 
 def add_error_codes(new_codes):
@@ -201,7 +200,7 @@ def add_error_codes(new_codes):
     yet translated, so they can be declared before pylons.i18n is ready.
 
     """
-    for code, message in new_codes.iteritems():
+    for code, message in new_codes.items():
         error_list[code] = _(message)
         errors[code] = code
 
@@ -242,14 +241,14 @@ class RedditError(Exception):
         return repr(self)
 
 
-class ErrorSet(object):
+class ErrorSet:
     def __init__(self):
         self.errors = {}
 
     def __contains__(self, pair):
         """Expects an (error_name, field_name) tuple and checks to
         see if it's in the errors list."""
-        return self.errors.has_key(pair)
+        return pair in self.errors
 
     def get(self, name, default=None):
         return self.errors.get(name, default)
@@ -269,8 +268,7 @@ class ErrorSet(object):
         return "<ErrorSet %s>" % list(self)
 
     def __iter__(self):
-        for x in self.errors:
-            yield x
+        yield from self.errors
 
     def __len__(self):
         return len(self.errors)
@@ -288,7 +286,7 @@ class ErrorSet(object):
     def remove(self, pair):
         """Expects an (error_name, field_name) tuple and removes it
         from the errors list."""
-        if self.errors.has_key(pair):
+        if pair in self.errors:
             del self.errors[pair]
 
 

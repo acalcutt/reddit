@@ -26,16 +26,16 @@ removing the need to pollute the code with lots of extra _ and
 ungettext calls.
 """
 
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _, ungettext, get_lang
 import random
+
 import babel.numbers
+from pylons import app_globals as g
+from pylons import tmpl_context as c
+from pylons.i18n import _, get_lang, ungettext
 
 from r2.lib.filters import websafe
 from r2.lib.generate_strings import funny_translatable_strings
 from r2.lib.translation import set_lang
-
 
 __all__ = ['StringHandler', 'strings', 'PluralManager', 'plurals',
            'Score', 'get_funny_translated_string']
@@ -176,7 +176,7 @@ Note: there are a couple of places outside of your subreddit where someone can c
     all_minus_gold_only = _('Filtering /r/all is a feature only available to [reddit gold](/gold/about) subscribers. Displaying unfiltered results from /r/all.'),
 )
 
-class StringHandler(object):
+class StringHandler:
     """Class for managing long translatable strings.  Allows accessing
     of strings via both getitem and getattr.  In both cases, the
     string is passed through the gettext _ function before being
@@ -198,7 +198,7 @@ class StringHandler(object):
 
     def __getattr__(self, attr):
         rval = self.string_dict[attr]
-        if isinstance(rval, (str, unicode)):
+        if isinstance(rval, str):
             return _(rval)
         elif isinstance(rval, dict):
             return StringHandler(**rval)
@@ -209,7 +209,7 @@ class StringHandler(object):
         return iter(self.string_dict)
 
     def keys(self):
-        return self.string_dict.keys()
+        return list(self.string_dict.keys())
 
 strings = StringHandler(**string_dict)
 
@@ -221,7 +221,7 @@ def P_(x, y):
     to resort to ungettext and _ trickery."""
     return (x, y)
 
-class PluralManager(object):
+class PluralManager:
     """String handler for dealing with pluralizable forms.  plurals
     are passed in in pairs (sing, pl) and can be accessed via
     self.sing and self.pl.
@@ -278,7 +278,7 @@ plurals = PluralManager([P_("comment",     "comments"),
 ])
 
 
-class Score(object):
+class Score:
     """Convienience class for populating '10 points' in a traslatible
     fasion, used primarily by the score() method in printable.html"""
 

@@ -20,42 +20,119 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import os
-import json
-import urllib
 import functools
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 import zlib
 
+import logging
+import os
+
 from kazoo.client import KazooClient
-from kazoo.security import make_digest_acl
 from kazoo.exceptions import NoNodeException
+from kazoo.handlers.threading import KazooTimeoutError
+from kazoo.security import make_digest_acl
 
 from r2.lib import hooks
 from r2.lib.contrib import ipaddress
 
+log = logging.getLogger(__name__)
 
-def connect_to_zookeeper(hostlist, credentials):
+
+class StubZookeeperClient:
+    """A stub Zookeeper client for use when Zookeeper is not available.
+
+    This allows the application to start without a Zookeeper connection,
+    which is useful for CI/testing environments.
+    """
+
+    def __init__(self):
+        self._data = {}
+
+    def make_acl(self, **kwargs):
+        return []
+
+    def ensure_path(self, path, acl=None):
+        pass
+
+    def get_children(self, path):
+        return []
+
+    def get(self, path):
+        return (b'{}', None)
+
+    def set(self, path, data):
+        self._data[path] = data
+
+    def delete(self, path):
+        pass
+
+    def DataWatch(self, path):
+        """Decorator that does nothing for stub client."""
+        def decorator(fn):
+            # Call the function once with empty data
+            try:
+                fn(b'{}', None)
+            except Exception:
+                pass
+            return fn
+        return decorator
+
+    def ChildrenWatch(self, path):
+        """Decorator that does nothing for stub client."""
+        def decorator(fn):
+            # Call the function once with empty children
+            try:
+                fn([])
+            except Exception:
+                pass
+            return fn
+        return decorator
+
+
+def connect_to_zookeeper(hostlist, credentials, allow_stub=True):
     """Create a connection to the ZooKeeper ensemble.
 
     If authentication credentials are provided (as a two-tuple: username,
     password), we will ensure that they are provided to the server whenever we
     establish a connection.
 
+    If allow_stub is True and the connection fails, a stub client will be
+    returned instead. This is controlled by the REDDIT_ZOOKEEPER_REQUIRED
+    environment variable (set to 'true' to require a real connection).
+
     """
+    # Check if we should require a real Zookeeper connection
+    zk_required = os.environ.get('REDDIT_ZOOKEEPER_REQUIRED', '').lower() == 'true'
 
-    client = KazooClient(hostlist,
-                         timeout=5,
-                         max_retries=3,
-                         auth_data=[("digest", ":".join(credentials))])
+    try:
+        client = KazooClient(hostlist,
+                             timeout=5,
+                             max_retries=3,
+                             auth_data=[("digest", ":".join(credentials))])
 
-    # convenient helper function for making credentials
-    client.make_acl = functools.partial(make_digest_acl, *credentials)
+        # convenient helper function for making credentials
+        client.make_acl = functools.partial(make_digest_acl, *credentials)
 
-    client.start()
-    return client
+        client.start()
+        return client
+    except KazooTimeoutError:
+        if zk_required or not allow_stub:
+            raise
+        log.warning(
+            "Failed connecting to Zookeeper within the connection retry policy. "
+            "Using stub client. Set REDDIT_ZOOKEEPER_REQUIRED=true to require "
+            "a real connection."
+        )
+        stub = StubZookeeperClient()
+        stub.make_acl = lambda **kwargs: []
+        return stub
 
 
-class LiveConfig(object):
+class LiveConfig:
     """A read-only dictionary view of configuration retrieved from ZooKeeper.
 
     The data will be parsed using the given configuration specs, exactly like
@@ -80,13 +157,13 @@ class LiveConfig(object):
         return self.data.get(key, default)
 
     def iteritems(self):
-        return self.data.iteritems()
+        return iter(self.data.items())
 
     def __repr__(self):
         return "<LiveConfig %r>" % self.data
 
 
-class LiveList(object):
+class LiveList:
     """A mutable set shared by all apps and backed by ZooKeeper."""
     def __init__(self, client, root, map_fn=None, reduce_fn=lambda L: L,
                  watch=True):
@@ -107,12 +184,12 @@ class LiveList(object):
                 self.data = self._normalize_children(children, reduce=True)
 
     def _nodepath(self, item):
-        escaped = urllib.quote(str(item), safe=":")
+        escaped = urllib.parse.quote(str(item), safe=":")
         return os.path.join(self.root, escaped)
 
     def _normalize_children(self, children, reduce):
-        unquoted = (urllib.unquote(c) for c in children)
-        mapped = map(self.map_fn, unquoted)
+        unquoted = (urllib.parse.unquote(c) for c in children)
+        mapped = list(map(self.map_fn, unquoted))
 
         if reduce:
             return list(self.reduce_fn(mapped))
@@ -146,11 +223,11 @@ class LiveList(object):
         return len(self.data)
 
     def __repr__(self):
-        return "<LiveList %r (%s)>" % (self.data,
+        return "<LiveList {!r} ({})>".format(self.data,
                                        "push" if self.is_watching else "pull")
 
 
-class ReducedLiveList(object):
+class ReducedLiveList:
     """Store a copy of the reduced data in addition to the full LiveList.
 
     This is useful for cases where the map/reduce phase is slow and CPU
@@ -212,7 +289,7 @@ class ReducedLiveList(object):
         return len(self.data)
 
     def __repr__(self):
-        return "<%s %r>" % (self.__class__.__name__, self.data)
+        return "<{} {!r}>".format(self.__class__.__name__, self.data)
 
 
 class IPNetworkLiveList(ReducedLiveList):

@@ -53,10 +53,9 @@ from r2.lib.memoize import memoize
 from r2.lib.utils import timedelta_by_name, tup
 from r2.models.link import Link
 
-
 engine = g.dbm.get_engine("traffic")
-Session = scoped_session(sessionmaker(bind=engine, autocommit=True))
-Base = declarative_base(bind=engine)
+Session = scoped_session(sessionmaker(bind=engine))
+Base = declarative_base()
 
 
 def memoize_traffic(**memoize_kwargs):
@@ -76,7 +75,7 @@ def memoize_traffic(**memoize_kwargs):
     return memoize_traffic_decorator
 
 
-class PeekableIterator(object):
+class PeekableIterator:
     """Iterator that supports peeking at the next item in the iterable."""
 
     def __init__(self, iterable):
@@ -87,12 +86,12 @@ class PeekableIterator(object):
         """Get the next item in the iterable without advancing our position."""
         if not self.item:
             try:
-                self.item = self.iterator.next()
+                self.item = next(self.iterator)
             except StopIteration:
                 return None
         return self.item
 
-    def next(self):
+    def __next__(self):
         """Get the next item in the iterable and advance our position."""
         item = self.peek()
         self.item = None
@@ -136,7 +135,7 @@ def zip_timeseries(*series, **kwargs):
             # each item is (date, data)
             if item and item[0] == current_slice:
                 data.extend(item[1])
-                iterators[i].next()
+                next(iterators[i])
             else:
                 data.extend([0] * widths[i])
 
@@ -168,7 +167,7 @@ def fill_gaps_generator(time_points, query, *columns):
 
         if row and row.date == t:
             yield t, tuple(getattr(row, c) for c in columns)
-            iterator.next()
+            next(iterator)
         else:
             yield t, tuple(0 for c in columns)
 
@@ -285,7 +284,7 @@ class CoerceToLong(TypeDecorator):
 
     def process_result_value(self, value, dialect):
         if value is not None:
-            value = long(value)
+            value = int(value)
         return value
 
 
@@ -293,7 +292,7 @@ def sum(column):
     """Wrapper around sqlalchemy.sql.functions.sum to handle BigInteger.
 
     sqlalchemy returns a Decimal for sum over BigInteger values. Detect the
-    column type and coerce to long if it's a BigInteger.
+    column type and coerce to int if it's a BigInteger.
 
     """
 
@@ -651,4 +650,4 @@ class SubscriptionsBySubreddit(Base):
 
 # create the tables if they don't exist
 if g.db_create_tables:
-    Base.metadata.create_all()
+    Base.metadata.create_all(bind=engine)

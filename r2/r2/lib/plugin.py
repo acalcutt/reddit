@@ -20,13 +20,35 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import sys
 import os.path
-import pkg_resources
+import sys
 from collections import OrderedDict
 
+from importlib.metadata import entry_points as get_entry_points, distributions
 
-class Plugin(object):
+
+def _iter_entry_points(group, name=None):
+    """Get entry points for a group, optionally filtered by name.
+
+    Compatible replacement for pkg_resources working_set.iter_entry_points().
+    """
+    eps = get_entry_points(group=group)
+    if name is not None:
+        eps = [ep for ep in eps if ep.name == name]
+    return iter(eps)
+
+
+def _get_dist_location(entry_point):
+    """Get the location (path) of a distribution from an entry point."""
+    if hasattr(entry_point, 'dist') and entry_point.dist:
+        dist = entry_point.dist
+        # In importlib.metadata, dist._path points to the metadata directory
+        if hasattr(dist, '_path') and dist._path:
+            return str(dist._path.parent)
+    return None
+
+
+class Plugin:
     js = {}
     config = {}
     live_config = {}
@@ -64,7 +86,7 @@ class Plugin(object):
             from r2.lib import js
             module_registry = js.module
 
-        for name, module in self.js.iteritems():
+        for name, module in self.js.items():
             if name not in module_registry:
                 module_registry[name] = module
             else:
@@ -83,20 +105,21 @@ class Plugin(object):
         return []
 
 
-class PluginLoader(object):
+class PluginLoader:
     def __init__(self, working_set=None, plugin_names=None):
-        self.working_set = working_set or pkg_resources.WorkingSet()
+        # working_set parameter kept for backwards compatibility but ignored
+        # We now use importlib.metadata directly
 
         if plugin_names is None:
-            entry_points = self.available_plugins()
+            entry_points = list(self.available_plugins())
         else:
             entry_points = []
             for name in plugin_names:
                 try:
-                    entry_point = self.available_plugins(name).next()
+                    entry_point = next(self.available_plugins(name))
                 except StopIteration:
-                    print >> sys.stderr, ("Unable to locate plugin "
-                                          "%s. Skipping." % name)
+                    print(("Unable to locate plugin "
+                                          "%s. Skipping." % name), file=sys.stderr)
                     continue
                 else:
                     entry_points.append(entry_point)
@@ -110,8 +133,8 @@ class PluginLoader(object):
                     # if this plugin was specifically requested, fail.
                     raise e
                 else:
-                    print >> sys.stderr, ("Error loading plugin %s (%s)."
-                                          " Skipping." % (entry_point.name, e))
+                    print(("Error loading plugin %s (%s)."
+                                          " Skipping." % (entry_point.name, e)), file=sys.stderr)
                     continue
             self.plugins[entry_point.name] = plugin_cls(entry_point)
 
@@ -119,16 +142,16 @@ class PluginLoader(object):
         return len(self.plugins)
 
     def __iter__(self):
-        return self.plugins.itervalues()
+        return iter(self.plugins.values())
 
     def __reversed__(self):
-        return reversed(self.plugins.values())
+        return reversed(list(self.plugins.values()))
 
     def __getitem__(self, key):
         return self.plugins[key]
 
     def available_plugins(self, name=None):
-        return self.working_set.iter_entry_points('r2.plugin', name)
+        return _iter_entry_points('r2.plugin', name)
 
     def declare_queues(self, queues):
         for plugin in self:
@@ -139,8 +162,10 @@ class PluginLoader(object):
         for plugin in self:
             # Record plugin version
             entry = plugin.entry_point
-            git_dir = os.path.join(entry.dist.location, '.git')
-            g.record_repo_version(entry.name, git_dir)
+            dist_location = _get_dist_location(entry)
+            if dist_location:
+                git_dir = os.path.join(dist_location, '.git')
+                g.record_repo_version(entry.name, git_dir)
 
             # Load plugin
             g.config.add_spec(plugin.config)
@@ -159,5 +184,4 @@ class PluginLoader(object):
 
     def get_documented_controllers(self):
         for plugin in self:
-            for controller, url_prefix in plugin.get_documented_controllers():
-                yield controller, url_prefix
+            yield from plugin.get_documented_controllers()

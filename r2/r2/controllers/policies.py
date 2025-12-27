@@ -20,19 +20,19 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _
 from BeautifulSoup import BeautifulSoup, Tag
+from pylons import app_globals as g
+from pylons import tmpl_context as c
+from pylons.i18n import _
 
-from r2.lib.base import abort
 from r2.controllers.reddit_base import RedditController
-from r2.models.subreddit import Frontpage
-from r2.models.wiki import WikiPage, WikiRevision, WikiBadRevision
+from r2.lib.base import abort
 from r2.lib.db import tdb_cassandra
-from r2.lib.filters import unsafe, wikimarkdown, generate_table_of_contents
-from r2.lib.validator import validate, nop
+from r2.lib.filters import generate_table_of_contents, unsafe, wikimarkdown
 from r2.lib.pages import PolicyPage, PolicyView
+from r2.lib.validator import nop, validate
+from r2.models.subreddit import Frontpage
+from r2.models.wiki import WikiBadRevision, WikiPage, WikiRevision
 
 
 class PoliciesController(RedditController):
@@ -82,7 +82,10 @@ class PoliciesController(RedditController):
             display_rev = revs[0]
 
         doc_html = wikimarkdown(display_rev.content, include_toc=False)
-        soup = BeautifulSoup(doc_html.decode('utf-8'))
+        if isinstance(doc_html, bytes):
+            soup = BeautifulSoup(doc_html.decode('utf-8'))
+        else:
+            soup = BeautifulSoup(doc_html)
         toc = generate_table_of_contents(soup, prefix='section')
         self._number_sections(soup)
         self._linkify_headings(soup)

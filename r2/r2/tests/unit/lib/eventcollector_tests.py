@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding=utf-8
 # The contents of this file are subject to the Common Public Attribution
 # License Version 1.0. (the "License"); you may not use this file except in
 # compliance with the License. You may obtain a copy of the License at
@@ -23,17 +22,15 @@
 ###############################################################################
 
 import datetime
+from unittest.mock import MagicMock
 
 import pytz
-import json
 from pylons import app_globals as g
-from mock import MagicMock, patch
 
-from r2.tests import RedditTestCase
-from r2.models import Link
-from r2.lib import hooks
 from r2 import models
-
+from r2.lib import hooks
+from r2.models import Link
+from r2.tests import RedditTestCase
 
 FAKE_DATE = datetime.datetime(2005, 6, 23, 3, 14, 0, tzinfo=pytz.UTC)
 
@@ -41,7 +38,7 @@ FAKE_DATE = datetime.datetime(2005, 6, 23, 3, 14, 0, tzinfo=pytz.UTC)
 class TestEventCollector(RedditTestCase):
 
     def setUp(self):
-        super(TestEventCollector, self).setUp()
+        super().setUp()
         self.mock_eventcollector()
         self.autopatch(hooks, "get_hook")
 
@@ -49,7 +46,7 @@ class TestEventCollector(RedditTestCase):
         self.patch_liveconfig("events_collector_vote_sample_rate", 1.0)
         enum_name = "foo"
         enum_note = "bar"
-        notes = "%s(%s)" % (enum_name, enum_note)
+        notes = "{}({})".format(enum_name, enum_note)
         initial_vote = MagicMock(is_upvote=True, is_downvote=False,
                                  is_automatic_initial_vote=True,
                                  previous_vote=None,

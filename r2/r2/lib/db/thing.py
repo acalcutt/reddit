@@ -20,21 +20,22 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from copy import copy, deepcopy
-import cPickle as pickle
-from datetime import datetime, timedelta
 import hashlib
 import itertools
-import new
+import pickle as pickle
 import sys
+from copy import copy, deepcopy
+from datetime import datetime, timedelta
+from functools import reduce
 
 from _pylibmc import MemcachedError
 from pylons import app_globals as g
 
 from r2.lib import amqp, hooks
-from r2.lib.db import tdb_sql as tdb, sorts, operators
+from r2.lib.db import operators, sorts
+from r2.lib.db import tdb_sql as tdb
 from r2.lib.sgm import sgm
-from r2.lib.utils import class_property, Results, tup, to36
+from r2.lib.utils import Results, class_property, to36, tup
 
 
 class NotFound(Exception):
@@ -58,7 +59,7 @@ class SafeSetAttr:
         self.cls.__safe__ = False
 
 
-class TdbTransactionContext(object):
+class TdbTransactionContext:
     def __enter__(self):
         tdb.transactions.begin()
 
@@ -70,7 +71,7 @@ class TdbTransactionContext(object):
             tdb.transactions.commit()
 
 
-class DataThing(object):
+class DataThing:
     _base_props = ()
     _int_props = ()
     _data_int_props = ()
@@ -101,7 +102,7 @@ class DataThing(object):
             if make_dirty and hasattr(self, attr):
                 old_val = getattr(self, attr)
             object.__setattr__(self, attr, val)
-            if not attr in self._base_props:
+            if attr not in self._base_props:
                 return
         else:
             old_val = self._t.get(attr, self._defaults.get(attr))
@@ -148,7 +149,7 @@ class DataThing(object):
             attr=attr,
         )
 
-        raise AttributeError, error_msg
+        raise AttributeError(error_msg)
 
     @classmethod
     def _cache_prefix(cls):
@@ -216,7 +217,7 @@ class DataThing(object):
 
         data_props = {}
         props = {}
-        for prop, (old_value, new_value) in changes.iteritems():
+        for prop, (old_value, new_value) in changes.items():
             if prop.startswith('_'):
                 props[prop[1:]] = new_value
             else:
@@ -267,7 +268,7 @@ class DataThing(object):
         # reapply changes made to self
         self_changes = self._dirties
         self._dirties = {}
-        for data_prop, (old_val, new_val) in self_changes.iteritems():
+        for data_prop, (old_val, new_val) in self_changes.items():
             setattr(self, data_prop, new_val)
 
     @classmethod
@@ -367,7 +368,7 @@ class DataThing(object):
         ids, single = tup(ids, ret_is_single=True)
 
         for x in ids:
-            if not isinstance(x, (int, long)):
+            if not isinstance(x, int):
                 raise ValueError('non-integer thing_id in %r' % ids)
             if x > tdb.MAX_THING_ID:
                 raise NotFound('huge thing_id in %r' % ids)
@@ -400,7 +401,7 @@ class DataThing(object):
         # Check to see if we found everything we asked for
         missing = [_id for _id in ids if _id not in things_by_id]
         if missing and not ignore_missing:
-            raise NotFound, '%s %s' % (cls.__name__, missing)
+            raise NotFound('{} {}'.format(cls.__name__, missing))
 
         if missing:
             ids = [_id for _id in ids if _id not in missing]
@@ -410,7 +411,7 @@ class DataThing(object):
         elif return_dict:
             return things_by_id
         else:
-            return filter(None, (things_by_id.get(_id) for _id in ids))
+            return [_f for _f in (things_by_id.get(_id) for _id in ids) if _f]
 
     @classmethod
     def _byID36(cls, id36s, return_dict = True, **kw):
@@ -421,14 +422,14 @@ class DataThing(object):
         ids = [ int(x, 36) for x in id36s ]
 
         things = cls._byID(ids, return_dict=True, **kw)
-        things = {thing._id36: thing for thing in things.itervalues()}
+        things = {thing._id36: thing for thing in things.values()}
 
         if single:
-            return things.values()[0]
+            return list(things.values())[0]
         elif return_dict:
             return things
         else:
-            return filter(None, (things.get(i) for i in id36s))
+            return [_f for _f in (things.get(i) for i in id36s) if _f]
 
     @classmethod
     def _by_fullname(cls, names,
@@ -460,14 +461,14 @@ class DataThing(object):
 
         # lookup ids for each type
         identified = {}
-        for real_type, thing_ids in table.iteritems():
+        for real_type, thing_ids in table.items():
             i = real_type._byID(thing_ids, ignore_missing=ignore_missing, **kw)
             identified[real_type] = i
 
         # interleave types in original order of the name
         res = []
         for fullname in names:
-            if lookup.has_key(fullname):
+            if fullname in lookup:
                 real_type, thing_id = lookup[fullname]
                 thing = identified.get(real_type, {}).get(thing_id)
                 if not thing and ignore_missing:
@@ -501,18 +502,17 @@ class ThingMeta(type):
         try:
             cls._type_id = tdb.types_name[cls._type_name].type_id
         except KeyError:
-            raise KeyError, 'is the thing database %s defined?' % name
+            raise KeyError('is the thing database %s defined?' % name)
 
         global thing_types
         thing_types[cls._type_id] = cls
 
-        super(ThingMeta, cls).__init__(name, bases, dct)
+        super().__init__(name, bases, dct)
     
     def __repr__(cls):
         return '<thing: %s>' % cls._type_name
 
-class Thing(DataThing):
-    __metaclass__ = ThingMeta
+class Thing(DataThing, metaclass=ThingMeta):
     _base_props = ('_ups', '_downs', '_date', '_deleted', '_spam')
     _int_props = ('_ups', '_downs')
     _type_prefix = 't'
@@ -540,7 +540,7 @@ class Thing(DataThing):
             self._spam = spam
 
         #new way
-        for k, v in attrs.iteritems():
+        for k, v in attrs.items():
             self.__setattr__(k, v, not self._created)
 
     @classmethod
@@ -550,7 +550,7 @@ class Thing(DataThing):
         g.stats.simple_event(event_name, delta)
 
     def __repr__(self):
-        return '<%s %s>' % (self.__class__.__name__,
+        return '<{} {}>'.format(self.__class__.__name__,
                             self._id if self._created else '[unsaved]')
 
     @classmethod
@@ -560,7 +560,7 @@ class Thing(DataThing):
         data_props_by_id = tdb.get_thing_data(cls._type_id, ids)
 
         things_by_id = {}
-        for _id, props in props_by_id.iteritems():
+        for _id, props in props_by_id.items():
             data_props = data_props_by_id.get(_id, {})
             thing = cls(
                 ups=props.ups,
@@ -763,19 +763,18 @@ class RelationMeta(type):
         try:
             cls._type_id = tdb.rel_types_name[cls._type_name].type_id
         except KeyError:
-            raise KeyError, 'is the relationship database %s defined?' % name
+            raise KeyError('is the relationship database %s defined?' % name)
 
         global rel_types
         rel_types[cls._type_id] = cls
 
-        super(RelationMeta, cls).__init__(name, bases, dct)
+        super().__init__(name, bases, dct)
 
     def __repr__(cls):
         return '<relation: %s>' % cls._type_name
 
 def Relation(type1, type2):
-    class RelationCls(DataThing):
-        __metaclass__ = RelationMeta
+    class RelationCls(DataThing, metaclass=RelationMeta):
         if not (issubclass(type1, Thing) and issubclass(type2, Thing)):
                 raise TypeError('Relation types must be subclass of %s' % Thing)
 
@@ -798,7 +797,7 @@ def Relation(type1, type2):
             data_props_by_id = tdb.get_rel_data(cls._type_id, ids)
 
             rels_by_id = {}
-            for _id, props in props_by_id.iteritems():
+            for _id, props in props_by_id.items():
                 data_props = data_props_by_id.get(_id, {})
                 rel = cls(
                     thing1=props.thing1_id,
@@ -866,7 +865,7 @@ def Relation(type1, type2):
             bases = cls._byID(
                 ids, return_dict=True, ignore_missing=ignore_missing)
 
-            values = bases.values()
+            values = list(bases.values())
 
             if values and eager_load:
                 load_things(values, stale=thing_stale)
@@ -876,13 +875,13 @@ def Relation(type1, type2):
             elif return_dict:
                 return bases
             else:
-                return filter(None, (bases.get(i) for i in ids))
+                return [_f for _f in (bases.get(i) for i in ids) if _f]
 
         def __init__(self, thing1, thing2, name, date = None, id = None, **attrs):
             DataThing.__init__(self)
 
             def id_and_obj(in_thing):
-                if isinstance(in_thing, (int, long)):
+                if isinstance(in_thing, int):
                     return in_thing
                 else:
                     return in_thing._id
@@ -904,7 +903,7 @@ def Relation(type1, type2):
                 self._name = name
                 self._date = date
 
-            for k, v in attrs.iteritems():
+            for k, v in attrs.items():
                 self.__setattr__(k, v, not self._created)
 
         @classmethod
@@ -1020,15 +1019,15 @@ def Relation(type1, type2):
                 return rel_ids
 
             # make lookups for thing ids and names
-            thing1_dict = dict((t._id, t) for t in tup(thing1s))
-            thing2_dict = dict((t._id, t) for t in tup(thing2s))
+            thing1_dict = {t._id: t for t in tup(thing1s)}
+            thing2_dict = {t._id: t for t in tup(thing2s)}
 
-            names = map(str, tup(name))
+            names = list(map(str, tup(name)))
 
             # permute all of the pairs via cartesian product
             rel_tuples = itertools.product(
-                thing1_dict.values(),
-                thing2_dict.values(),
+                list(thing1_dict.values()),
+                list(thing2_dict.values()),
                 names)
 
             # create cache keys for all permutations and initialize lookup
@@ -1044,14 +1043,14 @@ def Relation(type1, type2):
             # get the relation ids from the cache or query the db
             res = sgm(
                 cache=cls._rel_cache,
-                keys=cache_key_lookup.keys(),
+                keys=list(cache_key_lookup.keys()),
                 miss_fn=lookup_rel_ids,
                 time=cls._rel_cache_ttl,
                 ignore_set_errors=True,
             )
 
             # get the relation objects
-            rel_ids = {rel_id for rel_id in res.itervalues()
+            rel_ids = {rel_id for rel_id in res.values()
                               if rel_id is not None}
             rels = cls._byID_rel(
                 rel_ids,
@@ -1061,7 +1060,7 @@ def Relation(type1, type2):
             # Takes aggregated results from cache and db (res) and transforms
             # the values from ids to Relations.
             res_obj = {}
-            for cache_key, rel_id in res.iteritems():
+            for cache_key, rel_id in res.items():
                 t = cache_key_lookup[cache_key]
                 rel = rels[rel_id] if rel_id is not None else None
                 res_obj[t] = rel
@@ -1081,7 +1080,7 @@ def Relation(type1, type2):
 Relation._type_prefix = 'r'
 
 
-class Query(object):
+class Query:
     def __init__(self, kind, *rules, **kw):
         self._rules = []
         self._kind = kind
@@ -1135,7 +1134,7 @@ class Query(object):
         # this fun hack lets us simplify the query on /r/all 
         # for postgres-9 compatibility. please remove it when
         # /r/all is precomputed.
-        sorts = range(len(self._sort))
+        sorts = list(range(len(self._sort)))
         if self._filter_primary_sort_only:
             sorts = [0]
 
@@ -1185,7 +1184,7 @@ class Query(object):
 
         cache_key = "query:{kind}.{id}".format(
             kind=self._kind.__name__,
-            id=hashlib.sha1(fingerprint).hexdigest()
+            id=hashlib.sha1(fingerprint.encode('utf-8')).hexdigest()
         )
         return cache_key
 
@@ -1229,8 +1228,7 @@ class Query(object):
                     things = self._get_results()
                     self.set_to_cache(things)
 
-        for thing in things:
-            yield thing
+        yield from things
 
 
 class Things(Query):
@@ -1345,7 +1343,7 @@ class RelationsPropsOnly(Relations):
 
         cache_key = "query:{kind}.{id}".format(
             kind=self._kind.__name__,
-            id=hashlib.sha1(fingerprint).hexdigest()
+            id=hashlib.sha1(fingerprint.encode('utf-8')).hexdigest()
         )
         return cache_key
 
@@ -1360,7 +1358,7 @@ class RelationsPropsOnly(Relations):
         g.gencache.set(self._cache_key(), rows, self._cache_time)
 
 
-class MultiCursor(object):
+class MultiCursor:
     def __init__(self, *execute_params):
         self._execute_params = execute_params
         self._cursor = None
@@ -1369,7 +1367,7 @@ class MultiCursor(object):
         if not self._cursor:
             self._cursor = self._execute(*self._execute_params)
             
-        return self._cursor.next()
+        return next(self._cursor)
                 
     def fetchall(self):
         if not self._cursor:
@@ -1511,11 +1509,11 @@ def MultiRelation(name, *relations):
     for rel in relations:
         t1, t2 = rel._type1, rel._type2
         clsname = name + '_' + t1.__name__.lower() + '_' + t2.__name__.lower()
-        cls = new.classobj(clsname, (rel,), {'__module__':t1.__module__})
+        cls = type(clsname, (rel,), {'__module__':t1.__module__})
         setattr(sys.modules[t1.__module__], clsname, cls)
         rels_tmp[(t1, t2)] = cls
 
-    class MultiRelationCls(object):
+    class MultiRelationCls:
         c = operators.Slots()
         rels = rels_tmp
 
@@ -1534,9 +1532,9 @@ def MultiRelation(name, *relations):
         def _query(cls, *rules, **kw):
             #TODO it should be possible to send the rules and kw to
             #the merge constructor
-            queries = [r._query(*rules, **kw) for r in cls.rels.values()]
+            queries = [r._query(*rules, **kw) for r in list(cls.rels.values())]
             if "sort" in kw:
-                print "sorting MultiRelations is not supported"
+                print("sorting MultiRelations is not supported")
             return Merge(queries)
 
         @classmethod
@@ -1554,9 +1552,9 @@ def MultiRelation(name, *relations):
 
             #for each pair of types, see if we have a query to send
             res = {}
-            for types, rel in cls.rels.iteritems():
+            for types, rel in cls.rels.items():
                 t1, t2 = types
-                if sub_dict.has_key(t1) and obj_dict.has_key(t2):
+                if t1 in sub_dict and t2 in obj_dict:
                     res.update(rel._fast_query(
                         sub_dict[t1], obj_dict[t2], name, eager_load=eager_load))
 

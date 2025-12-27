@@ -22,15 +22,15 @@
 ###############################################################################
 
 import unittest
+from unittest.mock import MagicMock
 
-from mock import MagicMock
 from pylons import app_globals as g
 
 from r2.lib.permissions import PermissionSet
-
 from r2.models import NotFound
 from r2.models.account import Account
 from r2.models.subreddit import SRMember, Subreddit
+
 
 class TestPermissionSet(PermissionSet):
     info = dict(x={}, y={})
@@ -47,9 +47,9 @@ class SRMemberTest(unittest.TestCase):
     def test_get_permissions(self):
         self.assertRaises(NotImplementedError, self.rel.get_permissions)
         self.rel._permission_class = TestPermissionSet
-        self.assertEquals('', self.rel.get_permissions().dumps())
+        self.assertEqual('', self.rel.get_permissions().dumps())
         self.rel.encoded_permissions = '+x,-y'
-        self.assertEquals('+x,-y', self.rel.get_permissions().dumps())
+        self.assertEqual('+x,-y', self.rel.get_permissions().dumps())
 
     def test_has_permission(self):
         self.assertRaises(NotImplementedError, self.rel.has_permission, 'x')
@@ -68,17 +68,17 @@ class SRMemberTest(unittest.TestCase):
                           self.rel.update_permissions, x=True)
         self.rel._permission_class = TestPermissionSet
         self.rel.update_permissions(x=True, y=False)
-        self.assertEquals('+x,-y', self.rel.encoded_permissions)
+        self.assertEqual('+x,-y', self.rel.encoded_permissions)
         self.rel.update_permissions(x=None)
-        self.assertEquals('-y', self.rel.encoded_permissions)
+        self.assertEqual('-y', self.rel.encoded_permissions)
         self.rel.update_permissions(y=None, z=None)
-        self.assertEquals('', self.rel.encoded_permissions)
+        self.assertEqual('', self.rel.encoded_permissions)
         self.rel.update_permissions(x=True, y=False, all=True)
-        self.assertEquals('+all', self.rel.encoded_permissions)
+        self.assertEqual('+all', self.rel.encoded_permissions)
 
     def test_set_permissions(self):
         self.rel.set_permissions(PermissionSet(x=True, y=False))
-        self.assertEquals('+x,-y', self.rel.encoded_permissions)
+        self.assertEqual('+x,-y', self.rel.encoded_permissions)
 
     def test_is_superuser(self):
         self.assertRaises(NotImplementedError, self.rel.is_superuser)

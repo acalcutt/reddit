@@ -21,14 +21,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from mock import MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from r2.lib.db.thing import (
     CreationError,
-    hooks,
     NotFound,
-    tdb,
     Thing,
+    hooks,
+    tdb,
 )
 from r2.lib.lock import TimeoutExpired
 from r2.tests import RedditTestCase
@@ -199,7 +199,7 @@ class TestThingReadCaching(RedditTestCase):
         self.assertEqual(ret, "one")
 
 
-class FakeLock(object):
+class FakeLock:
     def __init__(self):
         self.have_lock = True
 

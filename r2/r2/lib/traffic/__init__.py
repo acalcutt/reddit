@@ -20,4 +20,4 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from traffic import *
+from .traffic import *

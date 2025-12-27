@@ -20,21 +20,20 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 import contextlib
-
-from r2.tests import RedditControllerTestCase
-from mock import patch, MagicMock
-from r2.lib.validator import VByName, VUser, VModhash
-
-from r2.models import Link, Message, Account
+from unittest.mock import MagicMock, patch
 
 from pylons import app_globals as g
+
+from r2.lib.validator import VByName, VModhash, VUser
+from r2.models import Account, Link, Message
+from r2.tests import RedditControllerTestCase
 
 
 class DelMsgTest(RedditControllerTestCase):
     CONTROLLER = "api"
 
     def setUp(self):
-        super(DelMsgTest, self).setUp()
+        super().setUp()
 
         self.id = 1
 
@@ -91,15 +90,14 @@ class DelMsgTest(RedditControllerTestCase):
 
     def mock_del_msg(self, thing, ret=True):
         """Context manager for mocking del_msg."""
-
-        return contextlib.nested(
-            patch.object(VByName, "run", return_value=thing if ret else None),
-            patch.object(VModhash, "run", side_effect=None),
-            patch.object(VUser, "run", side_effect=None),
-            patch.object(thing, "_commit", side_effect=None),
-            patch.object(Account, "_id", self.id, create=True),
-            patch.object(g.events, "message_event", side_effect=None),
-        )
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.object(VByName, "run", return_value=thing if ret else None))
+        stack.enter_context(patch.object(VModhash, "run", side_effect=None))
+        stack.enter_context(patch.object(VUser, "run", side_effect=None))
+        stack.enter_context(patch.object(thing, "_commit", side_effect=None))
+        stack.enter_context(patch.object(Account, "_id", self.id, create=True))
+        stack.enter_context(patch.object(g.events, "message_event", side_effect=None))
+        return stack
 
     def do_del_msg(self, name, **kw):
         return self.do_post("del_msg", {"id": name}, **kw)

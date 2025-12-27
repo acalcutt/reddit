@@ -20,19 +20,17 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import pycassa
-import time
-
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 from itertools import chain
+
+import pycassa
 from pylons import app_globals as g
 
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.tdb_cassandra import max_column_count
-from r2.lib.utils import utils, tup
-from r2.models import Account, LabeledMulti, Subreddit
-from r2.lib.pages import ExploreItem
+from r2.lib.utils import tup, utils
+from r2.models import LabeledMulti, Subreddit
 
 VIEW = 'imp'
 CLICK = 'clk'
@@ -45,7 +43,7 @@ FEEDBACK_TTL = {VIEW: timedelta(hours=6).total_seconds(),  # link lifetime
                 DISMISS: timedelta(days=60).total_seconds()}  # two months
 
 
-class AccountSRPrefs(object):
+class AccountSRPrefs:
     """Class for managing user recommendation preferences.
 
     Builds a user profile on-the-fly based on the user's subscriptions,
@@ -103,7 +101,7 @@ class AccountSRFeedback(tdb_cassandra.DenormalizedRelation):
                                             column_count=max_column_count)
         except pycassa.NotFoundException:
             return feedback
-        for colkey, colval in row.iteritems():
+        for colkey, colval in row.items():
             action, sr_id36 = colkey.split('.')
             feedback[action].add(sr_id36)
         return feedback
@@ -116,7 +114,7 @@ class AccountSRFeedback(tdb_cassandra.DenormalizedRelation):
         srs = tup(srs)
         # update user feedback record, setting appropriate ttls
         fb_rowkey = account._id36
-        fb_colkeys = ['%s.%s' % (action, sr._id36) for sr in srs]
+        fb_colkeys = ['{}.{}'.format(action, sr._id36) for sr in srs]
         col_data = {col: '' for col in fb_colkeys}
         ttl = FEEDBACK_TTL.get(action, 0)
         if ttl > 0:
@@ -168,7 +166,7 @@ class ExploreSettings(tdb_cassandra.Thing):
         settings._commit()
 
 
-class DefaultExploreSettings(object):
+class DefaultExploreSettings:
     """Default values to use when no settings have been saved for the user."""
     def __init__(self):
         self.personalized = True

@@ -24,16 +24,14 @@
 import collections
 import random
 import string
-import unittest
-
-import mock
+from unittest import mock
 
 from r2.config.feature.state import FeatureState
 from r2.config.feature.world import World
 from r2.tests import RedditTestCase
 
 
-class MockAccount(object):
+class MockAccount:
     def __init__(self, name, _fullname):
         self.name = name
         self._fullname = _fullname
@@ -76,7 +74,7 @@ class TestFeatureBase(RedditTestCase):
     longMessage = True
 
     def setUp(self):
-        super(TestFeatureBase, self).setUp()
+        super().setUp()
         self.world = MockWorld()
         self.world.current_user = mock.Mock(return_value='')
         self.world.current_subreddit = mock.Mock(return_value='')
@@ -84,7 +82,7 @@ class TestFeatureBase(RedditTestCase):
 
     @classmethod
     def generate_loid(cls):
-        return ''.join(random.sample(string.letters + string.digits, 16))
+        return ''.join(random.sample(string.ascii_letters + string.digits, 16))
 
 
 class TestFeature(TestFeatureBase):
@@ -183,7 +181,7 @@ class TestFeature(TestFeatureBase):
     def test_percent_loggedin(self):
         num_users = 2000
         users = []
-        for i in xrange(num_users):
+        for i in range(num_users):
             users.append(MockAccount(name=str(i), _fullname="t2_%s" % str(i)))
 
         def simulate_percent_loggedin(wanted_percent):
@@ -204,7 +202,7 @@ class TestFeature(TestFeatureBase):
 
         def simulate_percent_loggedout(wanted_percent):
             cfg = {'percent_loggedout': wanted_percent}
-            for i in xrange(num_users):
+            for i in range(num_users):
                 loid = self.generate_loid()
                 self.world.current_loid = mock.Mock(return_value=loid)
                 self.world.is_user_loggedin = mock.Mock(return_value=False)

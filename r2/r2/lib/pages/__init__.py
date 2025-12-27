@@ -20,5 +20,5 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pages import *
-from admin_pages import *
+from .admin_pages import *
+from .pages import *

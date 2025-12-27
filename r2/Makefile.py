@@ -21,32 +21,31 @@
 ###############################################################################
 import os
 
-from r2.lib.translation import I18N_PATH
-from r2.lib.plugin import PluginLoader
 from r2.lib import js
+from r2.lib.plugin import PluginLoader
+from r2.lib.translation import I18N_PATH
 
-print 'POTFILE := ' + os.path.join(I18N_PATH, 'r2.pot')
+print('POTFILE := ' + os.path.join(I18N_PATH, 'r2.pot'))
 
 plugins = PluginLoader()
-print 'PLUGINS := ' + ' '.join(plugin.name for plugin in plugins
-                               if plugin.needs_static_build)
+print('PLUGINS := ' + ' '.join(plugin.name for plugin in plugins
+                               if plugin.needs_static_build))
 
-print 'PLUGIN_I18N_PATHS := ' + ','.join(os.path.relpath(plugin.path)
+print('PLUGIN_I18N_PATHS := ' + ','.join(os.path.relpath(plugin.path)
                                          for plugin in plugins
-                                         if plugin.needs_translation)
+                                         if plugin.needs_translation))
 
-import sys
 for plugin in plugins:
-    print 'PLUGIN_PATH_%s := %s' % (plugin.name, plugin.path)
+    print('PLUGIN_PATH_{} := {}'.format(plugin.name, plugin.path))
 
 js.load_plugin_modules(plugins)
-modules = dict((k, m) for k, m in js.module.iteritems())
-print 'JS_MODULES := ' + ' '.join(modules.iterkeys())
+modules = {k: m for k, m in js.module.items()}
+print('JS_MODULES := ' + ' '.join(iter(modules.keys())))
 outputs = []
-for name, module in modules.iteritems():
+for name, module in modules.items():
     outputs.extend(module.outputs)
-    print 'JS_MODULE_OUTPUTS_%s := %s' % (name, ' '.join(module.outputs))
-    print 'JS_MODULE_DEPS_%s := %s' % (name, ' '.join(module.dependencies))
+    print('JS_MODULE_OUTPUTS_{} := {}'.format(name, ' '.join(module.outputs)))
+    print('JS_MODULE_DEPS_{} := {}'.format(name, ' '.join(module.dependencies)))
 
-print 'JS_OUTPUTS := ' + ' '.join(outputs)
-print 'DEFS_SUCCESS := 1'
+print('JS_OUTPUTS := ' + ' '.join(outputs))
+print('DEFS_SUCCESS := 1')

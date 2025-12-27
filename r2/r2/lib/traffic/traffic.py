@@ -20,29 +20,35 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import datetime
 import calendar
+import datetime
 import os
 from time import sleep
-import urllib
 
-from boto.s3.connection import S3Connection
 from boto.emr.connection import EmrConnection
 from boto.exception import S3ResponseError
+from boto.s3.connection import S3Connection
 from pylons import app_globals as g
 from sqlalchemy.exc import DataError
 
-from r2.lib.emr_helpers import (EmrException, terminate_jobflow,
-    modify_slave_count)
-from r2.lib.s3_helpers import get_text_from_s3, s3_key_exists, copy_to_s3
-from r2.lib.traffic.emr_traffic import (extract_hour, aggregate_interval,
-        coalesce_interval)
+from r2.lib.emr_helpers import terminate_jobflow
+from r2.lib.s3_helpers import get_text_from_s3, s3_key_exists
+from r2.lib.traffic.emr_traffic import (
+    aggregate_interval,
+    coalesce_interval,
+    extract_hour,
+)
 from r2.lib.utils import tup
-from r2.models.traffic import (SitewidePageviews, PageviewsBySubreddit,
-        PageviewsBySubredditAndPath, PageviewsByLanguage,
-        ClickthroughsByCodename, TargetedClickthroughsByCodename,
-        AdImpressionsByCodename, TargetedImpressionsByCodename)
-
+from r2.models.traffic import (
+    AdImpressionsByCodename,
+    ClickthroughsByCodename,
+    PageviewsByLanguage,
+    PageviewsBySubreddit,
+    PageviewsBySubredditAndPath,
+    SitewidePageviews,
+    TargetedClickthroughsByCodename,
+    TargetedImpressionsByCodename,
+)
 
 RAW_LOG_DIR = g.RAW_LOG_DIR
 PROCESSED_DIR = g.PROCESSED_DIR
@@ -90,16 +96,16 @@ def get_aggregate(interval, category_cls):
             break
 
         # Sometimes S3 doesn't let us read immediately after key is written
-        for i in xrange(5):
+        for i in range(5):
             try:
                 txt = get_text_from_s3(s3_connection, path)
-            except S3ResponseError as e:
-                print 'S3ResponseError on %s, retrying' % path
+            except S3ResponseError:
+                print('S3ResponseError on %s, retrying' % path)
                 sleep(300)
             else:
                 break
         else:
-            print 'Could not retrieve %s' % path
+            print('Could not retrieve %s' % path)
             raise e
 
         for line in txt.splitlines():
@@ -114,7 +120,7 @@ def get_aggregate(interval, category_cls):
         part += 1
 
     if not data:
-        raise ValueError("No data for %s/%s" % (interval,
+        raise ValueError("No data for {}/{}".format(interval,
                                                 category_cls.__name__))
 
     return data
@@ -170,6 +176,7 @@ def _name_to_kw(category_cls, name):
 def _report_interval(interval):
     """Read aggregated traffic from S3 and write to postgres."""
     from sqlalchemy.orm import scoped_session, sessionmaker
+
     from r2.models.traffic import engine
     Session = scoped_session(sessionmaker(bind=engine))
 
@@ -189,28 +196,28 @@ def _report_interval(interval):
         raise
 
     pg_interval = "%04d-%02d-%02d %02d:00:00" % tuple(pieces)
-    print 'reporting interval %s (%s)' % (pg_interval, interval_type)
+    print('reporting interval {} ({})'.format(pg_interval, interval_type))
 
     # Read aggregates and write to traffic db
     for category_cls in traffic_categories:
         now = datetime.datetime.now()
-        print '*** %s - %s - %s' % (category_cls.__name__, interval, now)
+        print('*** {} - {} - {}'.format(category_cls.__name__, interval, now))
         data = get_aggregate(interval, category_cls)
         len_data = len(data)
         step = max(len_data / 5, 100)
-        for i, (name, (uniques, pageviews)) in enumerate(data.iteritems()):
+        for i, (name, (uniques, pageviews)) in enumerate(data.items()):
             try:
                 for n in tup(name):
-                    unicode(n)
+                    str(n)
             except UnicodeDecodeError:
-                print '%s - %s - %s - %s' % (category_cls.__name__, name,
-                                             uniques, pageviews)
+                print('{} - {} - {} - {}'.format(category_cls.__name__, name,
+                                             uniques, pageviews))
                 continue
 
             if i % step == 0:
                 now = datetime.datetime.now()
-                print '%s - %s - %s/%s - %s' % (interval, category_cls.__name__,
-                                                i, len_data, now)
+                print('{} - {} - {}/{} - {}'.format(interval, category_cls.__name__,
+                                                i, len_data, now))
 
             kw = {'date': pg_interval, 'interval': interval_type,
                   'unique_count': uniques, 'pageview_count': pageviews}
@@ -226,7 +233,7 @@ def _report_interval(interval):
 
     Session.remove()
     now = datetime.datetime.now()
-    print 'finished reporting %s (%s) - %s' % (pg_interval, interval_type, now)
+    print('finished reporting {} ({}) - {}'.format(pg_interval, interval_type, now))
 
 
 def process_pixel_log(log_path, fast=False):
@@ -306,8 +313,8 @@ def process_month_hours(month_date, start_hour=0, days=None):
     year, month = month_date.split('-')
     year, month = int(year), int(month)
 
-    days = days or xrange(1, calendar.monthrange(year, month)[1] + 1)
-    hours = xrange(start_hour, 24)
+    days = days or range(1, calendar.monthrange(year, month)[1] + 1)
+    hours = range(start_hour, 24)
 
     for day in days:
         for hour in hours:
@@ -316,33 +323,33 @@ def process_month_hours(month_date, start_hour=0, days=None):
             if not s3_key_exists(s3_connection, log_path):
                 log_path = os.path.join(RAW_LOG_DIR, '%s.log.bz2' % hour_date)
                 if not s3_key_exists(s3_connection, log_path):
-                    print 'Missing log for %s' % hour_date
+                    print('Missing log for %s' % hour_date)
                     continue
-            print 'Processing %s' % log_path
+            print('Processing %s' % log_path)
             process_pixel_log(log_path, fast=True)
-        hours = xrange(24)
+        hours = range(24)
 
 
 def report_entire_month(month_date, start_hour=0, start_day=1):
     """Report all hours and days from month."""
     year, month = month_date.split('-')
     year, month = int(year), int(month)
-    hours = xrange(start_hour, 24)
+    hours = range(start_hour, 24)
 
-    for day in xrange(start_day, calendar.monthrange(year, month)[1] + 1):
+    for day in range(start_day, calendar.monthrange(year, month)[1] + 1):
         for hour in hours:
             hour_date = '%04d-%02d-%02d-%02d' % (year, month, day, hour)
             try:
                 report_interval(hour_date, background=False)
             except ValueError:
-                print 'Failed for %s' % hour_date
+                print('Failed for %s' % hour_date)
                 continue
-        hours = xrange(24)
+        hours = range(24)
         day_date = '%04d-%02d-%02d' % (year, month, day)
         try:
             report_interval(day_date, background=False)
         except ValueError:
-            print 'Failed for %s' % day_date
+            print('Failed for %s' % day_date)
             continue
     report_interval(month_date, background=False)
 
@@ -353,8 +360,8 @@ def verify_month_outputs(month_date):
     year, month = int(year), int(month)
     missing = []
 
-    for day in xrange(1, calendar.monthrange(year, month)[1] + 1):
-        for hour in xrange(24):
+    for day in range(1, calendar.monthrange(year, month)[1] + 1):
+        for hour in range(24):
             hour_date = '%04d-%02d-%02d-%02d' % (year, month, day, hour)
             for category_cls in traffic_categories:
                 for d in [AGGREGATE_DIR, os.path.join(PROCESSED_DIR, 'hour')]:
@@ -379,7 +386,7 @@ def verify_month_outputs(month_date):
             missing.append(month_date)
 
     for d in sorted(list(set(missing))):
-        print d
+        print(d)
 
 
 def verify_month_inputs(month_date):
@@ -388,8 +395,8 @@ def verify_month_inputs(month_date):
     year, month = int(year), int(month)
     missing = []
 
-    for day in xrange(1, calendar.monthrange(year, month)[1] + 1):
-        for hour in xrange(24):
+    for day in range(1, calendar.monthrange(year, month)[1] + 1):
+        for hour in range(24):
             hour_date = '%04d-%02d-%02d-%02d' % (year, month, day, hour)
             log_path = os.path.join(RAW_LOG_DIR, '%s.log.gz' % hour_date)
             if not s3_key_exists(s3_connection, log_path):
@@ -398,7 +405,7 @@ def verify_month_inputs(month_date):
                     missing.append(hour_date)
 
     for d in missing:
-        print d
+        print(d)
 
 
 def process_hour(hour_date):
@@ -419,7 +426,7 @@ def process_hour(hour_date):
                        if not s3_key_exists(s3_connection, f)]
 
     while files_missing:
-        print 'Missing log(s) %s, sleeping' % files_missing
+        print('Missing log(s) %s, sleeping' % files_missing)
         sleep(SLEEPTIME)
         files_missing = [f for f in files_missing
                            if not s3_key_exists(s3_connection, f)]

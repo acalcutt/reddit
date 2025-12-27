@@ -20,8 +20,8 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from r2.lib.manager import tp_manager
 from r2.lib.jsontemplates import *
+from r2.lib.manager import tp_manager
 
 tpm = tp_manager.tp_manager()
 

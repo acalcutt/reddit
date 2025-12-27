@@ -22,16 +22,16 @@
 """Module for request signing.
 
 """
-import hmac
 import hashlib
+import hmac
 import re
-import pytz
-
-from datetime import datetime
 from collections import namedtuple
+from datetime import datetime
+
+import pytz
 from pylons import app_globals as g
 
-from r2.lib.utils import Storage, epoch_timestamp, constant_time_compare, tup
+from r2.lib.utils import Storage, constant_time_compare, epoch_timestamp, tup
 
 GLOBAL_TOKEN_VERSION = 1
 SIGNATURE_UA_HEADER = "X-hmac-signed-result"
@@ -59,7 +59,7 @@ for code, msg in (
     ERRORS[code] = SignatureError(code, msg)
 
 
-class SigningResult(object):
+class SigningResult:
     """
     """
     __slots__ = ["global_version", "platform", "version",
@@ -84,9 +84,9 @@ class SigningResult(object):
         self.errors = {}
 
     def __repr__(self):
-        return "<%s (%s)>" % (
+        return "<{} ({})>".format(
             self.__class__.__name__,
-            ", ".join("%s=%r" % (k, getattr(self, k)) for k in self.__slots__)
+            ", ".join("{}={!r}".format(k, getattr(self, k)) for k in self.__slots__)
         )
 
     def add_error(self, error, field=None, details=None):

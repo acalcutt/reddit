@@ -22,6 +22,7 @@
 
 from r2.lib.providers.image_resizing import ImageResizingProvider
 
+
 class UnsplashitImageResizingProvider(ImageResizingProvider):
     """A simple resizer that provides correctly-sized kitten images.
 

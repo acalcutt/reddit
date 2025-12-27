@@ -22,13 +22,12 @@
 ###############################################################################
 
 
-import os
 import argparse
 import mimetypes
-import urlparse
+import os
+import urllib.parse
 
 import boto
-
 
 NEVER = 'Thu, 31 Dec 2037 23:59:59 GMT'
 
@@ -38,7 +37,7 @@ def upload(static_root, bucket_url):
     bucket = s3.get_bucket(bucket_url.netloc, validate=False)
 
     # build a list of files already in the bucket
-    print "checking existing files on s3..."
+    print("checking existing files on s3...")
     remote_files = {key.name : key.etag.strip('"') for key in bucket.list()}
 
     # upload local files not already in the bucket
@@ -65,7 +64,7 @@ def upload(static_root, bucket_url):
                 if remote_files.get(key_name, None) == etag:
                     continue
 
-                print "uploading", key_name, "to S3..."
+                print("uploading", key_name, "to S3...")
                 key.set_contents_from_file(
                     f,
                     headers=headers,
@@ -73,11 +72,11 @@ def upload(static_root, bucket_url):
                     md5=(etag, base64_tag),
                 )
 
-    print "all done"
+    print("all done")
 
 
 def s3_url(text):
-    parsed = urlparse.urlparse(text)
+    parsed = urllib.parse.urlparse(text)
     if parsed.scheme != "s3":
         raise ValueError("not an s3 url")
     if parsed.params or parsed.query or parsed.fragment:

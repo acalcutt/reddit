@@ -19,19 +19,15 @@
 # All portions of the code written by reddit are Copyright (c) 2006-2015 reddit
 # Inc. All Rights Reserved.
 ###############################################################################
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 
-from r2.lib.validator import VRatelimit
-from r2.lib import amqp
-from r2.lib import emailer
-from r2.lib import hooks
-from r2.lib import newsletter
+from r2.lib import amqp, emailer, hooks, newsletter
 from r2.lib.base import abort
 from r2.lib.errors import errors, reddit_http_error
-
-from r2.models.account import register, AccountExists
+from r2.lib.validator import VRatelimit
+from r2.models.account import AccountExists, register
 
 
 def handle_login(

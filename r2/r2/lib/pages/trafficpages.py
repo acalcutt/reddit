@@ -23,30 +23,28 @@
 
 import collections
 import datetime
-import pytz
-import urllib
-
-from pylons.i18n import _
-from pylons import request
-from pylons import tmpl_context as c
-from pylons import app_globals as g
+import urllib.error
+import urllib.parse
+import urllib.request
 
 import babel.core
+import pytz
 from babel.dates import format_datetime
 from babel.numbers import format_currency
+from pylons import app_globals as g
+from pylons import request
+from pylons import tmpl_context as c
+from pylons.i18n import _
 
 from r2.lib import promote
 from r2.lib.db.sorts import epoch_seconds
-from r2.lib.menus import menu
-from r2.lib.menus import NavButton, NamedButton, PageNameNav, NavMenu
-from r2.lib.pages.pages import Reddit, TimeSeriesChart, TabbedPane
-from r2.lib.promote import cost_per_mille, cost_per_click
+from r2.lib.menus import NamedButton, NavButton, NavMenu, PageNameNav, menu
+from r2.lib.pages.pages import Reddit, TimeSeriesChart
 from r2.lib.template_helpers import format_number
-from r2.lib.utils import Storage, to_date, timedelta_by_name
+from r2.lib.utils import Storage, timedelta_by_name, to_date
 from r2.lib.wrapped import Templated
-from r2.models import Thing, Link, PromoCampaign, traffic
+from r2.models import Link, PromoCampaign, Thing, traffic
 from r2.models.subreddit import Subreddit, _DefaultSR
-
 
 COLORS = Storage(UPVOTE_ORANGE="#ff5700",
                  DOWNVOTE_BLUE="#9494ff",
@@ -173,7 +171,7 @@ class RedditTraffic(Templated):
 
             # make a summary of the averages for each day of the week
             self.dow_summary = []
-            for dow in xrange(7):
+            for dow in range(7):
                 day_count = days_total[dow]
                 if day_count:
                     avg_uniques = uniques_total[dow] / day_count
@@ -439,14 +437,14 @@ class SubredditTraffic(RedditTraffic):
         else:
             end = date + timedelta_by_name(interval)
 
-        query = urllib.urlencode({
+        query = urllib.parse.urlencode({
             "syntax": "cloudsearch",
             "restrict_sr": "on",
             "sort": "top",
             "q": "timestamp:{:d}..{:d}".format(int(epoch_seconds(date)),
                                                int(epoch_seconds(end))),
         })
-        return "/r/%s/search?%s" % (c.site.name, query)
+        return "/r/{}/search?{}".format(c.site.name, query)
 
     def get_dow_summary(self):
         return traffic.PageviewsBySubreddit.history("day", c.site.name)
@@ -619,7 +617,7 @@ class PromotedLinkTraffic(Templated):
             location = camp.location_str
             spent = promote.get_spent_amount(camp)
             is_active = self.campaign and self.campaign._id36 == camp._id36
-            url = '/traffic/%s/%s' % (self.thing._id36, camp._id36)
+            url = '/traffic/{}/{}'.format(self.thing._id36, camp._id36)
             is_total = False
             campaign_budget_dollars = camp.total_budget_dollars
             row = self.make_campaign_table_row(camp._id36,
@@ -698,7 +696,7 @@ class PromotedLinkTraffic(Templated):
                     'after': None,
                     'before': display_start.strftime('%Y%m%d%H'),
                 })
-                self.prev = '%s?%s' % (request.path, urllib.urlencode(p))
+                self.prev = '{}?{}'.format(request.path, urllib.parse.urlencode(p))
             else:
                 display_start = start
 
@@ -708,7 +706,7 @@ class PromotedLinkTraffic(Templated):
                     'after': display_end.strftime('%Y%m%d%H'),
                     'before': None,
                 })
-                self.next = '%s?%s' % (request.path, urllib.urlencode(p))
+                self.next = '{}?{}'.format(request.path, urllib.parse.urlencode(p))
             else:
                 display_end = end
         else:
@@ -759,12 +757,12 @@ class PromotedLinkTraffic(Templated):
         """Return the traffic data in CSV format for reports."""
 
         import csv
-        import cStringIO
+        import io
 
         start, end = promote.get_traffic_dates(thing)
         history = cls.get_hourly_traffic(thing, start, end)
 
-        out = cStringIO.StringIO()
+        out = io.StringIO()
         writer = csv.writer(out)
 
         writer.writerow((_("date and time (UTC)"),
@@ -795,9 +793,9 @@ class SubredditTrafficReport(Templated):
                     self.invalid_srs.append(srname)
 
             if subreddits:
-                self.report = make_subreddit_traffic_report(subreddits.values())
+                self.report = make_subreddit_traffic_report(list(subreddits.values()))
 
-            param = urllib.quote(self.textarea)
+            param = urllib.parse.quote(self.textarea)
             self.csv_url = "/traffic/subreddits/report.csv?subreddits=" + param
 
         Templated.__init__(self)
@@ -806,9 +804,9 @@ class SubredditTrafficReport(Templated):
         """Return the traffic data in CSV format for reports."""
 
         import csv
-        import cStringIO
+        import io
 
-        out = cStringIO.StringIO()
+        out = io.StringIO()
         writer = csv.writer(out)
 
         writer.writerow((_("subreddit"),

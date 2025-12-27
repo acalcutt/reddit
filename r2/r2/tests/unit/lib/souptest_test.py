@@ -24,7 +24,6 @@
 import unittest
 
 from r2.lib.souptest import (
-    souptest_fragment,
     SoupDetectedCrasherError,
     SoupError,
     SoupSyntaxError,
@@ -35,6 +34,7 @@ from r2.lib.souptest import (
     SoupUnsupportedNodeError,
     SoupUnsupportedSchemeError,
     SoupUnsupportedTagError,
+    souptest_fragment,
 )
 
 
@@ -88,7 +88,8 @@ class TestSoupTest(unittest.TestCase):
     def test_entities(self):
         self.assertFragmentRaises('&xml:what;', SoupError)
         self.assertFragmentRaises('&foo,bar;', SoupError)
-        self.assertFragmentRaises('&#999999999999;', SoupUnsupportedEntityError)
+        # Very large numeric refs cause XML syntax error (out of Unicode range)
+        self.assertFragmentRaises('&#999999999999;', SoupSyntaxError)
         self.assertFragmentRaises('&#00;', SoupUnsupportedEntityError)
         self.assertFragmentRaises('&foo-bar;', SoupUnsupportedEntityError)
         self.assertFragmentRaises('&foobar;', SoupUnsupportedEntityError)

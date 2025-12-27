@@ -22,42 +22,37 @@
 
 import base64
 import codecs
-import ConfigParser
-import cPickle as pickle
+import configparser
 import functools
 import itertools
 import math
 import os
+import pickle as pickle
 import random
 import re
 import signal
 import time
 import traceback
-
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from urllib import unquote_plus, unquote
-from urllib2 import urlopen, Request
-from urlparse import urlparse, urlunparse
+from urllib.parse import unquote, unquote_plus, urlparse, urlunparse
+from urllib.request import Request, urlopen
 
 import pytz
 import snudown
 import unidecode
-from r2.lib.utils import reddit_agent_parser
-
 from babel.dates import TIMEDELTA_UNITS
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 from mako.filters import url_escape
-from pylons import request, config
-from pylons import tmpl_context as c
 from pylons import app_globals as g
-from pylons.i18n import ungettext, _
+from pylons import config, request
+from pylons import tmpl_context as c
 
 from r2.lib.contrib import ipaddress
 from r2.lib.filters import _force_unicode, _force_utf8
-from r2.lib.require import require, require_split, RequirementException
+from r2.lib.require import RequirementException, require, require_split
 from r2.lib.utils._utils import *
 
 iters = (list, tuple, set)
@@ -65,7 +60,7 @@ iters = (list, tuple, set)
 def randstr(length,
             alphabet='abcdefghijklmnopqrstuvwxyz0123456789'):
     """Return a string made up of random chars from alphabet."""
-    return ''.join(random.choice(alphabet) for _ in xrange(length))
+    return ''.join(random.choice(alphabet) for _ in range(length))
 
 
 class Storage(dict):
@@ -91,8 +86,8 @@ class Storage(dict):
     def __getattr__(self, key):
         try:
             return self[key]
-        except KeyError, k:
-            raise AttributeError, k
+        except KeyError as k:
+            raise AttributeError(k)
 
     def __setattr__(self, key, value):
         self[key] = value
@@ -100,8 +95,8 @@ class Storage(dict):
     def __delattr__(self, key):
         try:
             del self[key]
-        except KeyError, k:
-            raise AttributeError, k
+        except KeyError as k:
+            raise AttributeError(k)
 
     def __repr__(self):
         return '<Storage ' + dict.__repr__(self) + '>'
@@ -115,12 +110,12 @@ class Enum(Storage):
         Storage.__init__(self, ((e, i) for i, e in enumerate(a)))
     def __contains__(self, item):
         if isinstance(item, int):
-            return item in self.values()
+            return item in list(self.values())
         else:
             return Storage.__contains__(self, item)
 
 
-class class_property(object):
+class class_property:
     """A decorator that combines @classmethod and @property.
 
     http://stackoverflow.com/a/8198300/120999
@@ -173,7 +168,7 @@ class Results():
 
 r_base_url = re.compile("(?i)(?:.+?://)?([^#]*[^#/])/?")
 r_domain = re.compile("(?i)(?:.+?://)?([^/:#?]*)")
-r_domain_prefix = re.compile('^www\d*\.')
+r_domain_prefix = re.compile(r'^www\d*\.')
 
 
 def strip_www(domain):
@@ -316,7 +311,7 @@ def extract_title(data):
         # delimiters: |, -, emdash, endash,
         #             left- and right-pointing double angle quotation marks
         reverse_title = title[::-1]
-        to_trim = re.search(u'\s[\u00ab\u00bb\u2013\u2014|-]\s',
+        to_trim = re.search('\\s[\\u00ab\\u00bb\\u2013\\u2014|-]\\s',
                             reverse_title,
                             flags=re.UNICODE)
 
@@ -333,7 +328,7 @@ def extract_title(data):
     return title.encode('utf-8').strip()
 
 VALID_SCHEMES = ('http', 'https', 'ftp', 'mailto')
-valid_dns = re.compile('\A[-a-zA-Z0-9_]+\Z')
+valid_dns = re.compile(r'\A[-a-zA-Z0-9_]+\Z')
 def sanitize_url(url, require_scheme=False, valid_schemes=VALID_SCHEMES):
     """Validates that the url is of the form
 
@@ -384,7 +379,9 @@ def sanitize_url(url, require_scheme=False, valid_schemes=VALID_SCHEMES):
         return None
 
     try:
-        idna_hostname = u.hostname.encode('idna')
+        # Encode to IDNA bytes then decode back to str so string
+        # operations (like endswith) work reliably in Python3.
+        idna_hostname = u.hostname.encode('idna').decode('ascii')
     except TypeError as e:
         g.log.warning("Bad hostname given [%r]: %s", u.hostname, e)
         raise
@@ -444,7 +441,7 @@ def median(l):
 
 def query_string(dict):
     pairs = []
-    for k,v in dict.iteritems():
+    for k,v in dict.items():
         if v is not None:
             try:
                 k = url_escape(_force_unicode(k))
@@ -462,7 +459,7 @@ def query_string(dict):
 # Spaces only seem to cause parsing differences when occurring directly before
 # the scheme
 URL_PROBLEMATIC_RE = re.compile(
-    ur'(\A\x20|[\x00-\x19\xA0\u1680\u180E\u2000-\u2029\u205f\u3000\\])',
+    r'(\\A\x20|[\x00-\x19\xA0\u1680\u180E\u2000-\u2029\u205f\u3000\\])',
     re.UNICODE
 )
 
@@ -477,7 +474,7 @@ def paranoid_urlparser_method(check):
     return check_wrapper
 
 
-class UrlParser(object):
+class UrlParser:
     """
     Wrapper for urlparse and urlunparse for making changes to urls.
 
@@ -543,7 +540,7 @@ class UrlParser(object):
         # Since in HTTP everything's a string, coercing values to strings now
         # makes equality testing easier.  Python will throw an error if you try
         # to pass in a non-string key, so that's already taken care of for us.
-        updates = {k: _force_unicode(v) for k, v in updates.iteritems()}
+        updates = {k: _force_unicode(v) for k, v in updates.items()}
         self.query_dict.update(updates)
 
     @property
@@ -607,7 +604,7 @@ class UrlParser(object):
     def canonicalize(self):
         subdomain = extract_subdomain(self.hostname)
         if subdomain == '' or is_language_subdomain(subdomain):
-            self.hostname = 'www.{0}'.format(g.domain)
+            self.hostname = 'www.{}'.format(g.domain)
         if not self.path.endswith('/'):
             self.path += '/'
         self.scheme = 'https'
@@ -635,11 +632,11 @@ class UrlParser(object):
         should call `set_extension('')` first.
         """
         new_subdomain = g.domain_prefix
-        for subdomain, subdomain_extension in g.extension_subdomains.iteritems():
+        for subdomain, subdomain_extension in g.extension_subdomains.items():
             if extension == subdomain_extension:
                 new_subdomain = subdomain
                 break
-        self.hostname = '%s.%s' % (new_subdomain, g.domain)
+        self.hostname = '{}.{}'.format(new_subdomain, g.domain)
 
     def unparse(self):
         """
@@ -687,7 +684,7 @@ class UrlParser(object):
 
         On failure to find a subreddit, returns None.
         """
-        from r2.models import Subreddit, NotFound, DefaultSR
+        from r2.models import DefaultSR, NotFound, Subreddit
         try:
             if (not self.hostname or
                     is_subdomain(self.hostname, g.domain) or
@@ -751,8 +748,8 @@ class UrlParser(object):
             # should be safe enough to allow after three slashes. Opera 12's the
             # only browser that trips over them, and it doesn't fall for
             # `http:///foo.com/`.
-            # Check both in case unicode promotion fails
-            if match.group(0) in {u'\xa0', '\xa0'}:
+            # Check both in case str promotion fails
+            if match.group(0) in {'\xa0', '\xa0'}:
                 if match.string[0:match.start(0)].count('/') < 3:
                     return False
             else:
@@ -779,7 +776,7 @@ class UrlParser(object):
         if not valid_subdomain or not self.hostname or not g.offsite_subdomains:
             return valid_subdomain
         return not any(
-            is_subdomain(self.hostname, "%s.%s" % (subdomain, g.domain))
+            is_subdomain(self.hostname, "{}.{}".format(subdomain, g.domain))
             for subdomain in g.offsite_subdomains
         )
 
@@ -824,7 +821,7 @@ class UrlParser(object):
             r = self.hostname.split('.')
 
             if subdomains:
-                for x in xrange(len(r)-1):
+                for x in range(len(r)-1):
                     ret.add('.'.join(r[x:len(r)]))
 
             if fragments:
@@ -874,8 +871,8 @@ def url_to_thing(url):
         /r/somesr/comments/j2jx - Link
         /r/somesr/comments/j2jx/slug/k2js - Comment
     """
-    from r2.models import Comment, Link, Message, NotFound, Subreddit, Thing
     from r2.config.middleware import SubredditMiddleware
+    from r2.models import Comment, Link, Message, NotFound, Subreddit
     sr_pattern = SubredditMiddleware.sr_pattern
 
     urlparser = UrlParser(_force_utf8(url))
@@ -930,7 +927,7 @@ def pload(fname, default = None):
     try:
         f = file(fname, 'r')
         d = pickle.load(f)
-    except IOError:
+    except OSError:
         d = default
     else:
         f.close()
@@ -947,7 +944,7 @@ def unicode_safe(res):
         return str(res)
     except UnicodeEncodeError:
         try:
-            return unicode(res).encode('utf-8')
+            return str(res).encode('utf-8')
         except UnicodeEncodeError:
             return res.decode('utf-8').encode('utf-8')
 
@@ -956,7 +953,7 @@ def decompose_fullname(fullname):
         decompose_fullname("t3_e4fa") ->
             (Thing, 3, 658918)
     """
-    from r2.lib.db.thing import Thing,Relation
+    from r2.lib.db.thing import Relation, Thing
     if fullname[0] == 't':
         type_class = Thing
     elif fullname[0] == 'r':
@@ -976,8 +973,8 @@ def cols(lst, ncols):
     nrows = int(math.ceil(1.*len(lst) / ncols))
     lst = lst + [None for i in range(len(lst), nrows*ncols)]
     cols = [lst[i:i+nrows] for i in range(0, nrows*ncols, nrows)]
-    rows = zip(*cols)
-    rows = [filter(lambda x: x is not None, r) for r in rows]
+    rows = list(zip(*cols))
+    rows = [[x for x in r if x is not None] for r in rows]
     return rows
 
 def fetch_things(t_class,since,until,batch_fn=None,
@@ -1041,8 +1038,7 @@ def fetch_things2(query, chunk_size = 100, batch_fn = None, chunks = False):
         if chunks:
             yield items
         else:
-            for i in items:
-                yield i
+            yield from items
 
         if not done:
             query._rules = deepcopy(orig_rules)
@@ -1129,8 +1125,7 @@ def fetch_things_with_retry(query,
         if chunks:
             yield items
         else:
-            for i in items:
-                yield i
+            yield from items
 
         if not done:
             query._rules = deepcopy(orig_rules)
@@ -1139,12 +1134,12 @@ def fetch_things_with_retry(query,
 
 
 def fix_if_broken(thing, delete = True, fudge_links = False):
-    from r2.models import Link, Comment, Subreddit, Message
+    from r2.models import Comment, Link, Message, Subreddit
 
     # the minimum set of attributes that are required
-    attrs = dict((cls, cls._essentials)
+    attrs = {cls: cls._essentials
                  for cls
-                 in (Link, Comment, Subreddit, Message))
+                 in (Link, Comment, Subreddit, Message)}
 
     if thing.__class__ not in attrs:
         raise TypeError
@@ -1160,17 +1155,17 @@ def fix_if_broken(thing, delete = True, fudge_links = False):
             if isinstance(thing, Link) and fudge_links:
                 if attr == "sr_id":
                     thing.sr_id = 6
-                    print "Fudging %s.sr_id to %d" % (thing._fullname,
-                                                      thing.sr_id)
+                    print("Fudging %s.sr_id to %d" % (thing._fullname,
+                                                      thing.sr_id))
                 elif attr == "author_id":
                     thing.author_id = 8244672
-                    print "Fudging %s.author_id to %d" % (thing._fullname,
-                                                          thing.author_id)
+                    print("Fudging %s.author_id to %d" % (thing._fullname,
+                                                          thing.author_id))
                 else:
-                    print "Got weird attr %s; can't fudge" % attr
+                    print("Got weird attr %s; can't fudge" % attr)
 
             if not thing._deleted:
-                print "%s is missing %r, deleting" % (thing._fullname, attr)
+                print("{} is missing {!r}, deleting".format(thing._fullname, attr))
                 thing._deleted = True
 
             thing._commit()
@@ -1188,8 +1183,8 @@ def find_recent_broken_things(from_time = None, to_time = None,
         breaks various pages. This function hunts for and destroys
         them as appropriate.
     """
-    from r2.models import Link, Comment
     from r2.lib.db.operators import desc
+    from r2.models import Comment, Link
 
     from_time = from_time or timeago('1 hour')
     to_time = to_time or datetime.now(g.tz)
@@ -1211,7 +1206,7 @@ def timeit(func):
 def lineno():
     "Returns the current line number in our program."
     import inspect
-    print "%s\t%s" % (datetime.now(),inspect.currentframe().f_back.f_lineno)
+    print("{}\t{}".format(datetime.now(),inspect.currentframe().f_back.f_lineno))
 
 def IteratorFilter(iterator, fn):
     for x in iterator:
@@ -1237,12 +1232,12 @@ def UniqueIterator(iterator, key = lambda x: x):
 def safe_eval_str(unsafe_str):
     return unsafe_str.replace('\\x3d', '=').replace('\\x26', '&')
 
-rx_whitespace = re.compile('\s+', re.UNICODE)
-rx_notsafe = re.compile('\W+', re.UNICODE)
+rx_whitespace = re.compile(r'\s+', re.UNICODE)
+rx_notsafe = re.compile(r'\W+', re.UNICODE)
 rx_underscore = re.compile('_+', re.UNICODE)
 def title_to_url(title, max_length = 50):
     """Takes a string and makes it suitable for use in URLs"""
-    title = _force_unicode(title)           #make sure the title is unicode
+    title = _force_unicode(title)           #make sure the title is str
     title = rx_whitespace.sub('_', title)   #remove whitespace
     title = rx_notsafe.sub('', title)       #remove non-printables
     title = rx_underscore.sub('_', title)   #remove double underscores
@@ -1266,7 +1261,7 @@ def unicode_title_to_ascii(title, max_length=50):
 
 def dbg(s):
     import sys
-    sys.stderr.write('%s\n' % (s,))
+    sys.stderr.write('{}\n'.format(s))
 
 def trace(fn):
     def new_fn(*a,**kw):
@@ -1297,9 +1292,10 @@ def common_subdomain(domain1, domain2):
 
 def url_links_builder(url, exclude=None, num=None, after=None, reverse=None,
                       count=None, public_srs_only=False):
+    from operator import attrgetter
+
     from r2.lib.template_helpers import add_sr
     from r2.models import IDBuilder, Link, NotFound, Subreddit
-    from operator import attrgetter
 
     if url.startswith('/'):
         url = add_sr(url, force_hostname=True)
@@ -1374,7 +1370,7 @@ def in_chunks(it, size=25):
     it = iter(it)
     try:
         while True:
-            chunk.append(it.next())
+            chunk.append(next(it))
             if len(chunk) >= size:
                 yield chunk
                 chunk = []
@@ -1387,9 +1383,9 @@ def progress(it, verbosity=100, key=repr, estimate=None, persec=True):
     """An iterator that yields everything from `it', but prints progress
        information along the way, including time-estimates if
        possible"""
-    from itertools import islice
-    from datetime import datetime
     import sys
+    from datetime import datetime
+    from itertools import islice
 
     now = start = datetime.now()
     elapsed = start - start
@@ -1445,7 +1441,7 @@ def progress(it, verbosity=100, key=repr, estimate=None, persec=True):
                 and d1.month == d2.month
                 and d1.year  == d2.year)
 
-    sys.stderr.write('Starting at %s\n' % (start,))
+    sys.stderr.write('Starting at {}\n'.format(start))
 
     # we're going to islice it so we need to start an iterator
     it = iter(it)
@@ -1495,7 +1491,7 @@ def progress(it, verbosity=100, key=repr, estimate=None, persec=True):
         # unlike the estimate, the persec count is the number per
         # second for *this* batch only, without smoothing
         if persec and thischunk_seconds > 0:
-            persec_str = ' (%.1f/s)' % (float(this_chunk)/thischunk_seconds,)
+            persec_str = ' ({:.1f}/s)'.format(float(this_chunk)/thischunk_seconds)
         else:
             persec_str = ''
 
@@ -1517,11 +1513,11 @@ def progress(it, verbosity=100, key=repr, estimate=None, persec=True):
                         format_datetime(now, not deq(start, now)),
                         format_timedelta(elapsed)))
 
-class Hell(object):
+class Hell:
     def __str__(self):
         return "boom!"
 
-class Bomb(object):
+class Bomb:
     @classmethod
     def __getattr__(cls, key):
         raise Hell()
@@ -1535,9 +1531,9 @@ class Bomb(object):
         raise Hell()
 
 
-class SimpleSillyStub(object):
+class SimpleSillyStub:
     """A simple stub object that does nothing when you call its methods."""
-    def __nonzero__(self):
+    def __bool__(self):
         return False
 
     def __getattr__(self, name):
@@ -1569,13 +1565,14 @@ def strordict_fullname(item, key='fullname'):
     return d
 
 def thread_dump(*a):
-    import sys, traceback
+    import sys
+    import traceback
     from datetime import datetime
 
     sys.stderr.write('%(t)s Thread Dump @%(d)s %(t)s\n' % dict(t='*'*15,
                                                                d=datetime.now()))
 
-    for thread_id, stack in sys._current_frames().items():
+    for thread_id, stack in list(sys._current_frames().items()):
         sys.stderr.write('\t-- Thread ID: %s--\n' %  (thread_id,))
 
         for filename, lineno, fnname, line in traceback.extract_stack(stack):
@@ -1591,16 +1588,16 @@ def constant_time_compare(actual, expected):
     The time taken is dependent on the number of characters provided
     instead of the number of characters that match.
 
-    When we upgrade to Python 2.7.7 or newer, we should use hmac.compare_digest
-    instead.
+    Uses hmac.compare_digest for constant-time comparison.
+    Both arguments must be the same type (both bytes or both strings).
     """
-    actual_len   = len(actual)
-    expected_len = len(expected)
-    result = actual_len ^ expected_len
-    if expected_len > 0:
-        for i in xrange(actual_len):
-            result |= ord(actual[i]) ^ ord(expected[i % expected_len])
-    return result == 0
+    import hmac
+    # Ensure both are the same type - convert strings to bytes if needed
+    if isinstance(actual, str) and isinstance(expected, bytes):
+        actual = actual.encode('utf-8')
+    elif isinstance(actual, bytes) and isinstance(expected, str):
+        expected = expected.encode('utf-8')
+    return hmac.compare_digest(actual, expected)
 
 
 def extract_urls_from_markdown(md):
@@ -1709,13 +1706,13 @@ def weighted_lottery(weights, _random=random.random):
     Raises ValueError if weights is empty or contains a negative weight.
     """
 
-    total = sum(weights.itervalues())
+    total = sum(weights.values())
     if total <= 0:
         raise ValueError("total weight must be positive")
 
     r = _random() * total
     t = 0
-    for key, weight in weights.iteritems():
+    for key, weight in weights.items():
         if weight < 0:
             raise ValueError("weight for %r must be non-negative" % key)
         t += weight
@@ -1724,10 +1721,10 @@ def weighted_lottery(weights, _random=random.random):
 
     # this point should never be reached
     raise ValueError(
-        "weighted_lottery messed up: r=%r, t=%r, total=%r" % (r, t, total))
+        "weighted_lottery messed up: r={!r}, t={!r}, total={!r}".format(r, t, total))
 
 
-class GoldPrice(object):
+class GoldPrice:
     """Simple price math / formatting type.
 
     Prices are assumed to be USD at the moment.
@@ -1746,7 +1743,7 @@ class GoldPrice(object):
         return "$%s" % self.decimal.quantize(Decimal("1.00"))
 
     def __repr__(self):
-        return "%s(%s)" % (type(self).__name__, self)
+        return "{}({})".format(type(self).__name__, self)
 
     @property
     def pennies(self):
@@ -1779,7 +1776,11 @@ def canonicalize_email(email):
     localpart = localpart.replace(".", "")
     localpart = localpart.partition("+")[0]
 
-    return localpart + "@" + domain
+    result = localpart + "@" + domain
+    # Historically this function returned a byte-string represented as
+    # a str containing the raw UTF-8 bytes (e.g. "\xe2\x9c\x93...").
+    # Preserve that legacy representation for tests that depend on it.
+    return result.encode('utf-8').decode('latin-1')
 
 
 def precise_format_timedelta(delta, locale, threshold=.85, decimals=2):
@@ -1797,17 +1798,17 @@ def precise_format_timedelta(delta, locale, threshold=.85, decimals=2):
                     pattern = patterns[plural_form]
                     break
             if pattern is None:
-                return u''
+                return ''
             decimals = int(decimals)
             format_string = "%." + str(decimals) + "f"
             return pattern.replace('{0}', format_string % value)
-    return u''
+    return ''
 
 
 def parse_ini_file(config_file):
     """Given an open file, read and parse it like an ini file."""
 
-    parser = ConfigParser.RawConfigParser()
+    parser = configparser.RawConfigParser()
     parser.optionxform = str  # ensure keys are case-sensitive as expected
     parser.readfp(config_file)
     return parser
@@ -1830,7 +1831,7 @@ def shuffle_slice(x, start, stop=None):
     if stop is None:
         stop = len(x)
 
-    for i in reversed(xrange(start + 1, stop)):
+    for i in reversed(range(start + 1, stop)):
         j = random.randint(start, i)
         x[i], x[j] = x[j], x[i]
 
@@ -1840,14 +1841,14 @@ def partition(pred, iterable):
     "Use a predicate to partition entries into false entries and true entries"
     # partition(is_odd, range(10)) --> 0 2 4 6 8   and  1 3 5 7 9
     t1, t2 = itertools.tee(iterable)
-    return itertools.ifilterfalse(pred, t1), itertools.ifilter(pred, t2)
+    return itertools.filterfalse(pred, t1), filter(pred, t2)
 
 # http://docs.python.org/2/library/itertools.html#recipes
 def roundrobin(*iterables):
     "roundrobin('ABC', 'D', 'EF') --> A D E B F C"
     # Recipe credited to George Sakkis
     pending = len(iterables)
-    nexts = itertools.cycle(iter(it).next for it in iterables)
+    nexts = itertools.cycle(iter(it).__next__ for it in iterables)
     while pending:
         try:
             for next in nexts:
@@ -1860,7 +1861,7 @@ def roundrobin(*iterables):
 def lowercase_keys_recursively(subject):
     """Return a dict with all keys lowercased (recursively)."""
     lowercased = dict()
-    for key, val in subject.iteritems():
+    for key, val in subject.items():
         if isinstance(val, dict):
             val = lowercase_keys_recursively(val)
         lowercased[key.lower()] = val

@@ -7,20 +7,19 @@ The Cassandra jars and configuration must be on the classpath for this
 to function properly.
 """
 
-import time
-import os
-import os.path
 import logging
+import os
+import time
 
-from org.apache.cassandra.utils.ByteBufferUtil import bytes
 from java.nio import ByteBuffer
+from org.apache.cassandra.utils.ByteBufferUtil import bytes
 
 
 def utf8(val):
     return bytes(val)
 
 def datetime(val):
-    milliseconds = long(float(val) * 1e3)
+    milliseconds = int(float(val) * 1e3)
     return ByteBuffer.allocate(8).putLong(0, milliseconds)
 
 COERCERS = dict(utf8=utf8,
@@ -31,11 +30,12 @@ def convert_to_sstables(input_files, column_family,
                         output_dir_name, keyspace, timestamp, buffer_size,
                         data_type, verbose=False):
     import fileinput
+
     from java.io import File
-    from org.apache.cassandra.io.sstable import SSTableSimpleUnsortedWriter
     from org.apache.cassandra.db.marshal import AsciiType
-    from org.apache.cassandra.service import StorageService
     from org.apache.cassandra.io.compress import CompressionParameters
+    from org.apache.cassandra.io.sstable import SSTableSimpleUnsortedWriter
+    from org.apache.cassandra.service import StorageService
 
     partitioner = StorageService.getPartitioner()
 
@@ -76,7 +76,7 @@ def convert_to_sstables(input_files, column_family,
                 rowkey, colkey, value, ttl = t_columns
                 ttl = int(ttl)
             else:
-                raise Exception("unknown data format for %r" % (t_columns,))
+                raise Exception("unknown data format for {!r}".format(t_columns))
 
             if rowkey != previous_rowkey:
                 writer.newRow(bytes(rowkey))
@@ -94,8 +94,8 @@ def convert_to_sstables(input_files, column_family,
                                          timestamp, ttl, expirationTimestampMS)
 
             if verbose and fileinput.lineno() % 10000 == 0:
-                print "%d items processed (%s)" % (fileinput.lineno(),
-                                                   fileinput.filename())
+                print("%d items processed (%s)" % (fileinput.lineno(),
+                                                   fileinput.filename()))
     except:
         # it's common that whatever causes us to fail also cases the finally
         # clause below to fail, which masks the original exception
@@ -106,13 +106,12 @@ def convert_to_sstables(input_files, column_family,
 
 
 def main():
-    import os
     import optparse
 
     parser = optparse.OptionParser(
         usage="USAGE: tuples_to_sstables [options] COLUMN_FAMILY INPUT [...]")
     parser.add_option("--timestamp",
-                      type="long",
+                      type="int",
                       nargs=1, dest="timestamp",
                       default=int(time.time()*1000000),
                       help="timestamp to use for each column")

@@ -20,11 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 from webob.exc import HTTPBadRequest
+
 from r2.controllers import api_docs
 from r2.controllers.oauth2 import allow_oauth2_access
 from r2.controllers.reddit_base import RedditController
 from r2.lib.base import abort
-from r2.lib.validator import validate, nop
+from r2.lib.validator import nop, validate
 from r2.models import OAuth2Scope
 
 

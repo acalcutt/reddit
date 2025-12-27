@@ -37,19 +37,19 @@ use on Amazon Elastic Beanstalk (and possibly other systems).
 """
 
 
-import cStringIO
-import os
 import hashlib
 import hmac
+import io
+import os
 import time
-import urllib
-from urlparse import parse_qsl, urlparse, urlunparse
-
-from ConfigParser import RawConfigParser
+import urllib.error
+import urllib.parse
+import urllib.request
+from configparser import RawConfigParser
+from urllib.parse import parse_qsl, urlparse
 from wsgiref.handlers import format_date_time
 
-from flask import Flask, request, json, make_response, abort, redirect
-
+from flask import Flask, abort, json, redirect, request
 
 application = Flask(__name__)
 REQUIRED_PACKAGES = [
@@ -57,7 +57,7 @@ REQUIRED_PACKAGES = [
 ]
 
 
-class ApplicationConfig(object):
+class ApplicationConfig:
     """A thin wrapper around ConfigParser that remembers what we read.
 
     The remembered settings can then be written out to a minimal config file
@@ -83,7 +83,7 @@ class ApplicationConfig(object):
         return value
 
     def to_config(self):
-        io = cStringIO.StringIO()
+        io = io.StringIO()
         self.output.write(io)
         return io.getvalue()
 
@@ -126,7 +126,7 @@ def event_redirect():
     destination = request.args['url'].encode('utf-8')
 
     # Parse and avoid open redirects
-    netloc = "%s.%s" % (reddit_domain_prefix, reddit_domain)
+    netloc = "{}.{}".format(reddit_domain_prefix, reddit_domain)
     u = urlparse(destination)._replace(netloc=netloc, scheme="https")
 
     if u.query:
@@ -150,7 +150,7 @@ def event_click():
     relying on log files for event tracking and have a proper events endpoint.
     """
     try:
-        session_str = urllib.unquote(request.cookies.get('reddit_session', ''))
+        session_str = urllib.parse.unquote(request.cookies.get('reddit_session', ''))
         user_id = int(session_str.split(',')[0])
     except ValueError:
         user_id = None
@@ -168,7 +168,7 @@ def event_click():
             payload_json['user_id'] = user_id
             args['data'] = json.dumps(payload_json)
 
-    return _redirect_nocache('/event_redirect?%s' % urllib.urlencode(args))
+    return _redirect_nocache('/event_redirect?%s' % urllib.parse.urlencode(args))
 
 
 def _fix_query_encoding(parse_result):
@@ -176,7 +176,7 @@ def _fix_query_encoding(parse_result):
     query_params = parse_qsl(parse_result.query, keep_blank_values=True)
 
     # this effectively calls urllib.quote_plus on every query value
-    return parse_result._replace(query=urllib.urlencode(query_params))
+    return parse_result._replace(query=urllib.parse.urlencode(query_params))
 
 
 def _redirect_nocache(destination):
@@ -201,7 +201,7 @@ def constant_time_compare(actual, expected):
     expected_len = len(expected)
     result = actual_len ^ expected_len
     if expected_len > 0:
-        for i in xrange(actual_len):
+        for i in range(actual_len):
             result |= ord(actual[i]) ^ ord(expected[i % expected_len])
     return result == 0
 

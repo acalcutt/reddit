@@ -22,19 +22,19 @@
 
 import datetime
 import functools
-from os import urandom
 from base64 import urlsafe_b64encode
+from os import urandom
 
 from pycassa.system_manager import ASCII_TYPE, DATE_TYPE, UTF8_TYPE
-
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 from pylons.i18n import _
 
 from r2.lib import hooks
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.thing import NotFound
 from r2.models.account import Account
+
 
 def generate_token(size):
     return urlsafe_b64encode(urandom(size)).rstrip("=")
@@ -90,7 +90,7 @@ class ConsumableToken(Token):
 
     @classmethod
     def get_token(cls, _id):
-        token = super(ConsumableToken, cls).get_token(_id)
+        token = super().get_token(_id)
         if token and not token.used:
             return token
         else:
@@ -269,7 +269,7 @@ class OAuth2Scope:
     # Special scope, granted implicitly to clients with app_type == "script"
     FULL_ACCESS = "*"
 
-    class InsufficientScopeError(StandardError):
+    class InsufficientScopeError(Exception):
         pass
 
     def __init__(self, scope_str=None, subreddits=None, scopes=None):
@@ -319,7 +319,7 @@ class OAuth2Scope:
 
     def details(self):
         if self.FULL_ACCESS in self.scopes:
-            scopes = self.scope_info.keys()
+            scopes = list(self.scope_info.keys())
         else:
             scopes = self.scopes
         return [(scope, self.scope_info[scope]) for scope in scopes]
@@ -408,11 +408,11 @@ class OAuth2Client(Token):
     def _new(cls, **kwargs):
         if "secret" not in kwargs:
             kwargs["secret"] = generate_token(cls.client_secret_size)
-        return super(OAuth2Client, cls)._new(**kwargs)
+        return super()._new(**kwargs)
 
     @property
     def _developer_ids(self):
-        for k, v in self._t.iteritems():
+        for k, v in self._t.items():
             if k.startswith(self._developer_colname_prefix) and v:
                 try:
                     yield int(k[len(self._developer_colname_prefix):], 36)
@@ -490,8 +490,8 @@ class OAuth2Client(Token):
         except tdb_cassandra.NotFound:
             return []
 
-        clients = cls._byID(cba._values().keys())
-        return [client for client in clients.itervalues()
+        clients = cls._byID(list(cba._values().keys()))
+        return [client for client in clients.values()
                 if not client.deleted and client.has_developer(account)]
 
     @classmethod
@@ -504,7 +504,7 @@ class OAuth2Client(Token):
         access_tokens = [token for token in OAuth2AccessToken._by_user(account)
                          if token.check_valid()]
 
-        tokens = refresh_tokens.values()
+        tokens = list(refresh_tokens.values())
         tokens.extend(token for token in access_tokens
                       if token.refresh_token not in refresh_tokens)
 
@@ -531,7 +531,7 @@ class OAuth2Client(Token):
             else:
                 client_data['refresh_tokens'] += 1
 
-        for client_data in clients.itervalues():
+        for client_data in clients.values():
             client_data['scopes'] = OAuth2Scope.merge_scopes(client_data['scopes'])
 
         return clients
@@ -566,7 +566,7 @@ class OAuth2AuthorizationCode(ConsumableToken):
     """An OAuth2 authorization code for completing authorization flow"""
     token_size = 20
     _ttl = datetime.timedelta(minutes=10)
-    _defaults = dict(ConsumableToken._defaults.items() + [
+    _defaults = dict(list(ConsumableToken._defaults.items()) + [
                          ("client_id", ""),
                          ("redirect_uri", ""),
                          ("scope", ""),
@@ -578,7 +578,7 @@ class OAuth2AuthorizationCode(ConsumableToken):
 
     @classmethod
     def _new(cls, client_id, redirect_uri, user_id, scope, refreshable):
-        return super(OAuth2AuthorizationCode, cls)._new(
+        return super()._new(
                 client_id=client_id,
                 redirect_uri=redirect_uri,
                 user_id=user_id,
@@ -614,8 +614,8 @@ class OAuth2AccessToken(Token):
             user_id_prefix = int(user_id, 36)
         except (ValueError, TypeError):
             user_id_prefix = ""
-        _id = "%s-%s" % (user_id_prefix, cls._generate_unique_token())
-        return super(OAuth2AccessToken, cls)._new(
+        _id = "{}-{}".format(user_id_prefix, cls._generate_unique_token())
+        return super()._new(
                      _id=_id,
                      client_id=client_id,
                      user_id=user_id,
@@ -635,7 +635,7 @@ class OAuth2AccessToken(Token):
         if self.user_id:
             self._by_user_view()._set_values(str(self.user_id), {self._id: ''})
 
-        return super(OAuth2AccessToken, self)._on_create()
+        return super()._on_create()
 
     def check_valid(self):
         """Returns boolean indicating whether or not this access token is still valid."""
@@ -700,8 +700,8 @@ class OAuth2AccessToken(Token):
         except tdb_cassandra.NotFound:
             return []
 
-        tokens = cls._byID(tba._values().keys())
-        return [token for token in tokens.itervalues() if token.check_valid()]
+        tokens = cls._byID(list(tba._values().keys()))
+        return [token for token in tokens.values() if token.check_valid()]
 
 class OAuth2AccessTokensByUser(tdb_cassandra.View):
     """Index listing the outstanding access tokens for an account."""
@@ -731,7 +731,7 @@ class OAuth2RefreshToken(OAuth2AccessToken):
         return OAuth2RefreshTokensByUser
 
     def revoke(self):
-        super(OAuth2RefreshToken, self).revoke()
+        super().revoke()
         account = Account._byID36(self.user_id)
         access_tokens = OAuth2AccessToken._by_user(account)
         for token in access_tokens:
@@ -756,7 +756,7 @@ class EmailVerificationToken(ConsumableToken):
 
     @classmethod
     def _new(cls, user):
-        return super(EmailVerificationToken, cls)._new(user_id=user._fullname,
+        return super()._new(user_id=user._fullname,
                                                        email=user.email)
 
     def valid_for_user(self, user):
@@ -771,7 +771,7 @@ class PasswordResetToken(ConsumableToken):
 
     @classmethod
     def _new(cls, user):
-        return super(PasswordResetToken, cls)._new(user_id=user._fullname,
+        return super()._new(user_id=user._fullname,
                                                    email_address=user.email,
                                                    password=user.password)
 
@@ -783,7 +783,7 @@ class PasswordResetToken(ConsumableToken):
 class AwardClaimToken(ConsumableToken):
     token_size = 20
     _ttl = datetime.timedelta(days=30)
-    _defaults = dict(ConsumableToken._defaults.items() + [
+    _defaults = dict(list(ConsumableToken._defaults.items()) + [
                          ("awardfullname", ""),
                          ("description", ""),
                          ("url", ""),
@@ -809,7 +809,7 @@ class AwardClaimToken(ConsumableToken):
         of the form "i18n_%(language)s"
 
         '''
-        return super(AwardClaimToken, cls)._new(
+        return super()._new(
             awardfullname=award._fullname,
             description=description or "",
             url=url or "",
@@ -823,4 +823,4 @@ class AwardClaimToken(ConsumableToken):
     def confirm_url(self):
         # Full URL; for emailing, PM'ing, etc.
         base = g.https_endpoint or g.origin
-        return "%s/awards/confirm/%s" % (base, self._id)
+        return "{}/awards/confirm/{}".format(base, self._id)

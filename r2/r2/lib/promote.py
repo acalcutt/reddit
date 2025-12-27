@@ -21,21 +21,20 @@
 ###############################################################################
 
 import calendar
-from collections import namedtuple
 import datetime
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
 import hashlib
 import hmac
 import itertools
-import json
 import random
 import time
-import urllib
-import urlparse
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections import namedtuple
+from decimal import ROUND_DOWN, ROUND_UP, Decimal
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
-from pylons.i18n import ungettext
+from pylons import tmpl_context as c
 from pytz import timezone
 
 from r2.lib import (
@@ -43,33 +42,29 @@ from r2.lib import (
     emailer,
     hooks,
 )
-from r2.lib.db.operators import not_
 from r2.lib.db import queries
+from r2.lib.db.operators import not_
 from r2.lib.filters import _force_utf8
 from r2.lib.geoip import location_by_ips
 from r2.lib.memoize import memoize
 from r2.lib.sgm import sgm
-from r2.lib.strings import strings
 from r2.lib.utils import (
     constant_time_compare,
     to_date,
     weighted_lottery,
 )
 from r2.models import (
+    NO_TRANSACTION,
+    PROMOTE_STATUS,
     Account,
     Bid,
     Collection,
-    DefaultSR,
     FakeAccount,
     FakeSubreddit,
     Frontpage,
     Link,
     MultiReddit,
-    NotFound,
-    NO_TRANSACTION,
     PromoCampaign,
-    PROMOTE_STATUS,
-    PromotedLink,
     PromotionLog,
     PromotionWeights,
     Subreddit,
@@ -118,28 +113,28 @@ def _base_host(is_mobile_web=False):
         base_domain = domain_prefix + '.' + g.domain
     else:
         base_domain = g.domain
-    return "%s://%s" % (g.default_scheme, base_domain)
+    return "{}://{}".format(g.default_scheme, base_domain)
 
 
 def promo_traffic_url(l): # old traffic url
-    return "%s/traffic/%s/" % (_base_host(), l._id36)
+    return "{}/traffic/{}/".format(_base_host(), l._id36)
 
 def promotraffic_url(l): # new traffic url
-    return "%s/promoted/traffic/headline/%s" % (_base_host(), l._id36)
+    return "{}/promoted/traffic/headline/{}".format(_base_host(), l._id36)
 
 def promo_edit_url(l):
-    return "%s/promoted/edit_promo/%s" % (_base_host(), l._id36)
+    return "{}/promoted/edit_promo/{}".format(_base_host(), l._id36)
 
 def view_live_url(link, campaign, srname):
     is_mobile_web = campaign.platform == "mobile_web"
     host = _base_host(is_mobile_web=is_mobile_web)
     if srname:
         host += '/r/%s' % srname
-    return '%s/?ad=%s' % (host, link._fullname)
+    return '{}/?ad={}'.format(host, link._fullname)
 
 def payment_url(action, link_id36, campaign_id36):
-    path = '/promoted/%s/%s/%s' % (action, link_id36, campaign_id36)
-    return urlparse.urljoin(g.payment_domain, path)
+    path = '/promoted/{}/{}/{}'.format(action, link_id36, campaign_id36)
+    return urllib.parse.urljoin(g.payment_domain, path)
 
 def pay_url(l, campaign):
     return payment_url('pay', l._id36, campaign._id36)
@@ -188,15 +183,15 @@ def is_pending(campaign):
     return today < to_date(campaign.start_date)
 
 def update_query(base_url, query_updates, unset=False):
-    scheme, netloc, path, params, query, fragment = urlparse.urlparse(base_url)
-    query_dict = urlparse.parse_qs(query)
+    scheme, netloc, path, params, query, fragment = urllib.parse.urlparse(base_url)
+    query_dict = urllib.parse.parse_qs(query)
     query_dict.update(query_updates)
 
     if unset:
-        query_dict = dict((k, v) for k, v in query_dict.iteritems() if v is not None)
+        query_dict = {k: v for k, v in query_dict.items() if v is not None}
 
-    query = urllib.urlencode(query_dict, doseq=True)
-    return urlparse.urlunparse((scheme, netloc, path, params, query, fragment))
+    query = urllib.parse.urlencode(query_dict, doseq=True)
+    return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
 
 def update_served(items):
@@ -222,8 +217,9 @@ def is_valid_click_url(link, click_url, click_hash):
 def get_click_url_hmac(link, click_url):
     secret = g.secrets["adserver_click_url_secret"]
     data = "|".join([link._fullname, click_url])
-
-    return hmac.new(secret, data, hashlib.sha256).hexdigest()
+    # ensure we pass bytes to HMAC/hash functions
+    data_b = data.encode("utf-8") if isinstance(data, str) else data
+    return hmac.new(secret, data_b, hashlib.sha256).hexdigest()
 
 
 def add_trackers(items, sr, adserver_click_urls=None):
@@ -244,7 +240,10 @@ def add_trackers(items, sr, adserver_click_urls=None):
 
         # construct the impression pixel url
         pixel_mac = hmac.new(
-            g.tracking_secret, tracking_name, hashlib.sha1).hexdigest()
+            g.tracking_secret,
+            tracking_name.encode('utf-8') if isinstance(tracking_name, str) else tracking_name,
+            hashlib.sha1,
+        ).hexdigest()
         pixel_query = {
             "id": tracking_name,
             "hash": pixel_mac,
@@ -260,7 +259,8 @@ def add_trackers(items, sr, adserver_click_urls=None):
         # construct the click redirect url
         item_url = adserver_click_urls.get(item.campaign) or item.url
         url = _force_utf8(item_url)
-        hashable = ''.join((url, tracking_name.encode("utf-8")))
+        # build a bytes payload for HMAC to avoid mixing str and bytes
+        hashable = (url + tracking_name).encode('utf-8')
         click_mac = hmac.new(
             g.tracking_secret, hashable, hashlib.sha1).hexdigest()
         click_query = {
@@ -375,8 +375,8 @@ def edit_campaign(link, campaign, dates, target, frequency_cap,
                   android_version_range=None):
     changed = {}
     if dates[0] != campaign.start_date or dates[1] != campaign.end_date:
-        original = '%s to %s' % (campaign.start_date, campaign.end_date)
-        edited = '%s to %s' % (dates[0], dates[1])
+        original = '{} to {}'.format(campaign.start_date, campaign.end_date)
+        edited = '{} to {}'.format(dates[0], dates[1])
         changed['dates'] = (original, edited)
         campaign.start_date = dates[0]
         campaign.end_date = dates[1]
@@ -423,8 +423,7 @@ def edit_campaign(link, campaign, dates, target, frequency_cap,
                                         bid_pennies)
         campaign.bid_pennies = bid_pennies
 
-    change_strs = map(lambda t: '%s: %s -> %s' % (t[0], t[1][0], t[1][1]),
-                      changed.iteritems())
+    change_strs = ['{}: {} -> {}'.format(t[0], t[1][0], t[1][1]) for t in iter(changed.items())]
     change_text = ', '.join(change_strs)
     campaign._commit()
 
@@ -439,7 +438,7 @@ def edit_campaign(link, campaign, dates, target, frequency_cap,
 
     # record the changes
     if change_text:
-        PromotionLog.add(link, 'edited %s: %s' % (campaign, change_text))
+        PromotionLog.add(link, 'edited {}: {}'.format(campaign, change_text))
 
     hooks.get_hook('promote.edit_campaign').call(link=link, campaign=campaign)
 
@@ -473,7 +472,7 @@ def terminate_campaign(link, campaign):
         update_promote_status(link, PROMOTE_STATUS.finished)
         all_live_promo_srnames(_update=True)
 
-    msg = 'terminated campaign %s (original end %s)' % (campaign._id,
+    msg = 'terminated campaign {} (original end {})'.format(campaign._id,
                                                         original_end.date())
     PromotionLog.add(link, msg)
 
@@ -491,7 +490,7 @@ def toggle_pause_campaign(link, campaign, should_pause):
     campaign._commit()
 
     action = 'paused' if should_pause else 'resumed'
-    PromotionLog.add(link, '%s campaign %s' % (action, campaign._id))
+    PromotionLog.add(link, '{} campaign {}'.format(action, campaign._id))
 
     hooks.get_hook('promote.edit_campaign').call(link=link,
         campaign=campaign)
@@ -774,7 +773,7 @@ def is_complete_promo(link, campaign):
 
 def _is_geotargeted_promo(link):
     campaigns = live_campaigns_by_link(link)
-    geotargeted = filter(lambda camp: camp.location, campaigns)
+    geotargeted = [camp for camp in campaigns if camp.location]
     city_target = any(camp.location.metro for camp in geotargeted)
     return bool(geotargeted), city_target
 
@@ -918,7 +917,7 @@ def finalize_completed_campaigns(daysago=1):
                              PromoCampaign.c.trans_id != NO_TRANSACTION,
                              data=True)
     # filter out freebies
-    campaigns = filter(lambda camp: camp.trans_id > NO_TRANSACTION, q)
+    campaigns = [camp for camp in q if camp.trans_id > NO_TRANSACTION]
 
     if not campaigns:
         return
@@ -976,7 +975,7 @@ def refund_campaign(link, camp, refund_amount, billable_amount,
     success, reason = authorize.refund_transaction(
         owner, camp.trans_id, camp._id, refund_amount)
     if not success:
-        text = ('%s $%s refund failed' % (camp, refund_amount))
+        text = ('{} ${} refund failed'.format(camp, refund_amount))
         PromotionLog.add(link, text)
         g.log.debug(text + ' (reason: %s)' % reason)
 
@@ -989,7 +988,7 @@ def refund_campaign(link, camp, refund_amount, billable_amount,
                                    camp.bid_pennies / 100.,
                                    refund_amount))
     else:
-        text = ('%s completed with $%s billable. %s refunded' % (camp,
+        text = ('{} completed with ${} billable. {} refunded'.format(camp,
             billable_amount, refund_amount))
 
     PromotionLog.add(link, text)
@@ -1051,10 +1050,10 @@ def srnames_from_site(user, site, include_subscriptions=True):
 
             # only use subreddits that aren't quarantined and have the same
             # age gate as the subreddit being viewed.
-            subscriptions = filter(
+            subscriptions = list(filter(
                 lambda sr: not sr.quarantine and sr.over_18 == over_18,
                 subscriptions,
-            )
+            ))
 
             subscription_srnames = {sr.name for sr in subscriptions}
 
@@ -1108,7 +1107,7 @@ def keywords_from_context(
 
 # special handling for memcache ascii protocol
 SPECIAL_NAMES = {" reddit.com": "_reddit.com"}
-REVERSED_NAMES = {v: k for k, v in SPECIAL_NAMES.iteritems()}
+REVERSED_NAMES = {v: k for k, v in SPECIAL_NAMES.items()}
 
 
 def _get_live_promotions(sanitized_names):
@@ -1139,9 +1138,9 @@ def get_live_promotions(sr_names):
     )
     promos_by_srname = {
         REVERSED_NAMES.get(name, name): val
-        for name, val in promos_by_sanitized_name.iteritems()
+        for name, val in promos_by_sanitized_name.items()
     }
-    return itertools.chain.from_iterable(promos_by_srname.itervalues())
+    return itertools.chain.from_iterable(iter(promos_by_srname.values()))
 
 
 def lottery_promoted_links(sr_names, n=10):
@@ -1281,9 +1280,9 @@ def Run(verbose=True):
     """
 
     if verbose:
-        print "%s promote.py:Run() - make_daily_promotions()" % datetime.datetime.now(g.tz)
+        print("%s promote.py:Run() - make_daily_promotions()" % datetime.datetime.now(g.tz))
 
     make_daily_promotions()
 
     if verbose:
-        print "%s promote.py:Run() - finished" % datetime.datetime.now(g.tz)
+        print("%s promote.py:Run() - finished" % datetime.datetime.now(g.tz))

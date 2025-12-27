@@ -28,7 +28,6 @@ from mako.exceptions import TemplateLookupException
 from mako.template import Template as mTemplate
 from pylons import app_globals as g
 
-
 NULL_TEMPLATE = mTemplate("")
 NULL_TEMPLATE.is_null = True
 
@@ -51,7 +50,7 @@ class tp_manager:
         if use_cache:
             if (not hasattr(template, "hash") and
                     getattr(template, "filename", None)):
-                with open(template.filename, 'r') as handle:
+                with open(template.filename) as handle:
                     template.hash = hashlib.sha1(handle.read()).hexdigest()
             key = (cls.__name__.lower(), style)
             self.templates[key] = template
@@ -66,7 +65,7 @@ class tp_manager:
             if template:
                 return template
 
-        filename = "/%s.%s" % (name, style)
+        filename = "/{}.{}".format(name, style)
         try:
             template = g.mako_lookup.get_template(filename)
         except TemplateLookupException:

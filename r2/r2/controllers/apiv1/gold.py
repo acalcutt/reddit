@@ -20,25 +20,25 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 
 from r2.controllers.api_docs import api_doc, api_section
+from r2.controllers.ipn import send_gift
 from r2.controllers.oauth2 import require_oauth2_scope
 from r2.controllers.reddit_base import OAuth2OnlyController
-from r2.controllers.ipn import send_gift
 from r2.lib.errors import RedditError
 from r2.lib.validator import (
-    validate,
     VAccountByName,
     VByName,
     VInt,
     VNotInTimeout,
+    VUser,
+    validate,
 )
 from r2.models import Account, Comment, Link, NotFound
 from r2.models.gold import creddits_lock
-from r2.lib.validator import VUser
 
 
 class APIv1GoldController(OAuth2OnlyController):

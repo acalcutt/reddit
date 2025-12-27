@@ -20,12 +20,15 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from importlib.metadata import entry_points
+
+
 def select_provider(config_parser, working_set, type, name):
     """Given a type and name return an instantiated provider.
 
     Providers are objects that abstract away an external service. They are
-    looked up via the pkg_resources system which means that they may not even
-    be implemented in the main reddit code.
+    looked up via importlib.metadata entry points which means that they may
+    not even be implemented in the main reddit code.
 
     A provider must implement the expected interface, be registered via
     setuptools with the right entry point, and have a no-argument constructor.
@@ -35,14 +38,17 @@ def select_provider(config_parser, working_set, type, name):
     similarly to the plugin system. This allows providers to declare extra
     config options for parsing.
 
+    Note: working_set parameter is kept for backwards compatibility but ignored.
     """
 
-    try:
-        entry_point = working_set.iter_entry_points(type, name).next()
-    except StopIteration:
-        raise Exception("unknown %s provider: %r" % (type, name))
-    else:
-        provider_cls = entry_point.load()
+    eps = entry_points(group=type)
+    matching = [ep for ep in eps if ep.name == name]
+
+    if not matching:
+        raise Exception("unknown {} provider: {!r}".format(type, name))
+
+    entry_point = matching[0]
+    provider_cls = entry_point.load()
 
     if hasattr(provider_cls, "config"):
         config_parser.add_spec(provider_cls.config)

@@ -23,15 +23,14 @@
 
 import datetime
 import json
-import urllib
-import urlparse
+import urllib.error
+import urllib.parse
+import urllib.request
 
-from baseplate.crypto import MessageSigner
+from baseplate.lib.crypto import MessageSigner
 from pylons import app_globals as g
 
 from r2.lib import amqp
-from r2.lib.filters import websafe_json
-
 
 _WEBSOCKET_EXCHANGE = "sutro"
 
@@ -64,9 +63,9 @@ def make_url(namespace, max_age):
     signature = signer.make_signature(
         namespace, max_age=datetime.timedelta(seconds=max_age))
 
-    query_string = urllib.urlencode({
+    query_string = urllib.parse.urlencode({
         "m": signature,
     })
 
-    return urlparse.urlunparse(("wss", g.websocket_host, namespace,
+    return urllib.parse.urlunparse(("wss", g.websocket_host, namespace,
                                None, query_string, None))

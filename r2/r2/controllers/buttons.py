@@ -20,15 +20,17 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from reddit_base import RedditController, UnloggedUser
-from r2.lib.pages import (ButtonLite, ButtonDemoPanel, WidgetDemoPanel,
-                          BoringPage)
-from r2.lib.pages.things import wrap_links
-from r2.models import *
-from r2.lib.validator import *
 from pylons import request, response
 from pylons import tmpl_context as c
 from pylons.i18n import _
+
+from r2.lib.pages import BoringPage, ButtonDemoPanel, ButtonLite, WidgetDemoPanel
+from r2.lib.pages.things import wrap_links
+from r2.lib.validator import *
+from r2.models import *
+
+from .reddit_base import RedditController, UnloggedUser
+
 
 class ButtonsController(RedditController):
     def get_wrapped_link(self, url, link = None, wrapper = None):

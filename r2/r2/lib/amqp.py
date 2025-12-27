@@ -33,18 +33,15 @@ consume_items: For processing a queue one item at a time
   while trying to get a connection to amqp.
 
 """
-from Queue import Queue
-from threading import local, Thread
-from datetime import datetime
-import os
+import errno
+import pickle as pickle
 import sys
 import time
-import errno
-import socket
-import itertools
-import cPickle as pickle
+from datetime import datetime
+from queue import Queue
+from threading import Thread, local
 
-from amqplib import client_0_8 as amqp
+import amqp as amqp_lib
 
 cfg = None
 worker = None
@@ -60,7 +57,7 @@ def initialize(app_globals):
     connection_manager = ConnectionManager()
 
 
-class Config(object):
+class Config:
     def __init__(self, g):
         self.amqp_host = g.amqp_host
         self.amqp_user = g.amqp_user
@@ -91,7 +88,7 @@ class Worker:
                 self.q.task_done()
             except:
                 import traceback
-                print traceback.format_exc()
+                print(traceback.format_exc())
 
     def do(self, fn, *a, **kw):
         fn1 = lambda: fn(*a, **kw)
@@ -114,15 +111,14 @@ class ConnectionManager(local):
     def get_connection(self):
         while not self.connection:
             try:
-                self.connection = amqp.Connection(
+                self.connection = amqp_lib.Connection(
                     host=cfg.amqp_host,
                     userid=cfg.amqp_user,
                     password=cfg.amqp_pass,
                     virtual_host=cfg.amqp_virtual_host,
-                    insist=False,
                 )
-            except (socket.error, IOError), e:
-                print ('error connecting to amqp %s @ %s (%r)' %
+            except OSError as e:
+                print('error connecting to amqp %s @ %s (%r)' %
                        (cfg.amqp_user, cfg.amqp_host, e))
                 time.sleep(1)
 
@@ -184,15 +180,15 @@ def _add_item(routing_key, body, message_id = None,
     """adds an item onto a queue. If the connection to amqp is lost it
     will try to reconnect and then call itself again."""
     if not cfg.amqp_host:
-        cfg.log.error("Ignoring amqp message %r to %r" % (body, routing_key))
+        cfg.log.error("Ignoring amqp message {!r} to {!r}".format(body, routing_key))
         return
     if not exchange:
         exchange = cfg.amqp_exchange
 
     chan = connection_manager.get_channel()
-    msg = amqp.Message(body,
-                       timestamp = datetime.now(),
-                       delivery_mode = delivery_mode)
+    msg = amqp_lib.Message(body,
+                           timestamp=datetime.now(),
+                           delivery_mode=delivery_mode)
     if message_id:
         msg.properties['message_id'] = message_id
 
@@ -262,7 +258,7 @@ def consume_items(queue, callback, verbose=True):
                 # available
                 count_str = '(%d remaining)' % msg.delivery_info['message_count']
 
-            print "%s: 1 item %s" % (queue, count_str)
+            print("{}: 1 item {}".format(queue, count_str))
 
         cfg.reset_caches()
         c.use_write_db = {}
@@ -338,7 +334,7 @@ def handle_items(queue, callback, ack=True, limit=1, min_size=0,
                 # available
                 count_str = '(%d remaining)' % items[-1].delivery_info['message_count']
             if verbose:
-                print "%s: %d items %s" % (queue, len(items), count_str)
+                print("%s: %d items %s" % (queue, len(items), count_str))
             callback(items, chan)
 
             if ack:
@@ -363,7 +359,7 @@ def empty_queue(queue):
 def black_hole(queue):
     """continually empty out a queue as new items are created"""
     def _ignore(msg):
-        print 'Ignoring msg: %r' % msg.body
+        print('Ignoring msg: %r' % msg.body)
 
     consume_items(queue, _ignore)
 
@@ -393,19 +389,19 @@ def dedup_queue(queue, rk = None, limit=None,
             limit = msg.delivery_info.get('message_count')
             if limit is None:
                 default_max = 100*1000
-                print ("Message count was unavailable, defaulting to %d"
+                print("Message count was unavailable, defaulting to %d"
                        % (default_max,))
                 limit = default_max
             else:
-                print "Grabbing %d messages" % (limit,)
+                print("Grabbing %d messages" % (limit,))
         else:
             limit -= 1
             if limit <= 0:
                 break
             elif limit % 1000 == 0:
-                print limit
+                print(limit)
 
-    print "Grabbed %d unique bodies" % (len(bodies),)
+    print("Grabbed %d unique bodies" % (len(bodies),))
 
     if bodies:
         for body in bodies:

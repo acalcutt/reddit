@@ -22,9 +22,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import time
-import random
 import collections
+import random
+import time
 
 #: Epoch for simpleflake timestamps, starts at the year 2000
 SIMPLEFLAKE_EPOCH = 946702800
@@ -49,7 +49,7 @@ def pad_bytes_to_64(string):
 
 def binary(num, padding=True):
     """Show binary digits of a number, pads to 64 bits unless specified."""
-    binary_digits = "{0:b}".format(int(num))
+    binary_digits = "{:b}".format(int(num))
     if not padding:
         return binary_digits
     return pad_bytes_to_64(int(num))

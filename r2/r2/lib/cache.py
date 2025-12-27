@@ -20,33 +20,27 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from threading import local
-from hashlib import md5
-import cPickle as pickle
+import pickle as pickle
+import random
 from copy import copy
-from curses.ascii import isgraph
-import logging
-from time import sleep
-
-from pylons import app_globals as g
+from hashlib import md5
+from threading import local
 
 import pylibmc
 from _pylibmc import MemcachedError
-
-import random
-
 from pycassa import ColumnFamily
 from pycassa.cassandra.ttypes import ConsistencyLevel
+from pylons import app_globals as g
 
-from r2.lib.utils import in_chunks, prefix_keys, trace, tup
 from r2.lib.hardcachebackend import HardCacheBackend
+from r2.lib.utils import in_chunks, prefix_keys, tup
 
 # This is for use in the health controller
 _CACHE_SERVERS = set()
 
-class NoneResult(object): pass
+class NoneResult: pass
 
-class CacheUtils(object):
+class CacheUtils:
     # Caches that never expire entries should set this to true, so that
     # CacheChain can properly count hits and misses.
     permanent = False
@@ -59,7 +53,7 @@ class CacheUtils(object):
                 pass
 
     def add_multi(self, keys, prefix='', time=0):
-        for k,v in keys.iteritems():
+        for k,v in keys.items():
             self.add(prefix+str(k), v, time = time)
 
     def get_multi(self, keys, prefix='', **kw):
@@ -80,7 +74,7 @@ class CMemcache(CacheUtils):
         self.servers = servers
         self.clients = pylibmc.ClientPool(n_slots = num_clients)
 
-        for x in xrange(num_clients):
+        for x in range(num_clients):
             client = pylibmc.Client(servers, binary=binary)
             behaviors = {
                 'no_block': no_block, # use async I/O
@@ -131,7 +125,7 @@ class CMemcache(CacheUtils):
         if time < 0:
             raise ValueError("Rejecting negative TTL for key %s" % key)
 
-        str_keys = {str(k): v for k, v in keys.iteritems()}
+        str_keys = {str(k): v for k, v in keys.items()}
         with self.clients.reserve() as mc:
             return mc.set_multi(str_keys, key_prefix=prefix, time=time,
                                 min_compress_len=self.min_compress_len)
@@ -141,7 +135,7 @@ class CMemcache(CacheUtils):
         if time < 0:
             raise ValueError("Rejecting negative TTL for key %s" % key)
 
-        str_keys = {str(k): v for k, v in keys.iteritems()}
+        str_keys = {str(k): v for k, v in keys.items()}
         with self.clients.reserve() as mc:
             return mc.add_multi(str_keys, key_prefix=prefix, time=time)
 
@@ -184,7 +178,7 @@ class CMemcache(CacheUtils):
             return mc.delete_multi(str_keys, key_prefix=prefix)
 
     def __repr__(self):
-        return '<%s(%r)>' % (self.__class__.__name__,
+        return '<{}({!r})>'.format(self.__class__.__name__,
                              self.servers)
 
 
@@ -282,7 +276,7 @@ class HardCache(CacheUtils):
         return results
 
     def set_multi(self, keys, prefix='', time=0):
-        for k,v in keys.iteritems():
+        for k,v in keys.items():
             if v != NoneResult:
                 self.set(prefix+str(k), v, time=time)
 
@@ -312,10 +306,10 @@ class LocalCache(dict, CacheUtils):
         return dict.__init__(self, *a, **kw)
 
     def _check_key(self, key):
-        if isinstance(key, unicode):
+        if isinstance(key, str):
             key = str(key) # try to convert it first
         if not isinstance(key, str):
-            raise TypeError('Key is not a string: %r' % (key,))
+            raise TypeError('Key is not a string: {!r}'.format(key))
 
     def get(self, key, default=None):
         r = dict.get(self, key)
@@ -337,7 +331,7 @@ class LocalCache(dict, CacheUtils):
         self[key] = val
 
     def set_multi(self, keys, prefix='', time=0):
-        for k,v in keys.iteritems():
+        for k,v in keys.items():
             self.set(prefix+str(k), v, time=time)
 
     def add(self, key, val, time = 0):
@@ -347,32 +341,32 @@ class LocalCache(dict, CacheUtils):
         return not was
 
     def delete(self, key):
-        if self.has_key(key):
+        if key in self:
             del self[key]
 
     def delete_multi(self, keys):
         for key in keys:
-            if self.has_key(key):
+            if key in self:
                 del self[key]
 
     def incr(self, key, delta=1, time=0):
-        if self.has_key(key):
+        if key in self:
             self[key] = int(self[key]) + delta
 
     def decr(self, key, amt=1):
-        if self.has_key(key):
+        if key in self:
             self[key] = int(self[key]) - amt
 
     def append(self, key, val, time = 0):
-        if self.has_key(key):
+        if key in self:
             self[key] = str(self[key]) + val
 
     def prepend(self, key, val, time = 0):
-        if self.has_key(key):
+        if key in self:
             self[key] = val + str(self[key])
 
     def replace(self, key, val, time = 0):
-        if self.has_key(key):
+        if key in self:
             self[key] = val
 
     def flush_all(self):
@@ -482,7 +476,7 @@ class TransitionalCache(CacheUtils):
                 old_key_dict = args[0]
                 new_key_dict = {}
 
-                for old_key, val in old_key_dict.iteritems():
+                for old_key, val in old_key_dict.items():
                     new_prefix, new_key = self.key_transform(old_key, prefix)
                     new_key_dict[new_key] = val
                     new_prefixes.append(new_prefix)
@@ -570,7 +564,7 @@ def cache_timer_decorator(fn_name):
             if use_timer and self.stats:
                 publish = random.random() < g.stats.CACHE_SAMPLE_RATE
                 cache_name = self.stats.cache_name
-                timer_name = "cache.%s.%s" % (cache_name, fn_name)
+                timer_name = "cache.{}.{}".format(cache_name, fn_name)
                 timer = g.stats.get_timer(timer_name, publish)
                 timer.start()
             else:
@@ -704,13 +698,13 @@ class CacheChain(CacheUtils, local):
                 need = need - set(r.keys())
 
         if need and self.cache_negative_results:
-            d = dict((key, NoneResult) for key in need)
+            d = {key: NoneResult for key in need}
             for c in self.caches[:-1]:
                 c.set_multi(d)
 
-        out = dict((k, v)
-                   for (k, v) in out.iteritems()
-                   if v != NoneResult)
+        out = {k: v
+                   for (k, v) in out.items()
+                   if v != NoneResult}
 
         if self.stats:
             if not misses:
@@ -723,14 +717,14 @@ class CacheChain(CacheUtils, local):
         return out
 
     def __repr__(self):
-        return '<%s %r>' % (self.__class__.__name__,
+        return '<{} {!r}>'.format(self.__class__.__name__,
                             self.caches)
 
     def debug(self, key):
-        print "Looking up [%r]" % key
+        print("Looking up [%r]" % key)
         for i, c in enumerate(self.caches):
-            print "[%d] %10s has value [%r]" % (i, c.__class__.__name__,
-                                                c.get(key))
+            print("[%d] %10s has value [%r]" % (i, c.__class__.__name__,
+                                                c.get(key)))
 
     def reset(self):
         # the first item in a cache chain is a LocalCache
@@ -839,7 +833,7 @@ class StaleCacheChain(CacheChain):
         if keys and stale:
             stale_values = self._getstale(keys)
             # never put stale data into the localcache
-            for k, v in stale_values.iteritems():
+            for k, v in stale_values.items():
                 ret[k] = v
                 keys.remove(k)
 
@@ -878,14 +872,14 @@ class StaleCacheChain(CacheChain):
             self.realcache.caches = (newcache,) + self.realcache.caches[1:]
 
     def __repr__(self):
-        return '<%s %r>' % (self.__class__.__name__,
+        return '<{} {!r}>'.format(self.__class__.__name__,
                             (self.localcache, self.stalecache, self.realcache))
 
 CL_ONE = ConsistencyLevel.ONE
 CL_QUORUM = ConsistencyLevel.QUORUM
 
 
-class Permacache(object):
+class Permacache:
     """Cassandra key/value column family backend with a cachechain in front.
     
     Probably best to not think of this as a cache but rather as a key/value
@@ -912,11 +906,11 @@ class Permacache(object):
         rows = self.cf.multiget(keys, columns=[self.COLUMN_NAME])
         ret = {
             key: pickle.loads(columns[self.COLUMN_NAME])
-            for key, columns in rows.iteritems()
+            for key, columns in rows.items()
         }
         if is_single:
             if ret:
-                return ret.values()[0]
+                return list(ret.values())[0]
             else:
                 return None
         else:
@@ -930,8 +924,8 @@ class Permacache(object):
     def _backend_set_multi(self, keys, prefix=''):
         ret = {}
         with self.cf.batch():
-            for key, val in keys.iteritems():
-                rowkey = "%s%s" % (prefix, key)
+            for key, val in keys.items():
+                rowkey = "{}{}".format(prefix, key)
                 column = {self.COLUMN_NAME: pickle.dumps(val, protocol=2)}
                 ret[key] = self.cf.insert(rowkey, column)
         return ret
@@ -1008,7 +1002,7 @@ class Permacache(object):
         return new_value
 
     def __repr__(self):
-        return '<%s %r %r>' % (self.__class__.__name__,
+        return '<{} {!r} {!r}>'.format(self.__class__.__name__,
                             self.cache_chain, self.cf.column_family)
 
 
@@ -1098,22 +1092,26 @@ class SelfEmptyingCache(LocalCache):
 
 
 def _make_hashable(s):
-    if isinstance(s, str):
+    # Always return bytes suitable for hashing. Encode `str` to UTF-8,
+    # pass through `bytes` unchanged, and recursively convert containers
+    # to a deterministic byte representation.
+    if isinstance(s, bytes):
         return s
-    elif isinstance(s, unicode):
+    if isinstance(s, str):
         return s.encode('utf-8')
-    elif isinstance(s, (tuple, list)):
-        return ','.join(_make_hashable(x) for x in s)
-    elif isinstance(s, dict):
-        return ','.join('%s:%s' % (_make_hashable(k), _make_hashable(v))
-                        for (k, v) in sorted(s.iteritems()))
-    else:
-        return str(s)
+    if isinstance(s, (tuple, list)):
+        return b','.join(_make_hashable(x) for x in s)
+    if isinstance(s, dict):
+        parts = [b'%b:%b' % (_make_hashable(k), _make_hashable(v))
+                 for (k, v) in sorted(s.items())]
+        return b','.join(parts)
+    return str(s).encode('utf-8')
 
 
 def make_key_id(*a, **kw):
     h = md5()
     h.update(_make_hashable(a))
+    h.update(b'|')
     h.update(_make_hashable(kw))
     return h.hexdigest()
 

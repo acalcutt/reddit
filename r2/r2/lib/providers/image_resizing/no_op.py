@@ -22,6 +22,7 @@
 
 from r2.lib.providers.image_resizing import ImageResizingProvider
 
+
 class NoOpImageResizingProvider(ImageResizingProvider):
     """A passthrough solution that won't actually resize any images.
     

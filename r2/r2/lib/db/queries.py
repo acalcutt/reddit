@@ -21,30 +21,26 @@
 ###############################################################################
 
 import collections
-from copy import deepcopy, copy
-import cPickle as pickle
-from datetime import datetime
-from functools import partial
 import hashlib
 import itertools
+import pickle as pickle
+from copy import copy, deepcopy
+from datetime import datetime
+
 import pytz
-from time import mktime
-
 from pylons import app_globals as g
-from pylons import tmpl_context as c
-from pylons import request
 
-from r2.lib import amqp
-from r2.lib import filters
+from r2.lib import amqp, filters, utils
 from r2.lib.comment_tree import add_comments
 from r2.lib.db import tdb_cassandra
-from r2.lib.db.operators import and_, or_
-from r2.lib.db.operators import asc, desc, timeago
+from r2.lib.db.operators import and_, asc, desc, or_, timeago
 from r2.lib.db.sorts import epoch_seconds
-from r2.lib.db.thing import Thing, Merge
-from r2.lib import utils
-from r2.lib.utils import in_chunks, is_subdomain, SimpleSillyStub
-from r2.lib.utils import fetch_things2, tup, UniqueIterator
+from r2.lib.db.thing import Thing
+from r2.lib.utils import (
+    fetch_things2,
+    in_chunks,
+    tup,
+)
 from r2.lib.voting import prequeued_vote_key
 from r2.models import (
     Account,
@@ -56,7 +52,6 @@ from r2.models import (
     ModContribSR,
     ModeratorInbox,
     MultiReddit,
-    PromoCampaign,
     Report,
     Subreddit,
     VotesByAccount,
@@ -64,19 +59,18 @@ from r2.models import (
 from r2.models.last_modified import LastModified
 from r2.models.promo import PROMOTE_STATUS, PromotionLog
 from r2.models.query_cache import (
-    cached_query,
     CachedQuery,
     CachedQueryMutator,
-    filter_thing,
     FakeQuery,
-    merged_cached_query,
     MergedCachedQuery,
     SubredditQueryCache,
     ThingTupleComparator,
     UserQueryCache,
+    cached_query,
+    filter_thing,
+    merged_cached_query,
 )
 from r2.models.vote import Vote
-
 
 precompute_limit = 1000
 
@@ -100,7 +94,7 @@ db_times = dict(all = None,
 # etc). All of these but 'all' are done in mr_top, who knows about the
 # structure of the stored CachedResults (so changes here may warrant
 # changes there)
-time_filtered_sorts = set(('top', 'controversial'))
+time_filtered_sorts = {'top', 'controversial'}
 
 #we need to define the filter functions here so cachedresults can be pickled
 def filter_identity(x):
@@ -112,7 +106,7 @@ def filter_thing2(x):
     return x._thing2
 
 
-class CachedResults(object):
+class CachedResults:
     """Given a query returns a list-like object that will lazily look up
     the query from the persistent cache. """
     def __init__(self, query, filter):
@@ -138,7 +132,7 @@ class CachedResults(object):
             for r in rules:
                 i += str(r)
 
-        return hashlib.sha1(i).hexdigest()
+        return hashlib.sha1(i.encode('utf-8')).hexdigest()
 
     @property
     def sort(self):
@@ -150,7 +144,7 @@ class CachedResults(object):
 
     @classmethod
     def fetch_multi(cls, crs, force=False, stale=False):
-        unfetched = filter(lambda cr: force or not cr._fetched, crs)
+        unfetched = [cr for cr in crs if force or not cr._fetched]
         if not unfetched:
             return
 
@@ -245,7 +239,7 @@ class CachedResults(object):
             # insert the items, remove the duplicates (keeping the
             # one being inserted over the stored value if applicable),
             # and sort the result
-            data = filter(lambda x: x[0] not in new_fnames, data)
+            data = [x for x in data if x[0] not in new_fnames]
             data.extend(item_tuples)
             data.sort(reverse=True, key=lambda x: x[1:])
             if len(data) > precompute_limit:
@@ -256,12 +250,11 @@ class CachedResults(object):
 
     def delete(self, items):
         """Deletes an item from the cached data."""
-        fnames = set(self.filter(x)._fullname for x in tup(items))
+        fnames = {self.filter(x)._fullname for x in tup(items)}
 
         def _mutate(data):
             data = data or []
-            return filter(lambda x: x[0] not in fnames,
-                          data)
+            return [x for x in data if x[0] not in fnames]
 
         self._mutate(_mutate)
 
@@ -286,7 +279,7 @@ class CachedResults(object):
         g.permacache.set(self.iden, self.data)
 
     def __repr__(self):
-        return '<CachedResults %s %s>' % (self.query._rules, self.query._sort)
+        return '<CachedResults {} {}>'.format(self.query._rules, self.query._sort)
 
     def __iter__(self):
         self.fetch()
@@ -294,7 +287,7 @@ class CachedResults(object):
         for x in self.data:
             yield x[0]
 
-class MergedCachedResults(object):
+class MergedCachedResults:
     """Given two CachedResults, merges their lists based on the sorts
        of their queries."""
     # normally we'd do this by having a superclass of CachedResults,
@@ -322,7 +315,7 @@ class MergedCachedResults(object):
 
 
     def __repr__(self):
-        return '<MergedCachedResults %r>' % (self.cached_results,)
+        return '<MergedCachedResults {!r}>'.format(self.cached_results)
 
     def __iter__(self):
         for x in self.data:
@@ -1000,15 +993,15 @@ def add_queries(queries, insert_items=None, delete_items=None):
 
     for q in queries:
         if insert_items and q.can_insert():
-            g.log.debug("Inserting %s into query %s" % (insert_items, q))
+            g.log.debug("Inserting {} into query {}".format(insert_items, q))
             with g.stats.get_timer('permacache.foreground.insert'):
                 q.insert(insert_items)
         elif delete_items and q.can_delete():
-            g.log.debug("Deleting %s from query %s" % (delete_items, q))
+            g.log.debug("Deleting {} from query {}".format(delete_items, q))
             with g.stats.get_timer('permacache.foreground.delete'):
                 q.delete(delete_items)
         else:
-            raise Exception("Cannot update query %r!" % (q,))
+            raise Exception("Cannot update query {!r}!".format(q))
 
     # dual-write any queries that are being migrated to the new query cache
     with CachedQueryMutator() as m:
@@ -1182,7 +1175,7 @@ def new_message(message, inbox_rels, add_to_sent=True, update_modmail=True):
     # light up the modmail icon for all other mods with mail access
     if update_modmail:
         mod_perms = message.subreddit_slow.moderators_with_perms()
-        mod_ids = [mod_id for mod_id, perms in mod_perms.iteritems()
+        mod_ids = [mod_id for mod_id, perms in mod_perms.items()
             if mod_id != from_user._id and perms.get('mail', False)]
         moderators = Account._byID(mod_ids, data=True, return_dict=False)
         for mod in moderators:
@@ -1279,12 +1272,12 @@ def unread_handler(things, user, unread):
 
     if sr_messages:
         mod_srs = Subreddit.reverse_moderator_ids(user)
-        srs = Subreddit._byID(sr_messages.keys())
+        srs = Subreddit._byID(list(sr_messages.keys()))
     else:
         mod_srs = []
 
     with CachedQueryMutator() as m:
-        for sr_id, things in sr_messages.items():
+        for sr_id, things in list(sr_messages.items()):
             # Remove the item(s) from the user's inbox
             set_unread(things, user, unread, mutator=m)
 
@@ -1356,14 +1349,14 @@ def notification_handler(thing, notify_function,
         # if the comment has been spammed, remember the previous
         # new value in case it becomes unspammed
         if thing._spam:
-            for (tupl, rel) in rels.iteritems():
+            for (tupl, rel) in rels.items():
                 if rel:
                     rel.unread_preremoval = rel.new
                     rel._commit()
 
         replies, mentions = utils.partition(
             lambda r: r._name == "mention",
-            filter(None, rels.values()),
+            [_f for _f in list(rels.values()) if _f],
         )
 
         for mention in mentions:
@@ -1386,7 +1379,7 @@ def _by_srid(things, srs=True):
             ret.setdefault(thing.sr_id, []).append(thing)
 
     if srs:
-        _srs = Subreddit._byID(ret.keys(), return_dict=True) if ret else {}
+        _srs = Subreddit._byID(list(ret.keys()), return_dict=True) if ret else {}
         return ret, _srs
     else:
         return ret
@@ -1401,7 +1394,7 @@ def _by_author(things, authors=True):
             ret[author_id].append(thing)
 
     if authors:
-        _authors = Account._byID(ret.keys(), return_dict=True) if ret else {}
+        _authors = Account._byID(list(ret.keys()), return_dict=True) if ret else {}
         return ret, _authors
     else:
         return ret
@@ -1426,7 +1419,7 @@ def delete(things):
     by_srid, srs = _by_srid(things)
     by_author, authors = _by_author(things)
 
-    for sr_id, sr_things in by_srid.iteritems():
+    for sr_id, sr_things in by_srid.items():
         sr = srs[sr_id]
         links = [x for x in sr_things if isinstance(x, Link)]
         comments = [x for x in sr_things if isinstance(x, Comment)]
@@ -1443,7 +1436,7 @@ def delete(things):
                                         comments))
             query_cache_deletes.append((get_edited_comments(sr), comments))
 
-    for author_id, a_things in by_author.iteritems():
+    for author_id, a_things in by_author.items():
         author = authors[author_id]
         links = [x for x in a_things if isinstance(x, Link)]
         comments = [x for x in a_things if isinstance(x, Comment)]
@@ -1452,7 +1445,7 @@ def delete(things):
             results = [get_submitted(author, 'hot', 'all'),
                        get_submitted(author, 'new', 'all')]
             for sort in time_filtered_sorts:
-                for time in db_times.keys():
+                for time in list(db_times.keys()):
                     results.append(get_submitted(author, sort, time))
             add_queries(results, delete_items=links)
             query_cache_inserts.append((get_deleted_links(author_id), links))
@@ -1460,7 +1453,7 @@ def delete(things):
             results = [get_comments(author, 'hot', 'all'),
                        get_comments(author, 'new', 'all')]
             for sort in time_filtered_sorts:
-                for time in db_times.keys():
+                for time in list(db_times.keys()):
                     results.append(get_comments(author, sort, time))
             add_queries(results, delete_items=comments)
             query_cache_inserts.append((get_deleted_comments(author_id),
@@ -1491,7 +1484,7 @@ def ban(things, filtered=True):
     query_cache_inserts, query_cache_deletes = _common_del_ban(things)
     by_srid = _by_srid(things, srs=False)
 
-    for sr_id, sr_things in by_srid.iteritems():
+    for sr_id, sr_things in by_srid.items():
         links = []
         modqueue_links = []
         comments = []
@@ -1548,7 +1541,7 @@ def _common_del_ban(things):
     query_cache_deletes = []
     by_srid, srs = _by_srid(things)
 
-    for sr_id, sr_things in by_srid.iteritems():
+    for sr_id, sr_things in by_srid.items():
         sr = srs[sr_id]
         links = [x for x in sr_things if isinstance(x, Link)]
         comments = [x for x in sr_things if isinstance(x, Comment)]
@@ -1556,7 +1549,7 @@ def _common_del_ban(things):
         if links:
             results = [get_links(sr, 'hot', 'all'), get_links(sr, 'new', 'all')]
             for sort in time_filtered_sorts:
-                for time in db_times.keys():
+                for time in list(db_times.keys()):
                     results.append(get_links(sr, sort, time))
             add_queries(results, delete_items=links)
             query_cache_deletes.append([get_reported_links(sr), links])
@@ -1575,7 +1568,7 @@ def unban(things, insert=True):
     if not by_srid:
         return
 
-    for sr_id, things in by_srid.iteritems():
+    for sr_id, things in by_srid.items():
         sr = srs[sr_id]
         links = [x for x in things if isinstance(x, Link)]
         comments = [x for x in things if isinstance(x, Comment)]
@@ -1654,7 +1647,7 @@ def clear_reports(things, rels):
 
     by_srid = _by_srid(things, srs=False)
 
-    for sr_id, sr_things in by_srid.iteritems():
+    for sr_id, sr_things in by_srid.items():
         links = [ x for x in sr_things if isinstance(x, Link) ]
         comments = [ x for x in sr_things if isinstance(x, Comment) ]
 
@@ -1681,7 +1674,7 @@ def clear_reports(things, rels):
                 continue
 
             by_thing1_id = _by_thing1_id(thing_rels)
-            for reporter_id, reporter_rels in by_thing1_id.iteritems():
+            for reporter_id, reporter_rels in by_thing1_id.items():
                 query_cache_deletes.append([query(reporter_id), reporter_rels])
 
     with CachedQueryMutator() as m:
@@ -1696,7 +1689,7 @@ def add_all_srs():
     for sr in fetch_things2(q):
         for q in all_queries(get_links, sr, ('hot', 'new'), ['all']):
             q.update()
-        for q in all_queries(get_links, sr, time_filtered_sorts, db_times.keys()):
+        for q in all_queries(get_links, sr, time_filtered_sorts, list(db_times.keys())):
             q.update()
         get_spam_links(sr).update()
         get_spam_comments(sr).update()
@@ -1741,7 +1734,7 @@ def run_new_comments(limit=1000):
                     insert_items=comments)
 
         bysrid = _by_srid(comments, False)
-        for srid, sr_comments in bysrid.iteritems():
+        for srid, sr_comments in bysrid.items():
             add_queries([_get_sr_comments(srid)],
                         insert_items=sr_comments)
 
@@ -1754,7 +1747,7 @@ def run_commentstree(qname="commentstree_q", limit=400):
     def _run_commentstree(msgs, chan):
         comments = Comment._by_fullname([msg.body for msg in msgs],
                                         data = True, return_dict = False)
-        print 'Processing %r' % (comments,)
+        print('Processing {!r}'.format(comments))
 
         if comments:
             add_comments(comments)
@@ -1779,13 +1772,13 @@ def get_stored_votes(user, things):
     results = {}
     things_by_type = _by_type(things)
 
-    for thing_class, items in things_by_type.iteritems():
+    for thing_class, items in things_by_type.items():
         if not thing_class.is_votable:
             continue
 
         rel_class = VotesByAccount.rel(thing_class)
         votes = rel_class.fast_query(user, items)
-        for cross, direction in votes.iteritems():
+        for cross, direction in votes.items():
             results[cross] = Vote.deserialize_direction(int(direction))
 
     return results
@@ -1804,7 +1797,7 @@ def get_likes(user, requested_items):
 
     items_in_grace_period = {}
     items_by_type = _by_type(requested_items)
-    for type_, items in items_by_type.iteritems():
+    for type_, items in items_by_type.items():
         if not type_.is_votable:
             # these items can't be voted on. just mark 'em as None and skip.
             for item in items:
@@ -1841,8 +1834,8 @@ def get_likes(user, requested_items):
     if items_in_grace_period:
         g.stats.simple_event(
             "vote.prequeued.fetch", delta=len(items_in_grace_period))
-        r = g.gencache.get_multi(items_in_grace_period.keys())
-        for key, v in r.iteritems():
+        r = g.gencache.get_multi(list(items_in_grace_period.keys()))
+        for key, v in r.items():
             res[items_in_grace_period[key]] = Vote.deserialize_direction(v)
 
     cassavotes = get_stored_votes(

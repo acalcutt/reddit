@@ -19,33 +19,27 @@
 # All portions of the code written by reddit are Copyright (c) 2006-2015 reddit
 # Inc. All Rights Reserved.
 ###############################################################################
+import hashlib
+import hmac
+import mimetypes
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta
 
 from babel.dates import format_date
 from babel.numbers import format_number
-import hashlib
-import hmac
-import json
-import urllib
-import mimetypes
-import os
-
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _, N_
+from pylons.i18n import N_, _
 
 from r2.config import feature
 from r2.controllers.api import ApiController
 from r2.controllers.listingcontroller import ListingController
 from r2.controllers.reddit_base import RedditController
-from r2.lib.authorize import (
-    get_or_create_customer_profile,
-    add_or_update_payment_method,
-    PROFILE_LIMIT,
-)
-from r2.lib.authorize.api import AuthorizeNetException
 from r2.lib import (
     hooks,
     inventory,
@@ -53,17 +47,18 @@ from r2.lib import (
     promote,
     s3_helpers,
 )
+from r2.lib.authorize import (
+    PROFILE_LIMIT,
+    add_or_update_payment_method,
+    get_or_create_customer_profile,
+)
+from r2.lib.authorize.api import AuthorizeNetException
 from r2.lib.base import abort
 from r2.lib.db import queries
 from r2.lib.errors import errors
 from r2.lib.filters import (
-    jssafe,
     scriptsafe_dumps,
     websafe,
-)
-from r2.lib.template_helpers import (
-    add_sr,
-    format_html,
 )
 from r2.lib.memoize import memoize
 from r2.lib.menus import NamedButton, NavButton, NavMenu, QueryButton
@@ -71,9 +66,9 @@ from r2.lib.pages import (
     LinkInfoPage,
     PaymentForm,
     PromoteInventory,
-    PromotePage,
     PromoteLinkEdit,
     PromoteLinkNew,
+    PromotePage,
     PromoteReport,
     Reddit,
     RefundPage,
@@ -81,38 +76,34 @@ from r2.lib.pages import (
     SponsorLookupUser,
 )
 from r2.lib.pages.things import default_thing_wrapper, wrap_links
-from r2.lib.system_messages import user_added_messages
+from r2.lib.template_helpers import (
+    add_sr,
+    format_html,
+)
 from r2.lib.utils import (
+    UrlParser,
     constant_time_compare,
     is_subdomain,
-    to_date,
     to36,
-    UrlParser,
+    to_date,
 )
 from r2.lib.validator import (
-    json_validate,
-    nop,
-    noresponse,
     VAccountByName,
     ValidAddress,
-    validate,
-    validatedMultipartForm,
-    validatedForm,
     ValidCard,
     ValidEmail,
     VBoolean,
     VByName,
     VCollection,
     VDate,
-    VExistingUname,
     VFloat,
     VFrequencyCap,
-    VImageType,
     VInt,
     VLength,
     VLink,
     VList,
     VLocation,
+    VMarkdownLength,
     VModhash,
     VOneOf,
     VOSVersion,
@@ -121,33 +112,34 @@ from r2.lib.validator import (
     VPromoCampaign,
     VPromoTarget,
     VRatelimit,
-    VMarkdownLength,
     VShamedDomain,
     VSponsor,
     VSponsorAdmin,
     VSponsorAdminOrAdminSecret,
-    VVerifiedSponsor,
     VSubmitSR,
     VTitle,
-    VUploadLength,
     VUrl,
+    VVerifiedSponsor,
+    json_validate,
+    nop,
+    noresponse,
+    validate,
+    validatedForm,
 )
 from r2.models import (
     Account,
     AccountsByCanonicalEmail,
-    calc_impressions,
     Collection,
     Frontpage,
     Link,
-    Message,
     NotFound,
     PromoCampaign,
     PromotionLog,
     PromotionPrices,
     PromotionWeights,
-    PROMOTE_STATUS,
     Subreddit,
     Target,
+    calc_impressions,
 )
 from r2.models.promo import PROMOTE_COST_BASIS, PROMOTE_PRIORITIES
 
@@ -157,7 +149,7 @@ ANDROID_DEVICES = ('phone', 'tablet',)
 ADZERK_URL_MAX_LENGTH = 499
 
 EXPIRES_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
-ALLOWED_IMAGE_TYPES = set(["image/jpg", "image/jpeg", "image/png"])
+ALLOWED_IMAGE_TYPES = {"image/jpg", "image/jpeg", "image/png"}
 
 def _format_expires(expires):
     return expires.strftime(EXPIRES_DATE_FORMAT)
@@ -285,7 +277,7 @@ class PromoteController(RedditController):
     @validate(VSponsor())
     def GET_new_promo(self):
         ads_images = _get_ads_images(c.user)
-        images = {k: v.get("url") for k, v in ads_images.iteritems()}
+        images = {k: v.get("url") for k, v in ads_images.items()}
 
         return PromotePage(title=_("create sponsored link"),
                            content=PromoteLinkNew(images),
@@ -368,7 +360,7 @@ class SponsorController(PromoteController):
             campaign_ids = PromotionWeights.get_campaign_ids(
                 start, end, author_id=owner._id)
             campaigns = PromoCampaign._byID(campaign_ids, data=True)
-            link_ids = {camp.link_id for camp in campaigns.itervalues()}
+            link_ids = {camp.link_id for camp in campaigns.values()}
             links.extend(Link._byID(link_ids, data=True, return_dict=False))
 
         if link_text is not None:
@@ -379,7 +371,7 @@ class SponsorController(PromoteController):
                 links_from_text = {}
 
             bad_links = [id36 for id36 in id36s if id36 not in links_from_text]
-            links.extend(links_from_text.values())
+            links.extend(list(links_from_text.values()))
 
         content = PromoteReport(links, link_text, owner_name, bad_links, start,
                                 end, group_by_date=grouping == "day")
@@ -543,12 +535,12 @@ class PromoteListingController(ListingController):
 
 
 class SponsorListingController(PromoteListingController):
-    titles = dict(PromoteListingController.titles.items() + {
+    titles = dict(list(PromoteListingController.titles.items()) + list({
         'underdelivered': N_('underdelivered promoted links'),
         'reported': N_('reported promoted links'),
         'house': N_('house promoted links'),
         'fraud': N_('fraud suspected promoted links'),
-    }.items())
+    }.items()))
     base_path = '/sponsor/promoted'
 
     @property
@@ -578,7 +570,7 @@ class SponsorListingController(PromoteListingController):
             if self.sort in ('house', 'fraud'):
                 menus.append(managed_menu)
         else:
-            menus = super(SponsorListingController, self).menus
+            menus = super().menus
             menus.append(managed_menu)
 
         if self.sort == 'live_promos':
@@ -589,7 +581,7 @@ class SponsorListingController(PromoteListingController):
                 frontbutton = NavButton('FRONTPAGE', Frontpage.name,
                                         use_params=True,
                                         aliases=['/promoted/live_promos/%s' %
-                                                 urllib.quote(Frontpage.name)])
+                                                 urllib.parse.quote(Frontpage.name)])
                 buttons.append(frontbutton)
             except KeyError:
                 pass
@@ -976,7 +968,7 @@ class PromoteApiController(ApiController):
 
         # demangle URL in canonical way
         if url:
-            if isinstance(url, (unicode, str)):
+            if isinstance(url, str):
                 form.set_inputs(url=url)
             elif isinstance(url, tuple) or isinstance(url[0], Link):
                 # there's already one or more links with this URL, but

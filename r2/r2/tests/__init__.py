@@ -21,26 +21,24 @@
 ###############################################################################
 
 import os
+import queue
 import sys
-import Queue
-from unittest import TestCase
-from mock import patch, MagicMock
 from collections import defaultdict
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
-import pylons
-from pylons.i18n.translation import _get_translator
-from routes.util import URLGenerator
-from pylons import url
-import baseplate.events
-import pkg_resources
+from baseplate.lib import events as baseplate_events
 import paste.fixture
 import paste.script.appinstall
+from importlib.metadata import version, PackageNotFoundError
+import pylons
 from paste.deploy import loadapp
+from pylons import url
+from pylons.i18n.translation import _get_translator
+from routes.util import URLGenerator, url_for
 
-from routes.util import url_for
-from r2.lib.utils import query_string
 from r2.lib import eventcollector
-
+from r2.lib.utils import query_string
 
 __all__ = ['RedditTestCase', 'RedditControllerTestCase']
 
@@ -48,9 +46,9 @@ here_dir = os.path.dirname(os.path.abspath(__file__))
 conf_dir = os.path.dirname(os.path.dirname(here_dir))
 
 sys.path.insert(0, conf_dir)
-pkg_resources.working_set.add_entry(conf_dir)
-pkg_resources.require('Paste')
-pkg_resources.require('PasteScript')
+# conf_dir added to sys.path above
+version('Paste')  # Verify Paste is installed
+version('PasteScript')  # Verify PasteScript is installed
 
 
 # on case-insensitive file systems, Captcha gets masked by
@@ -67,13 +65,18 @@ except ImportError:
         from Captcha import Base
 
 from pylons import app_globals as g
+
 from r2.config.middleware import RedditApp
 
 # unfortunately, because of the deep intertwinded dependency we have in the
 # orm with app_globals, we unfortunately have to do some pylons-setup
 # at import time
-baseplate.events.EventQueue = Queue.Queue
-wsgiapp = loadapp('config:test.ini', relative_to=conf_dir)
+writable_ev = getattr(baseplate_events, 'EventQueue', None)
+if writable_ev is None:
+    baseplate_events.EventQueue = queue.Queue
+else:
+    baseplate_events.EventQueue = queue.Queue
+wsgiapp = loadapp('config:example.ini', relative_to=conf_dir)
 pylons.app_globals._push_object(wsgiapp.config['pylons.app_globals'])
 pylons.config._push_object(wsgiapp.config)
 
@@ -96,7 +99,7 @@ def diff_dicts(d, expected, prefix=None):
     """
     prefix = prefix or []
     diffs = {}
-    for k in set(d.keys() + expected.keys()):
+    for k in set(list(d.keys()) + list(expected.keys())):
         current_prefix = prefix + [k]
         want = d.get(k)
         got = expected.get(k)
@@ -113,9 +116,9 @@ class DiffAssertionError(AssertionError):
         s = "\n".join(
             "\t{key}: {want} != {got}".format(
                 key=key, want=repr(want), got=repr(got),
-            ) for key, (want, got) in sorted(diffs.iteritems())
+            ) for key, (want, got) in sorted(diffs.items())
         )
-        super(DiffAssertionError, self).__init__(
+        super().__init__(
             "Mismatched ditionaries:\n%s" % s
         )
 
@@ -133,7 +136,7 @@ def assert_same_dict(data, expected_data):
         raise DiffAssertionError(diffs)
 
 
-class MockAmqp(object):
+class MockAmqp:
     """An amqp replacement, suitable for unit tests.
     Besides providing a mock `queue` for storing all received events, this
     class provides a set of handy assert-style functions for checking what
@@ -234,7 +237,7 @@ class RedditTestCase(TestCase):
 
     def assert_same_dict(self, data, expected_data, prefix=None):
         prefix = prefix or []
-        for k in set(data.keys() + expected_data.keys()):
+        for k in set(list(data.keys()) + list(expected_data.keys())):
             current_prefix = prefix + [k]
             want = expected_data.get(k)
             got = data.get(k)
@@ -243,7 +246,7 @@ class RedditTestCase(TestCase):
             else:
                 self.assertEqual(
                     got, want,
-                    "Mismatch for %s: %r != %r" % (
+                    "Mismatch for {}: {!r} != {!r}".format(
                         ".".join(current_prefix), got, want
                     )
                 )
@@ -280,7 +283,7 @@ class RedditTestCase(TestCase):
 
         Since we do this all the time.  autpatch g with the provided kw.
         """
-        for k, v in kw.iteritems():
+        for k, v in kw.items():
             self.autopatch(g, k, v, create=not hasattr(g, k))
 
     def patch_liveconfig(self, k, v):
@@ -291,7 +294,7 @@ class RedditTestCase(TestCase):
         self.addCleanup(cleanup)
 
 
-class NonCache(object):
+class NonCache:
     def get(self, *a, **kw):
         return
 
@@ -316,8 +319,8 @@ class RedditControllerTestCase(RedditTestCase):
     ACTIONS = {}
 
     def setUp(self):
-        super(RedditControllerTestCase, self).setUp()
-        from r2.models import Link, Subreddit, Account
+        super().setUp()
+        from r2.models import Account, Link, Subreddit
         # unfortunately, these classes' _type attrs are used as import
         # side effects for some controllers, and need to be set for things
         # to work properly
@@ -362,9 +365,9 @@ class RedditControllerTestCase(RedditTestCase):
         headers.setdefault('User-Agent', self.user_agent)
         if self.device_id:
             headers.setdefault('Client-Vendor-ID', self.device_id)
-        for k, v in self.additional_headers(headers, body).iteritems():
+        for k, v in self.additional_headers(headers, body).items():
             headers.setdefault(k, v)
-        headers = {k: v for k, v in headers.iteritems() if v is not None}
+        headers = {k: v for k, v in headers.items() if v is not None}
         return self.app.post(
             url_for(controller=self.CONTROLLER,
                     action=self.ACTIONS.get(action, action)),

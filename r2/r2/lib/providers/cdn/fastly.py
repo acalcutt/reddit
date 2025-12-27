@@ -21,6 +21,7 @@
 ###############################################################################
 
 import hashlib
+
 import requests
 from pylons import app_globals as g
 
@@ -39,7 +40,7 @@ class FastlyCdnProvider(CdnProvider):
             return None
 
         secret = g.secrets["cdn_ip_verification"]
-        expected_hash = hashlib.sha1(client_ip + secret).hexdigest()
+        expected_hash = hashlib.sha1((client_ip + secret).encode('utf-8')).hexdigest()
 
         if not constant_time_compare(expected_hash, provided_hash):
             return None

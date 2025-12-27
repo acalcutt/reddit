@@ -20,12 +20,11 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import cStringIO
 import gzip
+import io
 import wsgiref.headers
 
-from paste.util.mimeparse import parse_mime_type, desired_matches
-
+from paste.util.mimeparse import desired_matches, parse_mime_type
 
 ENCODABLE_CONTENT_TYPES = {
     "application/json",
@@ -40,7 +39,7 @@ ENCODABLE_CONTENT_TYPES = {
 }
 
 
-class GzipMiddleware(object):
+class GzipMiddleware:
     """A middleware that transparently compresses content with gzip.
 
     Note: this middleware deliberately violates PEP-333 in three ways:
@@ -120,7 +119,7 @@ class GzipMiddleware(object):
         # make sure this is one of the content-types we're allowed to encode
         content_type = headers["Content-Type"]
         type, subtype, params = parse_mime_type(content_type)
-        if "%s/%s" % (type, subtype) not in ENCODABLE_CONTENT_TYPES:
+        if "{}/{}".format(type, subtype) not in ENCODABLE_CONTENT_TYPES:
             return False
 
         return True
@@ -161,7 +160,7 @@ class GzipMiddleware(object):
         if response_compressible and self.request_accepts_gzip(environ):
             headers["Content-Encoding"] = "gzip"
 
-            response_buffer = cStringIO.StringIO()
+            response_buffer = io.StringIO()
             gzipper = gzip.GzipFile(fileobj=response_buffer, mode="wb",
                                     compresslevel=self.compression_level)
             try:

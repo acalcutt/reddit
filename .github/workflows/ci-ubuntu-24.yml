@@ -1,0 +1,83 @@
+name: CI (Ubuntu 24.04)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      matrix:
+        with_extensions: [false, true]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install system packages (using install scripts)
+        run: |
+          # Make install scripts executable
+          chmod +x install/*.sh
+
+          # Run the apt install script
+          sudo install/install_apt.sh
+
+      - name: Install and configure services
+        run: |
+          # Install services (postgres, memcached, rabbitmq, etc.)
+          sudo install/install_services.sh
+
+          # Configure PostgreSQL
+          sudo install/setup_postgres.sh
+
+      - name: Install Cassandra
+        run: |
+          # Install Cassandra using install script
+          sudo install/install_cassandra.sh
+
+          # Configure Cassandra (create keyspace and tables)
+          sudo install/setup_cassandra.sh
+
+      - name: Install Python dependencies (common)
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install pyramid pyramid-mako cassandra-driver simplejson Paste PasteDeploy Pylons pytest pylibmc
+
+      - name: Install project (without extensions)
+        if: matrix.with_extensions == false
+        run: |
+          # install editable without forcing build of C extensions
+          pip install -e r2/ --no-build-isolation
+
+      - name: Build and install with C extensions
+        if: matrix.with_extensions == true
+        run: |
+          python -m pip install --upgrade pip setuptools wheel cython
+          pip install -e r2/
+
+      - name: Verify r2 package installation
+        run: |
+          python -c "import r2; print('r2 loaded from:', r2.__file__)"
+          python -c "import r2.lib.db.sorts as s; print('epoch_seconds present:', hasattr(s,'epoch_seconds'))"
+
+      - name: Run unit tests (r2)
+        env:
+          DATABASE_URL: "postgresql://reddit:password@127.0.0.1/reddit"
+        run: |
+          # Run only unit tests for now - functional tests require full WSGI app setup
+          python -m pytest r2/r2/tests/unit -v --tb=short
+
+      - name: Archive test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.with_extensions }}
+          path: |
+            cassandra.out
+            r2/r2/tests/**/test*.log

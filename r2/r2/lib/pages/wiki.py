@@ -20,18 +20,18 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from pylons import tmpl_context as c
+from pylons.i18n import _
+
+from r2.lib.filters import safemarkdown, wikimarkdown
 from r2.lib.pages.pages import (
     AutoModeratorConfig,
     RawCode,
     Reddit,
     SubredditStylesheetSource,
 )
-from pylons import tmpl_context as c
 from r2.lib.wrapped import Templated
-from r2.lib.menus import PageNameNav
-from r2.lib.validator.wiki import this_may_revise
-from r2.lib.filters import wikimarkdown, safemarkdown
-from pylons.i18n import _
+
 
 class WikiView(Templated):
     def __init__(self, content, edit_by, edit_date, may_revise=False,

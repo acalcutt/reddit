@@ -22,8 +22,8 @@
 
 import datetime
 
-from pylons import app_globals as g
 from pycassa.system_manager import ASCII_TYPE, DATE_TYPE
+from pylons import app_globals as g
 
 from r2.lib.db import tdb_cassandra
 from r2.lib.utils import tup
@@ -62,5 +62,5 @@ class LastModified(tdb_cassandra.View):
     def get_multi(cls, fullnames, name):
         res = cls._byID(fullnames, return_dict=True)
 
-        return dict((k, getattr(v, name, None))
-                    for k, v in res.iteritems())
+        return {k: getattr(v, name, None)
+                    for k, v in res.items()}

@@ -59,13 +59,16 @@ END
     exit 1
 fi
 
-# seriously! these checks are here for a reason. the packages from the
-# reddit ppa aren't built for anything but trusty (14.04) right now, so
-# if you try and use this install script on another release you're gonna
-# have a bad time.
+# Check for supported Ubuntu versions
 source /etc/lsb-release
-if [ "$DISTRIB_ID" != "Ubuntu" -o "$DISTRIB_RELEASE" != "14.04" ]; then
-    echo "ERROR: Only Ubuntu 14.04 is supported."
+if [ "$DISTRIB_ID" != "Ubuntu" ]; then
+    echo "ERROR: Only Ubuntu is supported."
+    exit 1
+fi
+
+# Support Ubuntu 24.04 (noble) with Python 3.12
+if [ "$DISTRIB_RELEASE" != "24.04" ] && [ "$DISTRIB_RELEASE" != "14.04" ]; then
+    echo "ERROR: Only Ubuntu 14.04 and 24.04 are supported."
     exit 1
 fi
 
@@ -137,7 +140,7 @@ function clone_reddit_service_repo {
     clone_reddit_repo $1 reddit/reddit-service-$1
 }
 
-clone_reddit_repo reddit reddit/reddit
+clone_reddit_repo reddit acalcutt/reddit
 clone_reddit_repo i18n reddit/reddit-i18n
 clone_reddit_service_repo websockets
 clone_reddit_service_repo activity
@@ -163,8 +166,8 @@ $RUNDIR/setup_rabbitmq.sh
 ###############################################################################
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
-    sudo -u $REDDIT_USER python setup.py build
-    python setup.py develop --no-deps
+    sudo -u $REDDIT_USER python3 setup.py build
+    python3 setup.py develop --no-deps
     popd
 }
 
@@ -612,7 +615,7 @@ done
 
 # the initial database setup should be done by one process rather than a bunch
 # vying with eachother to get there first
-reddit-run -c 'print "ok done"'
+reddit-run -c 'print("ok done")'
 
 # ok, now start everything else up
 initctl emit reddit-stop

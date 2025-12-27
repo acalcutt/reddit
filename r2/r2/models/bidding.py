@@ -22,44 +22,44 @@
 
 import datetime
 
-from pylons import request
 from pylons import app_globals as g
+from pylons import request
 from sqlalchemy import (
-    and_,
-    Boolean,
     BigInteger,
+    Boolean,
     Column,
-    DateTime,
     Date,
-    distinct,
+    DateTime,
     Float,
-    func as safunc,
     Integer,
     String,
+    and_,
+    distinct,
+)
+from sqlalchemy import (
+    func as safunc,
 )
 from sqlalchemy.dialects.postgresql.base import PGInet as Inet
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
 
-from r2.lib.db.thing import Thing, NotFound
-from r2.lib.memoize import memoize
-from r2.lib.utils import Enum, to_date, tup
+from r2.lib.db.thing import NotFound, Thing
+from r2.lib.utils import Enum, to_date
+from r2.models.subreddit import Frontpage
 from r2.models.account import Account
-from r2.models import Link, Frontpage
-
 
 engine = g.dbm.get_engine('authorize')
-# Allocate a session maker for communicating object changes with the back end  
-Session = sessionmaker(autocommit = True, autoflush = True, bind = engine)
+# Allocate a session maker for communicating object changes with the back end
+Session = sessionmaker(autoflush=True, bind=engine)
 # allocate a SQLalchemy base class for auto-creation of tables based
-# on class fields.  
+# on class fields.
 # NB: any class that inherits from this class will result in a table
 # being created, and subclassing doesn't work, hence the
 # object-inheriting interface classes.
-Base = declarative_base(bind = engine)
+Base = declarative_base()
 
-class Sessionized(object):
+class Sessionized:
     """
     Interface class for wrapping up the "session" in the 0.5 ORM
     required for all database communication.  This allows subclasses
@@ -91,15 +91,25 @@ class Sessionized(object):
         """
         Commits current object to the db.
         """
-        with self.session.begin():
-            self.session.add(self)
+        # Use begin_nested() for savepoint if transaction already active
+        if self.session.in_transaction():
+            with self.session.begin_nested():
+                self.session.add(self)
+        else:
+            with self.session.begin():
+                self.session.add(self)
 
     def _delete(self):
         """
-        Deletes current object from the db. 
+        Deletes current object from the db.
         """
-        with self.session.begin():
-            self.session.delete(self)
+        # Use begin_nested() for savepoint if transaction already active
+        if self.session.in_transaction():
+            with self.session.begin_nested():
+                self.session.delete(self)
+        else:
+            with self.session.begin():
+                self.session.delete(self)
 
     @classmethod
     def query(cls, **kw):
@@ -132,17 +142,16 @@ class Sessionized(object):
         if filter_fn is None:
             cols = cls.__table__.c
         else:
-            cols = filter(filter_fn, cls.__table__.c)
+            cols = list(filter(filter_fn, cls.__table__.c))
         for k, v in zip(cols, a):
-            if not kw.has_key(k.name):
+            if k.name not in kw:
                 args.append((k, cls._make_storable(v)))
             else:
-                raise TypeError,\
-                      "got multiple arguments for '%s'" % k.name
+                raise TypeError("got multiple arguments for '%s'" % k.name)
 
-        cols = dict((x.name, x) for x in cls.__table__.c)
-        for k, v in kw.iteritems():
-            if cols.has_key(k):
+        cols = {x.name: x for x in cls.__table__.c}
+        for k, v in kw.items():
+            if k in cols:
                 args.append((cols[k], cls._make_storable(v)))
         return args
 
@@ -177,9 +186,9 @@ class Sessionized(object):
             if not res:
                 raise NoResultFound
         except NoResultFound: 
-            raise NotFound, "%s with %s" % \
+            raise NotFound("%s with %s" % \
                 (cls.__name__,
-                 ",".join("%s=%s" % x for x in args))
+                 ",".join("%s=%s" % x for x in args)))
         return res
 
     @classmethod
@@ -389,7 +398,7 @@ class PromotionWeights(Sessionized, Base):
         end_date = to_date(campaign.end_date)
         ndays = (end_date - start_date).days
         # note that end_date is not included
-        dates = [start_date + datetime.timedelta(days=i) for i in xrange(ndays)]
+        dates = [start_date + datetime.timedelta(days=i) for i in range(ndays)]
 
         sr_names = campaign.target.subreddit_names
         sr_names = {cls.filter_sr_name(sr_name) for sr_name in sr_names}
@@ -456,5 +465,5 @@ class PromotionWeights(Sessionized, Base):
 
 # do all the leg work of creating/connecting to tables
 if g.db_create_tables:
-    Base.metadata.create_all()
+    Base.metadata.create_all(bind=engine)
 

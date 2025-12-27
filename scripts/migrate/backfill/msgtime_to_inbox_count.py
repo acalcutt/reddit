@@ -23,12 +23,11 @@
 
 import sys
 
+from pylons import app_globals as g
 from r2.lib.db import queries
 from r2.lib.db.operators import desc
 from r2.lib.utils import fetch_things2, progress
 from r2.models import Account, Message
-
-from pylons import app_globals as g
 
 
 def _keep(msg, account):
@@ -53,7 +52,7 @@ def _keep(msg, account):
 
     return True
 
-resume_id = long(sys.argv[1]) if len(sys.argv) > 1 else None
+resume_id = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
 msg_accounts = Account._query(sort=desc("_date"), data=True)
 

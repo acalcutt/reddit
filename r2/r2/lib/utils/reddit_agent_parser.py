@@ -20,14 +20,10 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from httpagentparser import (
-    AndroidBrowser,
-    Browser,
-    detect as de,
-    DetectorBase,
-    detectorshub)
 import re
-from inspect import isclass
+
+from httpagentparser import AndroidBrowser, Browser, DetectorBase, detectorshub
+from httpagentparser import detect as de
 
 
 def register_detector(cls):
@@ -38,7 +34,7 @@ def register_detector(cls):
 
 class RedditDetectorBase(DetectorBase):
     agent_string = None
-    version_string = '(\.?\d+)*'
+    version_string = r'(\.?\d+)*'
 
     def __init__(self):
         if self.agent_string:
@@ -58,11 +54,11 @@ class RedditDetectorBase(DetectorBase):
         if not match:
             match = self.version_regex.search(agent)
 
-        if match and 'version' in match.groupdict().keys():
+        if match and 'version' in list(match.groupdict().keys()):
             return match.group('version')
 
     def detect(self, agent, result):
-        detected = super(RedditDetectorBase, self).detect(agent, result)
+        detected = super().detect(agent, result)
 
         if not detected or not self.agent_regex:
             return detected
@@ -97,7 +93,7 @@ class RedditIsFunDetector(RedditBrowser):
     is_app = True
     look_for = 'reddit is fun'
     name = 'reddit is fun'
-    agent_string = ('^{look_for} \((?P<platform>.*?)\) '
+    agent_string = (r'^{look_for} \((?P<platform>.*?)\) '
                     '(?P<version>{version_string})$')
     override = [AndroidBrowser]
 
@@ -117,9 +113,9 @@ class RedditIOSDetector(RedditBrowser):
     name = 'reddit iOS'
     skip_if_found = ['Android']
     agent_string = (
-        '{look_for}\/Version (?P<version>{version_string})\/Build '
-        '(?P<b_number>\d+)\/(?P<platform>.*?) Version '
-        '(?P<pversion>{version_string}) \(Build .*?\)')
+        r'{look_for}\/Version (?P<version>{version_string})\/Build '
+        r'(?P<b_number>\d+)\/(?P<platform>.*?) Version '
+        r'(?P<pversion>{version_string}) \(Build .*?\)')
 
 
 @register_detector
@@ -128,8 +124,8 @@ class AlienBlueDetector(RedditBrowser):
     look_for = 'AlienBlue'
     name = 'Alien Blue'
     agent_string = (
-        '{look_for}\/(?P<version>{version_string}) CFNetwork\/'
-        '{version_string} (?P<platform>.*?)\/(?P<pversion>{version_string})')
+        r'{look_for}\/(?P<version>{version_string}) CFNetwork\/'
+        r'{version_string} (?P<platform>.*?)\/(?P<pversion>{version_string})')
 
 
 @register_detector
@@ -146,8 +142,8 @@ class RedditSyncDetector(RedditBrowser):
     look_for = 'reddit_sync'
     name = 'Sync for reddit'
     agent_string = (
-        'android:com\.laurencedawson\.{look_for}'
-        ':v(?P<version>{version_string}) \(by /u/ljdawson\)')
+        r'android:com\.laurencedawson\.{look_for}'
+        r':v(?P<version>{version_string}) \(by /u/ljdawson\)')
 
 
 @register_detector
@@ -155,7 +151,7 @@ class NarwhalForRedditDetector(RedditBrowser):
     is_app = True
     look_for = 'narwhal'
     name = 'narwhal for reddit'
-    agent_string = '{look_for}-(?P<platform>.*?)\/\d+ by det0ur'
+    agent_string = r'{look_for}-(?P<platform>.*?)\/\d+ by det0ur'
 
 
 @register_detector
@@ -170,7 +166,7 @@ class McRedditDetector(RedditBrowser):
 class ReaditDetector(RedditBrowser):
     look_for = 'Readit'
     name = 'Readit'
-    agent_string = '(\({look_for} for WP /u/MessageAcrossStudios\) ?){{1,2}}'
+    agent_string = r'(\({look_for} for WP /u/MessageAcrossStudios\) ?){{1,2}}'
 
 
 @register_detector
@@ -179,16 +175,16 @@ class BaconReaderDetector(RedditBrowser):
     look_for = 'BaconReader'
     name = 'Bacon Reader'
     agent_string = (
-        '{look_for}\/(?P<version>{version_string}) \([a-zA-Z]+; '
+        r'{look_for}\/(?P<version>{version_string}) \([a-zA-Z]+; '
         '(?P<platform>.*?) (?P<pversion>{version_string}); '
-        'Scale\/{version_string}\)')
+        r'Scale\/{version_string}\)')
 
 
 def detect(*args, **kw):
     return de(*args, **kw)
 
 
-class Agent(object):
+class Agent:
     __slots__ = (
         "agent_string",
         "browser_name",
@@ -219,7 +215,7 @@ class Agent(object):
             if d:
                 for subattr in ("name", "version"):
                     if subattr in d:
-                        key = "%s_%s" % (attr, subattr)
+                        key = "{}_{}".format(attr, subattr)
                         setattr(agent, key, d[subattr])
 
         agent.bot = parsed.get('bot')

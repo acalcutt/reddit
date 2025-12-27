@@ -24,10 +24,10 @@ import logging
 import os
 import random
 import socket
-import sqlalchemy
 import time
 import traceback
 
+import sqlalchemy
 
 logger = logging.getLogger('dm_manager')
 logger.addHandler(logging.StreamHandler())
@@ -48,16 +48,12 @@ def get_engine(name, db_host='', db_user='', db_pass='', db_port='5432',
         arguments["user"] = db_user
     if db_pass:
         arguments["password"] = db_pass
-    dsn = "%20".join("%s=%s" % x for x in arguments.iteritems())
+    dsn = "%20".join("%s=%s" % x for x in arguments.items())
 
     engine = sqlalchemy.create_engine(
         'postgresql:///?dsn=' + dsn,
-        strategy='threadlocal',
         pool_size=int(pool_size),
         max_overflow=int(max_overflow),
-        # our code isn't ready for unicode to appear
-        # in place of strings yet
-        use_native_unicode=False,
     )
 
     if g_override:
@@ -101,14 +97,14 @@ class db_manager:
             self.test_engine(engine, g_override)
 
     def things_iter(self):
-        for name, engines in self._things.iteritems():
+        for name, engines in self._things.items():
             # ensure we ALWAYS return the actual master as the first,
             # regardless of if we think it's dead or not.
             yield name, [engines[0]] + [e for e in engines[1:]
                                         if e not in self.dead]
 
     def rels_iter(self):
-        for name, (t1_name, t2_name, engines) in self._relations.iteritems():
+        for name, (t1_name, t2_name, engines) in self._relations.items():
             engines = [engines[0]] + [e for e in engines[1:]
                                       if e not in self.dead]
             yield name, (t1_name, t2_name, engines)
@@ -119,7 +115,8 @@ class db_manager:
 
     def test_engine(self, engine, g_override=None):
         try:
-            list(engine.execute("select 1"))
+            with engine.connect() as conn:
+                conn.execute(sqlalchemy.text("select 1"))
             if engine in self.dead:
                 logger.error("db_manager: marking connection alive: %r",
                              engine)

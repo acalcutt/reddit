@@ -20,14 +20,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from datetime import timedelta
 import itertools
+from datetime import timedelta
 from uuid import UUID
 
 from pycassa.system_manager import TIME_UUID_TYPE
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.i18n import _
 
 from r2.lib.db import tdb_cassandra
@@ -211,7 +211,7 @@ class ModAction(tdb_cassandra.UuidThing):
     def create(cls, sr, mod, action, details=None, target=None, description=None):
         from r2.models import DefaultSR
 
-        if not action in cls.actions:
+        if action not in cls.actions:
             raise ValueError("Invalid ModAction: %s" % action)
 
         # Front page should insert modactions into the base sr
@@ -257,7 +257,7 @@ class ModAction(tdb_cassandra.UuidThing):
         Get a ColumnQuery that yields ModAction objects according to
         specified criteria.
         """
-        if after and isinstance(after, basestring):
+        if after and isinstance(after, str):
             after = cls._byID(UUID(after))
         elif after and isinstance(after, UUID):
             after = cls._byID(after)
@@ -279,7 +279,7 @@ class ModAction(tdb_cassandra.UuidThing):
             view = ModActionBySRActionMod if action else ModActionBySRMod
             q = view.query(rowkeys, after=after, reverse=reverse, count=count)
         else:
-            rowkeys = ['%s_%s' % (sr._id36, action) for sr in srs]
+            rowkeys = ['{}_{}'.format(sr._id36, action) for sr in srs]
             q = ModActionBySRAction.query(rowkeys, after=after, reverse=reverse, count=count)
 
         return q
@@ -317,12 +317,12 @@ class ModAction(tdb_cassandra.UuidThing):
                                      data=True)
 
         # get authors for targets that are Links or Comments
-        target_author_names = {target.author_id for target in targets.values()
+        target_author_names = {target.author_id for target in list(targets.values())
                                     if hasattr(target, "author_id")}
         target_authors = Account._byID(target_author_names, data=True)
 
         # get parent links for targets that are Comments
-        parent_link_names = {target.link_id for target in targets.values()
+        parent_link_names = {target.link_id for target in list(targets.values())
                                     if hasattr(target, "link_id")}
         parent_links = Link._byID(parent_link_names, data=True)
 
@@ -354,8 +354,7 @@ class ModAction(tdb_cassandra.UuidThing):
             request_path = request.path
 
             # make wrapped users for targets that are accounts
-            user_targets = filter(lambda target: isinstance(target, Account),
-                                  targets.values())
+            user_targets = [target for target in list(targets.values()) if isinstance(target, Account)]
             wrapped_user_targets = {user._fullname: WrappedUser(user)
                                     for user in user_targets}
 
@@ -406,7 +405,7 @@ class ModActionBySRMod(tdb_cassandra.View):
 
     @classmethod
     def _rowkey(cls, ma):
-        return '%s_%s' % (ma.sr_id36, ma.mod_id36)
+        return '{}_{}'.format(ma.sr_id36, ma.mod_id36)
 
 class ModActionBySRActionMod(tdb_cassandra.View):
     _use_db = True
@@ -418,7 +417,7 @@ class ModActionBySRActionMod(tdb_cassandra.View):
 
     @classmethod
     def _rowkey(cls, ma):
-        return '%s_%s_%s' % (ma.sr_id36, ma.mod_id36, ma.action)
+        return '{}_{}_{}'.format(ma.sr_id36, ma.mod_id36, ma.action)
 
 class ModActionBySRAction(tdb_cassandra.View):
     _use_db = True
@@ -430,4 +429,4 @@ class ModActionBySRAction(tdb_cassandra.View):
 
     @classmethod
     def _rowkey(cls, ma):
-        return '%s_%s' % (ma.sr_id36, ma.action)
+        return '{}_{}'.format(ma.sr_id36, ma.action)

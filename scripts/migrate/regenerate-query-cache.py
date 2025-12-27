@@ -2,7 +2,6 @@
 
 from org.apache.pig.scripting import Pig
 
-
 SCRIPT_ROOT = "udfs/dist/lib/"
 INPUT_ROOT = "input/"
 OUTPUT_ROOT = "output"
@@ -19,7 +18,7 @@ load_things = """
 things =
 LOAD '$THINGS'
     USING PigStorage()
-    AS (id:long,
+    AS (id:int,
         ups:int,
         downs:int,
         deleted:chararray,
@@ -36,9 +35,9 @@ load_rels = """
 items =
 LOAD '$RELS'
     USING PigStorage()
-    AS (id:long,
-        thing1_id:long,
-        thing2_id:long,
+    AS (id:int,
+        thing1_id:int,
+        thing2_id:int,
         name:chararray,
         timestamp:double);
 """
@@ -48,7 +47,7 @@ load_and_map_data = """
 data =
 LOAD '$DATA'
     USING PigStorage()
-    AS (id:long,
+    AS (id:int,
         key:chararray,
         value);
 
@@ -128,7 +127,7 @@ STORE jsonified INTO '$OUTPUT' USING PigStorage();
 Pig.registerJar(SCRIPT_ROOT + "reddit-pig-udfs.jar")
 
 # process rels
-for rel, (cf, thing2_type) in relations.iteritems():
+for rel, (cf, thing2_type) in relations.items():
     # build source for a script
     script = "SET default_parallel 10;"
     script += load_rels

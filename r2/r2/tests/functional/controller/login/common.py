@@ -21,7 +21,7 @@
 ###############################################################################
 import contextlib
 import unittest
-from mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from pylons import app_globals as g
 
@@ -29,7 +29,7 @@ from r2.lib.validator import VThrottledLogin, VUname, validator
 from r2.models import Account, NotFound
 
 
-class LoginRegBase(object):
+class LoginRegBase:
     """Mixin for login-centered controller tests.
 
     This class is (purposely) not a test case that'll be picked up by nose
@@ -74,49 +74,49 @@ class LoginRegBase(object):
         lookup is bypassed and Account._by_name always raises NotFound.
         """
         from r2.controllers import login
-        return contextlib.nested(
-            patch.object(login, "register"),
-            patch.object(VUname, "run", return_value="test"),
-            # ensure this user does not currently exist
-            patch.object(Account, "_by_name", side_effect=NotFound),
-        )
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.object(login, "register"))
+        stack.enter_context(patch.object(VUname, "run", return_value="test"))
+        # ensure this user does not currently exist
+        stack.enter_context(patch.object(Account, "_by_name", side_effect=NotFound))
+        return stack
 
     def failed_captcha(self):
         """Context manager for mocking a failed captcha."""
-        return contextlib.nested(
-            # ensure that a captcha is needed
-            patch.object(
-                validator,
-                "need_provider_captcha",
-                return_value=True,
-            ),
-            # ensure that the captcha is invalid
-            patch.object(
-                g.captcha_provider,
-                "validate_captcha",
-                return_value=False,
-            ),
-        )
+        stack = contextlib.ExitStack()
+        # ensure that a captcha is needed
+        stack.enter_context(patch.object(
+            validator,
+            "need_provider_captcha",
+            return_value=True,
+        ))
+        # ensure that the captcha is invalid
+        stack.enter_context(patch.object(
+            g.captcha_provider,
+            "validate_captcha",
+            return_value=False,
+        ))
+        return stack
 
     def disabled_captcha(self):
         """Context manager for mocking a disabled captcha.
 
         Will raise an AssertionError if the captcha code is called.
         """
-        return contextlib.nested(
-            # ensure that a captcha is not needed
-            patch.object(
-                validator,
-                "need_provider_captcha",
-                return_value=False,
-            ),
-            # ensure that the captcha is unused
-            patch.object(
-                g.captcha_provider,
-                "validate_captcha",
-                side_effect=AssertionError,
-            ),
-        )
+        stack = contextlib.ExitStack()
+        # ensure that a captcha is not needed
+        stack.enter_context(patch.object(
+            validator,
+            "need_provider_captcha",
+            return_value=False,
+        ))
+        # ensure that the captcha is unused
+        stack.enter_context(patch.object(
+            g.captcha_provider,
+            "validate_captcha",
+            side_effect=AssertionError,
+        ))
+        return stack
 
     def find_headers(self, res, name):
         """Find header in res"""
@@ -165,18 +165,16 @@ class LoginRegBase(object):
 
     @unittest.skip("registration captcha is unfinished")
     def test_captcha_blocking(self):
-        with contextlib.nested(
-            self.mock_register(),
-            self.failed_captcha()
-        ):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(self.mock_register())
+            stack.enter_context(self.failed_captcha())
             res = self.do_register()
             self.assert_failure(res, "BAD_CAPTCHA")
 
     @unittest.skip("registration captcha is unfinished")
     def test_captcha_disabling(self):
-        with contextlib.nested(
-            self.mock_register(),
-            self.disabled_captcha()
-        ):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(self.mock_register())
+            stack.enter_context(self.disabled_captcha())
             res = self.do_register()
             self.assert_success(res)

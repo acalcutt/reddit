@@ -29,7 +29,7 @@ storage failure in Cassandra
 cat > mr_permacache <<HERE
 #!/bin/sh
 cd ~/reddit/r2
-paster run staging.ini ./mr_permacache.py -c "\$1"
+paster run staging.ini ./mr_permacache.py -c "\\$1"
 HERE
 chmod u+x mr_permacache
 
@@ -87,24 +87,20 @@ pv *.listings | ./mr_permacache "top1k_writefiles('listings')"
 
 """
 
-import os, os.path, errno
+import errno
+import os
+import os.path
 import sys
-import itertools
 from hashlib import md5
 
 from r2.lib import mr_tools
-from r2.lib.mr_tools import dataspec_m_thing, dataspec_m_rel, join_things
-
-
-from dateutil.parser import parse as parse_timestamp
-
-from r2.models import *
-from r2.lib.db.sorts import epoch_seconds, score, controversy, _hot
-from r2.lib.utils import fetch_things2, in_chunks, progress, UniqueIterator, tup
-from r2.lib import comment_tree
 from r2.lib.db import queries
+from r2.lib.db.sorts import _hot, controversy, epoch_seconds, score
+from r2.lib.jsontemplates import make_fullname  # what a strange place
+from r2.lib.mr_tools import dataspec_m_rel, dataspec_m_thing, join_things
+from r2.lib.utils import progress
+from r2.models import *
 
-from r2.lib.jsontemplates import make_fullname # what a strange place
                                                # for this function
 
 def join_links():
@@ -161,7 +157,7 @@ def rel_listings(names, thing2_cls = Link):
     @dataspec_m_rel()
     def process(rel):
         if rel.name in names:
-            yield ('%s-%s' % (names[rel.name], rel.thing1_id), rel.timestamp,
+            yield ('{}-{}'.format(names[rel.name], rel.thing1_id), rel.timestamp,
                    make_fullname(thing2_cls, rel.thing2_id))
     mr_tools.mr_map(process)
 
@@ -202,7 +198,7 @@ def store_keys(key, maxes):
             sort = 'controversial'
 
         q = queries.get_links(Subreddit._byID(sr_id), sort, time)
-        insert_to_query(q, [tuple([item[-1]] + map(float, item[:-1]))
+        insert_to_query(q, [tuple([item[-1]] + list(map(float, item[:-1])))
                             for item in maxes])
 
     elif key.split('-')[0] in userrel_fns:
@@ -210,7 +206,7 @@ def store_keys(key, maxes):
         account_id = int(account_id)
         fn = userrel_fns[key_type]
         q = fn(Account._byID(account_id))
-        insert_to_query(q, [tuple([item[-1]] + map(float, item[:-1]))
+        insert_to_query(q, [tuple([item[-1]] + list(map(float, item[:-1])))
                             for item in maxes])
 
 def top1k_writefiles(dirname):
@@ -253,11 +249,11 @@ def top1k_writefiles(dirname):
                 f.write('\t'.join(item))
                 f.write('\n')
         
-    mr_tools.mr_reduce_max_per_key(lambda x: map(float, x[:-1]), num=1000,
+    mr_tools.mr_reduce_max_per_key(lambda x: list(map(float, x[:-1])), num=1000,
                                    post=post)
 
 def top1k_writepermacache(fd = sys.stdin):
-    mr_tools.mr_reduce_max_per_key(lambda x: map(float, x[:-1]), num=1000,
+    mr_tools.mr_reduce_max_per_key(lambda x: list(map(float, x[:-1])), num=1000,
                                    post=store_keys,
                                    fd = fd)
 
@@ -287,7 +283,7 @@ def write_permacache_from_dir(dirname):
                 os.rmdir(dname)
             except OSError as e:
                 if e.errno == errno.ENOTEMPTY:
-                    mr_tools.status('%s not empty' % (dname,))
+                    mr_tools.status('{} not empty'.format(dname))
                 else:
                     raise
 

@@ -21,48 +21,51 @@
 ###############################################################################
 
 import cgi
+import inspect
 import json
-from collections import OrderedDict
+import re
+from copy import copy
+from curses.ascii import isprint
+from datetime import datetime, timedelta
 from decimal import Decimal
+from functools import wraps
+from itertools import chain
 
+from pylons import app_globals as g
 from pylons import request, response
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _
 from pylons.controllers.util import abort
+from pylons.i18n import _
 
 from r2.config import feature
 from r2.config.extensions import api_type, is_api
-from r2.lib import utils, captcha, promote, totp, ratelimit
-from r2.lib.filters import unkeep_space, websafe, _force_unicode, _force_utf8
-from r2.lib.filters import markdown_souptest
+from r2.lib import captcha, ratelimit, signing, totp, utils
+from r2.lib.authorize import Address, CreditCard
 from r2.lib.db import tdb_cassandra
-from r2.lib.db.operators import asc, desc
+from r2.lib.errors import (
+    RedditError,
+    UserRequiredException,
+    VerifiedUserRequiredException,
+    errors,
+)
+from r2.lib.filters import (
+    _force_utf8,
+    markdown_souptest,
+    unkeep_space,
+)
+from r2.lib.jsonresponse import JQueryResponse, JsonResponse
+from r2.lib.permissions import ModeratorPermissionSet
+from r2.lib.require import RequirementException, require, require_split
 from r2.lib.souptest import (
-    SoupError,
     SoupDetectedCrasherError,
+    SoupError,
     SoupUnsupportedEntityError,
 )
 from r2.lib.template_helpers import add_sr
-from r2.lib.jsonresponse import JQueryResponse, JsonResponse
-from r2.lib.permissions import ModeratorPermissionSet
-from r2.models import *
-from r2.models.rules import MAX_RULES_PER_SUBREDDIT
-from r2.models.promo import Location
-from r2.lib.authorize import Address, CreditCard
 from r2.lib.utils import constant_time_compare
-from r2.lib.require import require, require_split, RequirementException
-from r2.lib import signing
-
-from r2.lib.errors import errors, RedditError, UserRequiredException
-from r2.lib.errors import VerifiedUserRequiredException
-
-from copy import copy
-from datetime import datetime, timedelta
-from curses.ascii import isprint
-import re, inspect
-from itertools import chain
-from functools import wraps
+from r2.models import *
+from r2.models.promo import Location
+from r2.models.rules import MAX_RULES_PER_SUBREDDIT
 
 
 def can_view_link_comments(article):
@@ -70,7 +73,7 @@ def can_view_link_comments(article):
             article.can_view_promo(c.user))
 
 
-class Validator(object):
+class Validator:
     notes = None
     default_param = None
     def __init__(self, param=None, default=None, post=True, get=True, url=True,
@@ -99,7 +102,7 @@ class Validator(object):
 
     def param_docs(self):
         param_info = {}
-        for param in filter(None, tup(self.param)):
+        for param in [_f for _f in tup(self.param) if _f]:
             param_info[param] = None
         return param_info
 
@@ -130,10 +133,10 @@ class Validator(object):
                 a.append(val)
         try:
             return self.run(*a)
-        except TypeError, e:
+        except TypeError as e:
             if str(e).startswith('run() takes'):
                 # Prepend our class name so we know *which* run()
-                raise TypeError('%s.%s' % (type(self).__name__, str(e)))
+                raise TypeError('{}.{}'.format(type(self).__name__, str(e)))
             else:
                 raise
 
@@ -161,7 +164,7 @@ def _make_validated_kw(fn, simple_vals, param_vals, env):
     for validator in simple_vals:
         validator(env)
     kw = build_arg_list(fn, env)
-    for var, validator in param_vals.iteritems():
+    for var, validator in param_vals.items():
         kw[var] = validator(env)
     return kw
 
@@ -169,7 +172,7 @@ def set_api_docs(fn, simple_vals, param_vals, extra_vals=None):
     doc = fn._api_doc = getattr(fn, '_api_doc', {})
     param_info = doc.get('parameters', {})
     notes = doc.get('notes', [])
-    for validator in chain(simple_vals, param_vals.itervalues()):
+    for validator in chain(simple_vals, iter(param_vals.values())):
         param_docs = validator.param_docs()
         if validator.docs:
             param_docs.update(validator.docs)
@@ -182,7 +185,7 @@ def set_api_docs(fn, simple_vals, param_vals, extra_vals=None):
     doc['notes'] = notes
 
 def _validators_handle_csrf(simple_vals, param_vals):
-    for validator in chain(simple_vals, param_vals.itervalues()):
+    for validator in chain(simple_vals, iter(param_vals.values())):
         if getattr(validator, 'handles_csrf', False):
             return True
     return False
@@ -304,7 +307,7 @@ def _validatedForm(self, self_method, responder, simple_vals, param_vals,
     val = self_method(self, form, responder, *a, **kw)
 
     # add data to the output on some errors
-    for validator in chain(simple_vals, param_vals.values()):
+    for validator in chain(simple_vals, list(param_vals.values())):
         if (isinstance(validator, VCaptcha) and
             (form.has_errors('captcha', errors.BAD_CAPTCHA) or
              (form.has_error() and c.user.needs_captcha()))):
@@ -636,14 +639,14 @@ class VMarkdown(Validator):
             if isinstance(e, SoupDetectedCrasherError):
                 # We want a general idea of how often this is triggered, and
                 # by what
-                g.log.warning("CHROME HAX by %s: %s" % (user, text))
+                g.log.warning("CHROME HAX by {}: {}".format(user, text))
                 abort(400)
                 return
 
-            g.log.error("HAX by %s: %s" % (user, text))
+            g.log.error("HAX by {}: {}".format(user, text))
             s = sys.exc_info()
             # reraise the original error with the original stack trace
-            raise s[1], None, s[2]
+            raise s[1].with_traceback(s[2])
 
     def param_docs(self):
         return {
@@ -696,7 +699,7 @@ class VSubredditName(VRequired):
 
     def run(self, name):
         if name:
-            name = sr_path_rx.sub('\g<name>', name.strip())
+            name = sr_path_rx.sub(r'\g<name>', name.strip())
 
         valid_name = Subreddit.is_valid_name(
             name, allow_language_srs=self.allow_language_srs)
@@ -735,7 +738,7 @@ class VSRByName(Validator):
             if self.required:
                 self.set_error(errors.BAD_SR_NAME, code=400)
         else:
-            sr_name = sr_path_rx.sub('\g<name>', sr_name.strip())
+            sr_name = sr_path_rx.sub(r'\g<name>', sr_name.strip())
             try:
                 sr = Subreddit._by_name(sr_name)
                 if self.return_srname:
@@ -764,7 +767,7 @@ class VSRByNames(Validator):
 
     def run(self, sr_names_csv):
         if sr_names_csv:
-            sr_names = [sr_path_rx.sub('\g<name>', s.strip())
+            sr_names = [sr_path_rx.sub(r'\g<name>', s.strip())
                         for s in sr_names_csv.split(',')]
             return Subreddit._by_name(sr_names)
         elif self.required:
@@ -865,7 +868,7 @@ class VFriendOfMine(VAccountByName):
 
 
 def fullname_regex(thing_cls = None, multiple = False):
-    pattern = "[%s%s]" % (Relation._type_prefix, Thing._type_prefix)
+    pattern = "[{}{}]".format(Relation._type_prefix, Thing._type_prefix)
     if thing_cls:
         pattern += utils.to36(thing_cls._type_id)
     else:
@@ -1087,7 +1090,7 @@ def make_or_admin_secret_cls(base_cls):
             if secret and constant_time_compare(secret,
                                                 g.secrets["ADMINSECRET"]):
                 return True
-            super(VOrAdminSecret, self).run()
+            super().run()
 
             if request.method.upper() != "GET":
                 VModhash(fatal=True).run(request.POST.get("uh"))
@@ -1170,7 +1173,7 @@ class VVerifiedSponsor(VSponsor):
     def run(self, *args, **kwargs):
         VVerifiedUser().run()
 
-        return super(VVerifiedSponsor, self).run(*args, **kwargs)
+        return super().run(*args, **kwargs)
 
 
 class VEmployee(VVerifiedUser):
@@ -1186,7 +1189,7 @@ class VSrModerator(Validator):
         # If True, abort rather than setting an error
         self.fatal = fatal
         self.perms = utils.tup(perms)
-        super(VSrModerator, self).__init__(*a, **kw)
+        super().__init__(*a, **kw)
 
     def run(self):
         if not (c.user_is_loggedin
@@ -1375,7 +1378,7 @@ class VSubmitSR(Validator):
             return None
 
         try:
-            sr_name = sr_path_rx.sub('\g<name>', str(sr_name).strip())
+            sr_name = sr_path_rx.sub(r'\g<name>', str(sr_name).strip())
             sr = Subreddit._by_name(sr_name)
         except (NotFound, AttributeError, UnicodeEncodeError):
             self.set_error(errors.SUBREDDIT_NOEXIST)
@@ -1548,7 +1551,7 @@ class VPassword(Validator):
 
 class VPasswordChange(VPassword):
     def run(self, password, verify):
-        base = super(VPasswordChange, self).run(password)
+        base = super().run(password)
 
         if self.has_errors:
             return base
@@ -1624,13 +1627,13 @@ class AuthenticationFailed(Exception):
     pass
 
 
-class LoginRatelimit(object):
+class LoginRatelimit:
     def __init__(self, category, key):
         self.category = category
         self.key = key
 
     def __str__(self):
-        return "login-%s-%s" % (self.category, self.key)
+        return "login-{}-{}".format(self.category, self.key)
 
     def __hash__(self):
         return hash(str(self))
@@ -1645,7 +1648,7 @@ class VThrottledLogin(VRequired):
     def get_ratelimits(self, account):
         is_previously_seen_ip = request.ip in [
             j for i in IPsByAccount.get(account._id, column_count=1000)
-            for j in i.itervalues()
+            for j in i.values()
         ]
 
         # We want to maintain different rate-limit buckets depending on whether
@@ -1704,7 +1707,7 @@ class VThrottledLogin(VRequired):
                 ratelimits = self.get_ratelimits(account)
                 now = int(time.time())
 
-                for rl, max_requests in ratelimits.iteritems():
+                for rl, max_requests in ratelimits.items():
                     try:
                         failed_logins = ratelimit.get_usage(str(rl), time_slice)
 
@@ -1873,9 +1876,9 @@ class VMessageRecipient(VExistingUname):
             try:
                 s = Subreddit._by_name(name)
                 if isinstance(s, FakeSubreddit):
-                    raise NotFound, "fake subreddit"
+                    raise NotFound("fake subreddit")
                 if s._spam:
-                    raise NotFound, "banned subreddit"
+                    raise NotFound("banned subreddit")
                 if s.is_muted(c.user) and not c.user_is_admin:
                     self.set_error(errors.USER_MUTED)
                 return s
@@ -1945,12 +1948,12 @@ class VNumber(Validator):
                 if self.coerce:
                     val = self.min
                 else:
-                    raise ValueError, ""
+                    raise ValueError("")
             elif self.max is not None and val > self.max:
                 if self.coerce:
                     val = self.max
                 else:
-                    raise ValueError, ""
+                    raise ValueError("")
             return val
         except ValueError:
             self._set_error()
@@ -2033,7 +2036,7 @@ class VMenu(Validator):
 
     def run(self, sort, where):
         if self.remember:
-            pref = "%s_%s" % (where, self.nav.name)
+            pref = "{}_{}".format(where, self.nav.name)
             user_prefs = copy(c.user.sort_options) if c.user else {}
             user_pref = user_prefs.get(pref)
 
@@ -2098,8 +2101,8 @@ class VRatelimit(Validator):
             expire_time = max(r.values())
             time = utils.timeuntil(expire_time)
 
-            g.log.debug("rate-limiting %s from %s" % (self.name, r.keys()))
-            for key in r.keys():
+            g.log.debug("rate-limiting {} from {}".format(self.name, list(r.keys())))
+            for key in list(r.keys()):
                 if key.startswith('user'):
                     self._record_event(self.name, 'user_limit_hit')
                 elif key.startswith('ip'):
@@ -2179,7 +2182,7 @@ class VRatelimitImproved(Validator):
 
         @property
         def key(self):
-            return 'ratelimit-%s-%s' % (self.event_type, self.event_id_fn())
+            return 'ratelimit-{}-{}'.format(self.event_type, self.event_id_fn())
 
     def __init__(self, user_limit=None, ip_limit=None, error=errors.RATELIMIT,
                  *a, **kw):
@@ -2259,12 +2262,12 @@ class VShareRatelimit(VRatelimitImproved):
         event_id_fn=lambda: request.ip)
 
     def __init__(self):
-        super(VShareRatelimit, self).__init__(
+        super().__init__(
             user_limit=self.USER_LIMIT, ip_limit=self.IP_LIMIT)
 
     @classmethod
     def ratelimit(cls):
-        super(VShareRatelimit, cls).ratelimit(
+        super().ratelimit(
             user_limit=cls.USER_LIMIT, ip_limit=cls.IP_LIMIT)
 
 
@@ -2394,8 +2397,7 @@ class VLocation(Validator):
     def run(self, country, region, metro):
         # some browsers are sending "null" rather than omitting the input when
         # the select is disabled
-        country, region, metro = map(lambda val: None if val == "null" else val,
-                                     [country, region, metro])
+        country, region, metro = (None if val == "null" else val for val in [country, region, metro])
 
         if not (country or region or metro):
             return None
@@ -2431,7 +2433,7 @@ class VLocation(Validator):
 
 class VImageType(Validator):
     def run(self, img_type):
-        if not img_type in ('png', 'jpg'):
+        if img_type not in ('png', 'jpg'):
             return 'png'
         return img_type
 
@@ -2473,7 +2475,7 @@ class ValidEmails(Validator):
 
     def run(self, emails0):
         emails = set(self.separator.findall(emails0) if emails0 else [])
-        failures = set(e for e in emails if not self.email_re.match(e))
+        failures = {e for e in emails if not self.email_re.match(e)}
         emails = emails - failures
 
         # make sure the number of addresses does not exceed the max
@@ -2513,7 +2515,7 @@ class ValidEmailsOrExistingUnames(Validator):
         everything = set(ValidEmails.separator.findall(items) if items else [])
 
         # Use ValidEmails regex to divide the list into e-mail and other
-        emails = set(e for e in everything if ValidEmails.email_re.match(e))
+        emails = {e for e in everything if ValidEmails.email_re.match(e)}
         failures = everything - emails
 
         # Run the rest of the validator against the e-mails list
@@ -2721,7 +2723,7 @@ class ValidCard(Validator):
                               cardCode = cardCode)
 
 class VTarget(Validator):
-    target_re = re.compile("\A[\w_-]{3,20}\Z")
+    target_re = re.compile(r"\A[\w_-]{3,20}\Z")
     def run(self, name):
         if name and self.target_re.match(name):
             return name
@@ -2849,7 +2851,7 @@ class VOneTimePassword(Validator):
         if not g.disable_ratelimit:
             current_password = totp.make_totp(secret)
             otp_ratelimit = ratelimit.SimpleRateLimit(
-                name="otp_tries_%s_%s" % (c.user._id36, current_password),
+                name="otp_tries_{}_{}".format(c.user._id36, current_password),
                 seconds=600,
                 limit=self.ratelimit,
             )
@@ -2886,7 +2888,7 @@ class VOAuth2ClientDeveloper(VOAuth2ClientID):
     default_param_doc = _("an app developed by the user")
 
     def run(self, client_id):
-        client = super(VOAuth2ClientDeveloper, self).run(client_id)
+        client = super().run(client_id)
         if not client or not client.has_developer(c.user):
             return self.error()
         return client
@@ -2963,7 +2965,7 @@ class VJSON(Validator):
 
 class VValidatedJSON(VJSON):
     """Apply validators to the values of JSON formatted data."""
-    class ArrayOf(object):
+    class ArrayOf:
         """A JSON array of objects with the specified schema."""
         def __init__(self, spec):
             self.spec = spec
@@ -2992,7 +2994,7 @@ class VValidatedJSON(VJSON):
             return '\n'.join(spec_lines)
 
 
-    class Object(object):
+    class Object:
         """A JSON object with validators for specified fields."""
         def __init__(self, spec):
             self.spec = spec
@@ -3002,7 +3004,7 @@ class VValidatedJSON(VJSON):
                 raise RedditError('JSON_INVALID', code=400)
 
             validated_data = {}
-            for key, validator in self.spec.iteritems():
+            for key, validator in self.spec.items():
                 try:
                     validated_data[key] = validator.run(data[key])
                 except KeyError:
@@ -3014,7 +3016,7 @@ class VValidatedJSON(VJSON):
 
         def spec_docs(self):
             spec_docs = {}
-            for key, validator in self.spec.iteritems():
+            for key, validator in self.spec.items():
                 if hasattr(validator, 'spec_docs'):
                     spec_docs[key] = validator.spec_docs()
                 elif hasattr(validator, 'param_docs'):
@@ -3029,13 +3031,13 @@ class VValidatedJSON(VJSON):
                 key_docs = spec_docs[key]
                 # indent any new lines
                 key_docs = key_docs.replace('\n', '\n  ')
-                spec_lines.append('  "%s": %s,' % (key, key_docs))
+                spec_lines.append('  "{}": {},'.format(key, key_docs))
             spec_lines.append('}')
             return '\n'.join(spec_lines)
 
     class PartialObject(Object):
         def run(self, data):
-            super_ = super(VValidatedJSON.PartialObject, self)
+            super_ = super()
             return super_.run(data, ignore_missing=True)
 
     def __init__(self, param, spec, **kw):
@@ -3180,7 +3182,7 @@ class VSubredditList(Validator):
             return []
 
         # extract subreddit name if path provided
-        subreddits = [sr_path_rx.sub('\g<name>', sr.strip())
+        subreddits = [sr_path_rx.sub(r'\g<name>', sr.strip())
                       for sr in subreddits.lower().strip().splitlines() if sr]
 
         for name in subreddits:
@@ -3268,7 +3270,7 @@ class VSigned(Validator):
         # whether we're going to ignore them).
         for code, field in signature.errors:
             g.stats.simple_event(
-                "signing.%s.invalid.%s" % (field, code.lower())
+                "signing.{}.invalid.{}".format(field, code.lower())
             )
 
         # persistent skew problems on android suggest something deeper is

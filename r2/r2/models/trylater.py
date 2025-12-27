@@ -56,9 +56,9 @@ you might need to cancel your jobs later, use ``TryLaterBySubject``, which uses
 almost the exact same semantics, but has a useful ``unschedule`` method.
 """
 
+import uuid
 from collections import OrderedDict
 from datetime import datetime, timedelta
-import uuid
 
 from pycassa.system_manager import TIME_UUID_TYPE, UTF8_TYPE
 from pycassa.util import convert_uuid_to_time
@@ -129,7 +129,7 @@ class TryLater(tdb_cassandra.View):
             # the columns weren't created with a fixed delay and there are some
             # unripe items with older (lower) timestamps than the items we want
             # to delete. fallback to deleting specific columns.
-            cls._cf.remove(rowkey, ready_items.keys())
+            cls._cf.remove(rowkey, list(ready_items.keys()))
             g.stats.simple_event(
                 "trylater.{system}.column_delete".format(system=rowkey),
                 delta=len(ready_items),
@@ -141,7 +141,7 @@ class TryLater(tdb_cassandra.View):
         from r2.lib import amqp
         from r2.lib.hooks import all_hooks
 
-        for hook_name, hook in all_hooks().items():
+        for hook_name, hook in list(all_hooks().items()):
             if hook_name.startswith("trylater."):
                 rowkey = hook_name[len("trylater."):]
 
@@ -201,7 +201,7 @@ class TryLaterBySubject(tdb_cassandra.View):
         if trylater_rowkey is None:
             trylater_rowkey = system
         scheduled = TryLater.schedule(trylater_rowkey, data, delay)
-        when = scheduled.keys()[0]
+        when = list(scheduled.keys())[0]
 
         # TTL 10 minutes after the TryLater runs just in case TryLater
         # is running late.
@@ -225,7 +225,7 @@ class TryLaterBySubject(tdb_cassandra.View):
     def unschedule(cls, rowkey, colkey, schedule_rowkey):
         colkey = tup(colkey)
         victims = cls.search(rowkey, colkey)
-        for uu in victims.itervalues():
-            keys = TryLater.search(schedule_rowkey, uu).keys()
+        for uu in victims.values():
+            keys = list(TryLater.search(schedule_rowkey, uu).keys())
             TryLater.unschedule(schedule_rowkey, keys)
         cls._cf.remove(rowkey, colkey)

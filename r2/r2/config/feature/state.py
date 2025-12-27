@@ -20,15 +20,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import logging
-import json
 import hashlib
+import json
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 
 
-class FeatureState(object):
+class FeatureState:
     """A FeatureState is the state of a feature and its condition in the world.
 
     It determines if this feature is enabled given the world provided.
@@ -122,8 +121,8 @@ class FeatureState(object):
         """
         # Mix the feature name in with the seed so the same users don't get
         # selected for ramp-ups for every feature.
-        hashed = hashlib.sha1(self.name + seed)
-        bucket = long(hashed.hexdigest(), 16) % self.NUM_BUCKETS
+        hashed = hashlib.sha1((self.name + seed).encode('utf-8'))
+        bucket = int(hashed.hexdigest(), 16) % self.NUM_BUCKETS
         return bucket
 
     @classmethod

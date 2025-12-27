@@ -20,14 +20,14 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 
+from r2.lib import amqp
 from r2.lib.db import queries
 from r2.lib.db.tdb_sql import CreationError
-from r2.lib import amqp
 from r2.lib.utils import extract_user_mentions
-from r2.models import query_cache, Thing, Comment, Account, Inbox, NotFound
+from r2.models import Account, Comment, Inbox, NotFound, Thing, query_cache
 
 
 def notify_mention(user, thing):
@@ -114,7 +114,7 @@ def monitor_mentions(comment):
             comment,
             ("inbox", "selfreply", "mention"),
         )
-        if filter(None, rels.values()):
+        if [_f for _f in list(rels.values()) if _f]:
             continue
 
         notify_mention(account, comment)

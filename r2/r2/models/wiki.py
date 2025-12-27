@@ -20,23 +20,28 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from ConfigParser import SafeConfigParser
-from datetime import datetime, timedelta
-from r2.lib.db import tdb_cassandra
-from r2.lib.db.thing import NotFound
-from r2.lib.merge import *
-from r2.models.last_modified import LastModified
-from pycassa.system_manager import TIME_UUID_TYPE
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.controllers.util import abort
-from r2.lib.db.tdb_cassandra import NotFound
-from r2.models.printable import Printable
-from r2.models.account import Account
 from collections import OrderedDict
-from StringIO import StringIO
+try:
+    from configparser import SafeConfigParser as _SafeConfigParser
+except Exception:
+    # SafeConfigParser was removed in recent Python; use ConfigParser as a
+    # compatible fallback.
+    from configparser import ConfigParser as _SafeConfigParser
+from datetime import timedelta
+from io import StringIO
 
 import pycassa.types
+from pycassa.system_manager import TIME_UUID_TYPE
+from pylons import app_globals as g
+from pylons import tmpl_context as c
+
+from r2.lib.db import tdb_cassandra
+from r2.lib.db.tdb_cassandra import NotFound
+from r2.lib.db.thing import NotFound
+from r2.lib.merge import *
+from r2.models.account import Account
+from r2.models.last_modified import LastModified
+from r2.models.printable import Printable
 
 # Used for the key/id for pages,
 PAGE_ID_SEP = '\t'
@@ -94,7 +99,7 @@ modactions = {
 # Page "index" in the subreddit "reddit.com" and a seperator of "\t" becomes:
 #   "reddit.com\tindex"
 def wiki_id(sr, page):
-    return ('%s%s%s' % (sr, PAGE_ID_SEP, page)).lower()
+    return ('{}{}{}'.format(sr, PAGE_ID_SEP, page)).lower()
 
 class ContentLengthError(Exception):
     def __init__(self, max_length):
@@ -131,15 +136,15 @@ class WikiRevision(tdb_cassandra.UuidThing, Printable):
     @classmethod
     def get_authors(cls, revisions):
         authors = [r._get('author') for r in revisions]
-        authors = filter(None, authors)
+        authors = [_f for _f in authors if _f]
         return Account._byID36(authors, data=True)
     
     @classmethod
     def get_printable_authors(cls, revisions):
         from r2.lib.pages import WrappedUser
         authors = cls.get_authors(revisions)
-        return dict([(id36, WrappedUser(v))
-                     for id36, v in authors.iteritems() if v])
+        return {id36: WrappedUser(v)
+                     for id36, v in authors.items() if v}
     
     @classmethod
     def add_props(cls, user, wrapped):
@@ -257,7 +262,7 @@ class WikiPage(tdb_cassandra.Thing):
 
         name = name.lower()
         _id = wiki_id(sr._id36, name)
-        lock_key = "wiki_create_%s:%s" % (sr._id36, name)
+        lock_key = "wiki_create_{}:{}".format(sr._id36, name)
         with g.make_lock("wiki", lock_key):
             try:
                 cls._byID(_id)
@@ -325,7 +330,7 @@ class WikiPage(tdb_cassandra.Thing):
             num = len(wikipages)
             pages += wikipages
             after = wikipages[-1] if num else None
-        return filter(filter_check, pages)
+        return list(filter(filter_check, pages))
     
     @classmethod
     def get_listing(cls, sr, filter_check=None):
@@ -370,7 +375,7 @@ class WikiPage(tdb_cassandra.Thing):
     
     def get_editors(self, properties=None):
         try:
-            return WikiPageEditors._byID(self._id, properties=properties)._values().keys() or []
+            return list(WikiPageEditors._byID(self._id, properties=properties)._values().keys()) or []
         except tdb_cassandra.NotFoundException:
             return []
     
@@ -415,7 +420,7 @@ class WikiPage(tdb_cassandra.Thing):
         NUM_PERMLEVELS = 3
         if permlevel == self.permlevel:
             return
-        if not force and int(permlevel) not in range(NUM_PERMLEVELS):
+        if not force and int(permlevel) not in list(range(NUM_PERMLEVELS)):
             raise ValueError('Permlevel not valid')
         self.permlevel = permlevel
         self._commit()
@@ -499,7 +504,7 @@ class ImagesByWikiPage(tdb_cassandra.View):
         cls._remove(rowkey, [image_name])
 
 
-class WikiPageIniItem(object):
+class WikiPageIniItem:
     _bool_values = ("is_enabled", "is_new")
 
     @classmethod
@@ -508,10 +513,12 @@ class WikiPageIniItem(object):
         try:
             wp = WikiPage.get(*cls._get_wiki_config())
         except NotFound:
-            return items if return_dict else items.values()
+            return items if return_dict else list(items.values())
         wp_content = StringIO(wp.content)
-        cfg = SafeConfigParser(allow_no_value=True)
-        cfg.readfp(wp_content)
+        cfg = _SafeConfigParser(allow_no_value=True)
+        # readfp was deprecated and removed; use read_file which accepts a
+        # file-like object.
+        cfg.read_file(wp_content)
 
         for section in cfg.sections():
             def_values = {'id': section}
@@ -531,4 +538,4 @@ class WikiPageIniItem(object):
             if item.is_enabled:
                 items[section] = item
         
-        return items if return_dict else items.values()
+        return items if return_dict else list(items.values())

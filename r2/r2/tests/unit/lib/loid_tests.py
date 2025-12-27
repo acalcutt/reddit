@@ -1,15 +1,15 @@
-from mock import MagicMock, ANY, call
-from urllib import quote
-from r2.tests import RedditTestCase
-from r2.lib import hooks
-from r2.lib.loid import LoId, LOID_COOKIE, LOID_CREATED_COOKIE, isodate
+from unittest.mock import ANY, MagicMock, call
+from urllib.parse import quote
+
+from r2.lib.loid import LOID_COOKIE, LOID_CREATED_COOKIE, LoId, isodate
 from r2.lib.utils import to_epoch_milliseconds
+from r2.tests import RedditTestCase
 
 
 class LoidTests(RedditTestCase):
 
     def setUp(self):
-        super(LoidTests, self).setUp()
+        super().setUp()
         self.mock_eventcollector()
 
     def test_ftue_autocreate(self):

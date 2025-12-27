@@ -21,7 +21,7 @@
 ###############################################################################
 
 
-class AuthenticationProvider(object):
+class AuthenticationProvider:
     """Provider for authenticating web requests.
 
     Authentication providers should look at the request environment and

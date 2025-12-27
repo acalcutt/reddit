@@ -20,17 +20,17 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import io
 import mimetypes
 import os
 import re
 
-import boto
-
+import boto3
+from botocore.exceptions import ClientError
 from pylons import app_globals as g
 
 from r2.lib.configparse import ConfigValue
 from r2.lib.providers.media import MediaProvider
-
 
 _NEVER = "Thu, 31 Dec 2037 23:59:59 GMT"
 
@@ -39,7 +39,7 @@ class S3MediaProvider(MediaProvider):
     """A media provider using Amazon S3.
 
     Credentials for uploading objects can be provided via `S3KEY_ID` and
-    `S3SECRET_KEY`. If not provided, boto will search for credentials in
+    `S3SECRET_KEY`. If not provided, boto3 will search for credentials in
     alternate venues including environment variables and EC2 instance roles if
     on Amazon EC2.
 
@@ -74,25 +74,39 @@ class S3MediaProvider(MediaProvider):
         'icons': 's3_media_buckets',
         'previews': 's3_image_buckets',
     }
- 
-    def _get_bucket(self, bucket_name, validate=False):
-     
-        s3 = boto.connect_s3(g.S3KEY_ID or None, g.S3SECRET_KEY or None)
-        bucket = s3.get_bucket(bucket_name, validate=validate)
 
-        return bucket
+    def _get_s3_client(self):
+        """Get a boto3 S3 client with configured credentials."""
+        kwargs = {}
+        if g.S3KEY_ID and g.S3SECRET_KEY:
+            kwargs['aws_access_key_id'] = g.S3KEY_ID
+            kwargs['aws_secret_access_key'] = g.S3SECRET_KEY
+        return boto3.client('s3', **kwargs)
+
+    def _get_s3_resource(self):
+        """Get a boto3 S3 resource with configured credentials."""
+        kwargs = {}
+        if g.S3KEY_ID and g.S3SECRET_KEY:
+            kwargs['aws_access_key_id'] = g.S3KEY_ID
+            kwargs['aws_secret_access_key'] = g.S3SECRET_KEY
+        return boto3.resource('s3', **kwargs)
+
+    def _get_bucket(self, bucket_name):
+        """Get a bucket object."""
+        s3 = self._get_s3_resource()
+        return s3.Bucket(bucket_name)
 
     def _get_bucket_key_from_url(self, url):
         if g.s3_media_domain in url:
-            r_bucket = re.compile('.*\://(?:%s.)?([^\/]+)' % g.s3_media_domain)
+            r_bucket = re.compile(r'.*\://(?:%s.)?([^\/]+)' % g.s3_media_domain)
         else:
-            r_bucket = re.compile('.*\://?([^\/]+)')
+            r_bucket = re.compile(r'.*\://?([^\/]+)')
 
         bucket_name = r_bucket.findall(url)[0]
         key_name = url.split('/')[-1]
 
         return bucket_name, key_name
-     
+
     def make_inaccessible(self, url):
         """Make the content unavailable, but do not remove."""
         bucket_name, key_name = self._get_bucket_key_from_url(url)
@@ -100,12 +114,17 @@ class S3MediaProvider(MediaProvider):
         timer = g.stats.get_timer("providers.s3.key_set_private")
         timer.start()
 
-        bucket = self._get_bucket(bucket_name, validate=False)
-
-        key = bucket.get_key(key_name)
-        if key:
-            # set the file as private, but don't delete it, if it exists
-            key.set_acl('private')
+        try:
+            s3 = self._get_s3_client()
+            # Set the object ACL to private
+            s3.put_object_acl(
+                Bucket=bucket_name,
+                Key=key_name,
+                ACL='private'
+            )
+        except ClientError:
+            # Object may not exist
+            pass
 
         timer.stop()
 
@@ -121,35 +140,47 @@ class S3MediaProvider(MediaProvider):
         # guess the mime type
         mime_type, encoding = mimetypes.guess_type(name)
 
-        # build up the headers
-        s3_headers = {
-            "Content-Type": mime_type,
-            "Expires": _NEVER,
+        # build up the extra args for S3
+        extra_args = {
+            'ContentType': mime_type or 'application/octet-stream',
+            'Expires': _NEVER,
+            'ACL': 'public-read',
+            'StorageClass': 'REDUCED_REDUNDANCY',
         }
         if headers:
-            s3_headers.update(headers)
+            # Map common header names to boto3 extra args
+            header_mapping = {
+                'Content-Type': 'ContentType',
+                'Content-Encoding': 'ContentEncoding',
+                'Content-Disposition': 'ContentDisposition',
+                'Cache-Control': 'CacheControl',
+            }
+            for header_name, value in headers.items():
+                if header_name in header_mapping:
+                    extra_args[header_mapping[header_name]] = value
 
         # send the key
-        bucket = self._get_bucket(bucket_name, validate=False)
-        key = bucket.new_key(name)
+        s3 = self._get_s3_client()
 
-        if isinstance(contents, basestring):
-            set_fn = key.set_contents_from_string
+        if isinstance(contents, str):
+            contents = contents.encode('utf-8')
+
+        if isinstance(contents, bytes):
+            body = io.BytesIO(contents)
         else:
-            set_fn = key.set_contents_from_file
+            body = contents
 
-        set_fn(
-            contents,
-            headers=s3_headers,
-            policy="public-read",
-            reduced_redundancy=True,
-            replace=True,
+        s3.upload_fileobj(
+            body,
+            bucket_name,
+            name,
+            ExtraArgs=extra_args,
         )
 
         if g.s3_media_direct:
-            return "http://%s/%s/%s" % (g.s3_media_domain, bucket_name, name)
+            return "http://{}/{}/{}".format(g.s3_media_domain, bucket_name, name)
         else:
-            return "http://%s/%s" % (bucket_name, name)
+            return "http://{}/{}".format(bucket_name, name)
 
     def purge(self, url):
         """Deletes the key as specified by the url"""
@@ -158,13 +189,12 @@ class S3MediaProvider(MediaProvider):
         timer = g.stats.get_timer("providers.s3.key_set_private")
         timer.start()
 
-        bucket = self._get_bucket(bucket_name, validate=False)
-
-        key_name = url.split('/')[-1]
-        key = bucket.get_key(key_name)
-        if key:
-            # delete the key if it exists
-            key.delete()
+        try:
+            s3 = self._get_s3_client()
+            s3.delete_object(Bucket=bucket_name, Key=key_name)
+        except ClientError:
+            # Object may not exist
+            pass
 
         timer.stop()
 

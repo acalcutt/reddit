@@ -20,10 +20,10 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import app_globals as g
-
 import json
+
 import requests
+from pylons import app_globals as g
 
 BASE_URL = "https://api.createsend.com/api/v3.1/"
 API_KEY = g.secrets['newsletter_api_key']
@@ -68,7 +68,7 @@ def add_subscriber(email, source=""):
     timer.start()
     try:
         r = requests.post(
-            "%s/subscribers/%s.json" % (BASE_URL, LIST_ID),
+            "{}/subscribers/{}.json".format(BASE_URL, LIST_ID),
             json.dumps(params),
             timeout=5,
             auth=(API_KEY, 'x'),

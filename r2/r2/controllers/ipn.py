@@ -20,65 +20,61 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import json
 from datetime import datetime, timedelta
 
-import json
-
+import stripe
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.i18n import _
 from sqlalchemy.exc import IntegrityError
-import stripe
 
 from r2.controllers.reddit_base import RedditController
 from r2.lib.base import abort
 from r2.lib.csrf import csrf_exempt
 from r2.lib.emailer import _system_email
 from r2.lib.errors import MessageError
-from r2.lib.filters import _force_unicode, _force_utf8
+from r2.lib.filters import _force_unicode
 from r2.lib.hooks import get_hook
 from r2.lib.pages import GoldGiftCodeEmail
 from r2.lib.strings import strings
-from r2.lib.utils import constant_time_compare, randstr, timeago
+from r2.lib.utils import constant_time_compare, timeago
 from r2.lib.validator import (
-    nop,
-    textresponse,
-    validatedForm,
     VByName,
     VDecimal,
-    VFloat,
     VInt,
-    VLength,
     VModhash,
     VOneOf,
     VPrintable,
     VUser,
+    nop,
+    textresponse,
+    validatedForm,
 )
 from r2.models import (
     Account,
+    Comment,
+    Email,
+    NotFound,
+    Thing,
     account_by_payingid,
     account_from_stripe_customer_id,
     accountid_from_subscription,
     admintools,
     append_random_bottlecap_phrase,
     cancel_subscription,
-    Comment,
-    creddits_lock,
     create_claimed_gold,
     create_gift_gold,
     create_gold_code,
-    Email,
+    creddits_lock,
+    generate_token,
     get_discounted_price,
     has_prev_subscr_payments,
-    Link,
     make_gold_message,
-    NotFound,
     retrieve_gold_transaction,
     send_system_message,
-    Thing,
     update_gold_transaction,
-    generate_token,
 )
 
 BLOB_TTL = 86400 * 30
@@ -116,7 +112,7 @@ def update_blob(code, updates=None):
         raise ValueError("%s doesn't have access to payment_blob %s" %
                          (c.user._id, code))
 
-    for item, value in updates.iteritems():
+    for item, value in updates.items():
         blob[item] = value
     g.hardcache.set("payment_blob-%s" % code, blob, BLOB_TTL)
 
@@ -129,8 +125,8 @@ def has_blob(custom):
     return bool(blob)
 
 def dump_parameters(parameters):
-    for k, v in parameters.iteritems():
-        g.log.info("IPN: %r = %r" % (k, v))
+    for k, v in parameters.items():
+        g.log.info("IPN: {!r} = {!r}".format(k, v))
 
 def check_payment_status(payment_status):
     if payment_status is None:
@@ -317,7 +313,7 @@ def send_gift(buyer, recipient, months, days, signed, giftmessage,
     except MessageError:
         g.log.error('send_gift: could not send system message')
 
-    g.log.info("%s gifted %s to %s" % (buyer.name, amount, recipient.name))
+    g.log.info("{} gifted {} to {}".format(buyer.name, amount, recipient.name))
     return thing
 
 
@@ -645,7 +641,7 @@ class IpnController(RedditController):
         g.hardcache.set(blob_key, payment_blob, BLOB_TTL)
 
 
-class Webhook(object):
+class Webhook:
     def __init__(self, passthrough=None, transaction_id=None, subscr_id=None,
                  pennies=None, months=None, payer_email='', payer_id='',
                  goldtype=None, buyer=None, recipient=None, signed=False,
@@ -677,7 +673,7 @@ class Webhook(object):
         self.thing = thing._fullname if thing else None
 
     def __repr__(self):
-        return '<%s: transaction %s>' % (self.__class__.__name__, self.transaction_id)
+        return '<{}: transaction {}>'.format(self.__class__.__name__, self.transaction_id)
 
 
 class GoldPaymentController(RedditController):
@@ -695,7 +691,7 @@ class GoldPaymentController(RedditController):
         try:
             event_type = self.event_type_mappings[status]
         except KeyError:
-            g.log.error('%s %s: unknown status %s' % (self.name,
+            g.log.error('{} {}: unknown status {}'.format(self.name,
                                                       webhook,
                                                       status))
             if self.abort_on_error:
@@ -706,7 +702,7 @@ class GoldPaymentController(RedditController):
 
     def validate_secret(self, secret):
         if not constant_time_compare(secret, self.webhook_secret):
-            g.log.error('%s: invalid webhook secret from %s' % (self.name,
+            g.log.error('{}: invalid webhook secret from {}'.format(self.name,
                                                                 request.ip))
             self.abort403() 
 
@@ -881,11 +877,11 @@ def handle_stripe_error(fn):
         except stripe.CardError as e:
             form.set_text('.status',
                           _('error: %(error)s') % {'error': e.message})
-        except stripe.InvalidRequestError as e:
+        except stripe.InvalidRequestError:
             form.set_text('.status', _('invalid request'))
-        except stripe.APIConnectionError as e:
+        except stripe.APIConnectionError:
             form.set_text('.status', _('api error'))
-        except stripe.AuthenticationError as e:
+        except stripe.AuthenticationError:
             form.set_text('.status', _('connection error'))
         except stripe.StripeError as e:
             form.set_text('.status', _('error'))
@@ -1046,7 +1042,7 @@ class StripeController(GoldPaymentController):
             amount=pennies,
             currency="usd",
             customer=customer['id'],
-            description='%s-%s' % (passthrough, description),
+            description='{}-{}'.format(passthrough, description),
         )
         return charge
 

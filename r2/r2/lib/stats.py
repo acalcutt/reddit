@@ -25,16 +25,14 @@ import functools
 import os
 import random
 import socket
-import time
 import threading
-import random
+import time
 
-from pycassa import columnfamily
-from pycassa import pool
+from r2.lib.db import cassandra_compat as pool
+from r2.lib.db.cassandra_compat import ColumnFamily as columnfamily
 
-from r2.lib import baseplate_integration
-from r2.lib import cache
-from r2.lib import utils
+from r2.lib import baseplate_integration, utils
+
 
 class TimingStatBuffer:
     """Dictionary of keys to cumulative time+count values.
@@ -74,7 +72,9 @@ class TimingStatBuffer:
             total_time, count = v.real, v.imag
             divisor = count or 1
             mean = total_time / divisor
-            yield k, str(mean * 1000) + '|ms'
+            # Format to a single decimal place to avoid binary-fraction
+            # artifacts in float stringification across Python versions.
+            yield k, '{:.1f}|ms'.format(mean * 1000)
 
     def start_logging(self):
         self.log.timings = []
@@ -97,7 +97,7 @@ class CountingStatBuffer:
     def flush(self):
         """Yields accumulated counter data and resets the buffer."""
         data, self.data = self.data, collections.defaultdict(int)
-        for k, v in data.iteritems():
+        for k, v in data.items():
             yield k, str(v) + '|c'
 
 
@@ -124,8 +124,8 @@ class StringCountBuffer:
         new_data = collections.defaultdict(
             functools.partial(collections.defaultdict, int))
         data, self.data = self.data, new_data
-        for k, counts in data.iteritems():
-            for v, count in counts.iteritems():
+        for k, counts in data.items():
+            for v, count in counts.items():
                 yield k, str(count) + '|s|' + self._encode_string(v)
 
 
@@ -156,7 +156,7 @@ class StatsdConnection:
             if len(prefix) > 3:
                 prefix_len = len(prefix)
                 compressed_lines.append(
-                    '^%02x%s' % (prefix_len, line[prefix_len:]))
+                    '^{:02x}{}'.format(prefix_len, line[prefix_len:]))
             else:
                 compressed_lines.append(line)
             previous = line
@@ -198,9 +198,12 @@ class StatsdClient:
 
 def _get_stat_name(*name_parts):
     def to_str(value):
-        if isinstance(value, unicode):
-            value = value.encode('utf-8', 'replace')
-        return value
+        if isinstance(value, bytes):
+            return value.decode('utf-8', 'replace')
+        if value is None:
+            return ''
+        return str(value)
+
     return '.'.join(to_str(x) for x in name_parts if x)
 
 
@@ -313,7 +316,7 @@ class Stats:
         counter = self.get_counter(counter_name)
         if counter:
             from pylons import request
-            counter.increment('%s.%s' % (request.environ["pylons.routes_dict"]["action"], name), delta=delta)
+            counter.increment('{}.{}'.format(request.environ["pylons.routes_dict"]["action"], name), delta=delta)
 
     def action_event_count(self, event_name, state=None, delta=1, true_name="success", false_name="fail"):
         counter_name = 'event.%s' % event_name
@@ -345,7 +348,7 @@ class Stats:
             sample_rate = self.CACHE_SAMPLE_RATE
         counter = self.get_counter('cache')
         if counter and random.random() < sample_rate:
-            for name, delta in data.iteritems():
+            for name, delta in data.items():
                 counter.increment(name, delta=delta)
 
     def amqp_processor(self, queue_name):
@@ -405,8 +408,8 @@ class Stats:
 
         try:
             c.trace
-        except TypeError:
-            # the tmpl_context global isn't available out of request
+        except (TypeError, AttributeError):
+            # the tmpl_context global isn't available outside of a request
             return
 
         if c.trace:
@@ -521,23 +524,31 @@ class StatsCollectingConnectionPool(pool.ConnectionPool):
         host, sep, port = server.partition(':')
         self.stats.event_count('cassandra.connections', host)
 
-        cf_types = (columnfamily.ColumnParent, columnfamily.ColumnPath)
+        # Our compat layer doesn't expose Thrift column types; accept common
+        # argument shapes instead (strings for cf names, or dicts for batch_mutate)
+        cf_types = (str, dict)
 
         def get_cf_name_from_args(args, kwargs):
             for v in args:
-                if isinstance(v, cf_types):
-                    return v.column_family
-            for v in kwargs.itervalues():
-                if isinstance(v, cf_types):
-                    return v.column_family
+                if isinstance(v, str):
+                    return v
+                if isinstance(v, dict):
+                    # batch mutation: return first CF name seen
+                    for k in v.keys():
+                        return k
+            for v in kwargs.values():
+                if isinstance(v, str):
+                    return v
+                if isinstance(v, dict):
+                    for k in v.keys():
+                        return k
             return None
 
         def get_cf_name_from_batch_mutation(args, kwargs):
-            cf_names = set()
-            mutation_map = args[0]
-            for key_mutations in mutation_map.itervalues():
-                cf_names.update(key_mutations)
-            return list(cf_names)
+            mutation_map = args[0] if args else {}
+            if isinstance(mutation_map, dict):
+                return list(mutation_map.keys())
+            return []
 
         instrumented_methods = dict(
             get=get_cf_name_from_args,
@@ -583,8 +594,8 @@ class StatsCollectingConnectionPool(pool.ConnectionPool):
 
                 try:
                     c.trace
-                except TypeError:
-                    # the tmpl_context global isn't available out of request
+                except (TypeError, AttributeError):
+                    # the tmpl_context global isn't available outside of a request
                     cassandra_child_trace = utils.SimpleSillyStub()
                 else:
                     if c.trace:
@@ -610,7 +621,7 @@ class StatsCollectingConnectionPool(pool.ConnectionPool):
             return call_with_instrumentation
 
         wrapper = pool.ConnectionPool._get_new_wrapper(self, server)
-        for method_name, get_cf_name in instrumented_methods.iteritems():
+        for method_name, get_cf_name in instrumented_methods.items():
             f = getattr(wrapper, method_name)
             setattr(wrapper, method_name, instrument(f, get_cf_name))
         return wrapper

@@ -21,23 +21,26 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from mock import MagicMock, Mock, patch
-from unittest import TestCase
+from unittest.mock import MagicMock, Mock, patch
 
-from r2.lib.authorize.api import (AuthorizationHoldNotFound,
-                                  DuplicateTransactionError,
-                                  TRANSACTION_NOT_FOUND,
-                                  TransactionError,)
-from r2.lib.authorize.interaction import (get_or_create_customer_profile,
-                                          add_payment_method,
-                                          update_payment_method,
-                                          delete_payment_method,
-                                          add_or_update_payment_method,
-                                          auth_freebie_transaction,
-                                          auth_transaction,
-                                          charge_transaction,
-                                          void_transaction,
-                                          refund_transaction,)
+from r2.lib.authorize.api import (
+    TRANSACTION_NOT_FOUND,
+    AuthorizationHoldNotFound,
+    DuplicateTransactionError,
+    TransactionError,
+)
+from r2.lib.authorize.interaction import (
+    add_or_update_payment_method,
+    add_payment_method,
+    auth_freebie_transaction,
+    auth_transaction,
+    charge_transaction,
+    delete_payment_method,
+    get_or_create_customer_profile,
+    refund_transaction,
+    update_payment_method,
+    void_transaction,
+)
 from r2.lib.db.thing import NotFound
 from r2.models import Account, Link
 from r2.tests import RedditTestCase
@@ -51,31 +54,36 @@ class InteractionTest(RedditTestCase):
         self.user.name = 'name'
         self.user._fullname = 'fullname'
 
+    @patch('r2.lib.authorize.interaction.CustomerID.set')
+    @patch('r2.lib.authorize.interaction.CustomerID.get_id')
     @patch('r2.lib.authorize.interaction.api.get_customer_profile')
     @patch('r2.lib.authorize.interaction.api.create_customer_profile')
     def test_get_or_create_customer_profile(self, create_customer_profile,
-                                            get_customer_profile):
+                                            get_customer_profile, get_id,
+                                            customer_set):
         """Test get_or_create_customer_profile"""
         create_customer_profile.return_value = 123
 
         profile = MagicMock()
         profile.merchantCustomerId = self.user._fullname
+        profile.paymentProfiles = []  # No payment profiles
         get_customer_profile.return_value = profile
 
+        # First call: no existing customer ID, so create one
+        get_id.return_value = None
         get_or_create_customer_profile(self.user)
 
         # Assert that on the first pass, a customer is created and retrieved
         self.assertEqual(create_customer_profile.call_count, 1)
         self.assertEqual(get_customer_profile.call_count, 1)
 
-        with patch('r2.lib.authorize.interaction.CustomerID.get_id') as get_id:
-            get_id.return_value = create_customer_profile.return_value
+        # Second call: customer ID exists, so just retrieve
+        get_id.return_value = create_customer_profile.return_value
+        get_or_create_customer_profile(self.user)
 
-            get_or_create_customer_profile(self.user)
-
-            # Assert that on the second pass, a customer is only retrieved
-            self.assertEqual(create_customer_profile.call_count, 1)
-            self.assertEqual(get_customer_profile.call_count, 2)
+        # Assert that on the second pass, a customer is only retrieved
+        self.assertEqual(create_customer_profile.call_count, 1)
+        self.assertEqual(get_customer_profile.call_count, 2)
 
     @patch('r2.lib.authorize.interaction.PayID.add')
     @patch('r2.lib.authorize.interaction.api.create_payment_profile')
@@ -143,16 +151,17 @@ class InteractionTest(RedditTestCase):
         self.assertFalse(add_payment_method.called)
         self.assertTrue(update_payment_method.called)
 
+    @patch('r2.lib.authorize.interaction.Bid.one')
     @patch('r2.lib.authorize.interaction.Bid._new')
-    def test_auth_freebie_transaction(self, _new):
+    def test_auth_freebie_transaction(self, _new, one):
         """Test auth_freebie_transaction"""
         link = Mock(spec=Link)
         link._id = 99
         amount = 100
         campaign_id = 99
 
-        # Can't test that NotFound is thrown since the exception is handled,
-        # so assert that _new is called
+        # Bid.one raises NotFound, so _new should be called
+        one.side_effect = NotFound()
         return_value = auth_freebie_transaction(amount, self.user, link,
                                                 campaign_id)
         self.assertTrue(_new.called)
@@ -197,15 +206,19 @@ class InteractionTest(RedditTestCase):
         duplicate_transaction_error = DuplicateTransactionError(transaction_id=transaction_id)
         create_authorization_hold.side_effect = duplicate_transaction_error
         # Why does patch.multiple return an AttributeError?
-        with patch('r2.lib.authorize.interaction.Bid.one') as one:
+        with patch('r2.lib.authorize.interaction.Bid.one') as one, \
+             patch('r2.lib.authorize.interaction.Bid._new') as _new:
             one.side_effect = NotFound()
             return_value = auth_transaction(amount, self.user,
                                             payment_method_id, link,
                                             campaign_id)
-            # If create_authorization_hold raises NotFound, assert return value
+            # If Bid.one raises NotFound, _new should be called and return value correct
+            self.assertTrue(_new.called)
             self.assertEqual(return_value, (transaction_id, None))
 
         # Scenario: create_authorization_hold successfully returns
+        create_authorization_hold.side_effect = None  # Clear the previous side_effect
+        create_authorization_hold.return_value = transaction_id
         with patch('r2.lib.authorize.interaction.Bid._new') as _new:
             return_value = auth_transaction(amount, self.user,
                                             payment_method_id, link,

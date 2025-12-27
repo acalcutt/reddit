@@ -23,16 +23,16 @@
 import hashlib
 import hmac
 
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.controllers.util import abort
 
 from r2.controllers.reddit_base import MinimalController
-from r2.lib.pages import MediaEmbedBody
 from r2.lib.media import get_media_embed
+from r2.lib.pages import MediaEmbedBody
 from r2.lib.utils import constant_time_compare
-from r2.lib.validator import validate, VLink, nop
+from r2.lib.validator import VLink, nop, validate
 from r2.models import Subreddit
 
 

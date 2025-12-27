@@ -22,24 +22,24 @@
 
 from datetime import datetime, timedelta
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
 from pylons import request
+from pylons import tmpl_context as c
 
-from r2.lib import utils
 from r2.models import COOKIE_TIMESTAMP_FORMAT
 
 NEVER = datetime(2037, 12, 31, 23, 59, 59)
-DELETE = datetime(1970, 01, 01, 0, 0, 1)
+DELETE = datetime(1970, 0o1, 0o1, 0, 0, 1)
 
 
 class Cookies(dict):
     def add(self, name, value, *k, **kw):
-        name = name.encode('utf-8')
+        # Keep cookie names as native strings (tests and templates expect
+        # string keys); encoding to bytes causes many downstream errors.
         self[name] = Cookie(value, *k, **kw)
 
 
-class Cookie(object):
+class Cookie:
     def __init__(self, value, expires=None, domain=None,
                  dirty=True, secure=None, httponly=False):
         self.value = value
@@ -109,7 +109,7 @@ def change_user_cookie_security(secure, remember):
     user_name = c.user.name
     securable = (PRIVATE_SESSION_COOKIES +
                  [user_name + "_" + c_name for c_name in PRIVATE_USER_COOKIES])
-    for name, cookie in c.cookies.iteritems():
+    for name, cookie in c.cookies.items():
         if name in securable:
             cookie.secure = secure
             if name in PRIVATE_SESSION_COOKIES:

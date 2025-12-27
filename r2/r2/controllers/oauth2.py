@@ -21,44 +21,45 @@
 ###############################################################################
 
 from datetime import datetime
-from urllib import urlencode
-import base64
-import simplejson
+from urllib.parse import urlencode
 
+from pylons import app_globals as g
 from pylons import request, response
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 from pylons.i18n import _
 
 from r2.config.extensions import set_extension
 from r2.lib.base import abort
-from reddit_base import RedditController, MinimalController, require_https
 from r2.lib.db import tdb_cassandra
-from r2.lib.db.thing import NotFound
-from r2.lib.pages import RedditError
+from r2.lib.errors import BadRequestError, errors
+from r2.lib.pages import OAuth2AuthorizationPage, RedditError
+from r2.lib.require import RequirementException, require
 from r2.lib.strings import strings
-from r2.models import Account, admintools, create_gift_gold, send_system_message
-from r2.models.token import (
-    OAuth2Client, OAuth2AuthorizationCode, OAuth2AccessToken,
-    OAuth2RefreshToken, OAuth2Scope)
-from r2.lib.errors import BadRequestError, ForbiddenError, errors
-from r2.lib.pages import OAuth2AuthorizationPage
-from r2.lib.require import RequirementException, require, require_split
-from r2.lib.utils import constant_time_compare, parse_http_basic, UrlParser
+from r2.lib.utils import UrlParser, constant_time_compare, parse_http_basic
 from r2.lib.validator import (
-    nop,
-    validate,
-    VRequired,
-    VThrottledLogin,
-    VOneOf,
-    VUser,
+    VLength,
     VModhash,
     VOAuth2ClientID,
-    VOAuth2Scope,
     VOAuth2RefreshToken,
+    VOAuth2Scope,
+    VOneOf,
     VRatelimit,
-    VLength,
+    VRequired,
+    VThrottledLogin,
+    VUser,
+    nop,
+    validate,
 )
+from r2.models import Account, admintools, create_gift_gold, send_system_message
+from r2.models.token import (
+    OAuth2AccessToken,
+    OAuth2AuthorizationCode,
+    OAuth2Client,
+    OAuth2RefreshToken,
+    OAuth2Scope,
+)
+
+from .reddit_base import MinimalController, RedditController, require_https
 
 
 def _update_redirect_uri(base_redirect_uri, params, as_fragment=False):

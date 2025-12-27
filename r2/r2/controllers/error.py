@@ -24,14 +24,11 @@ import json
 import os
 import random
 
-import pylons
-
-from webob.exc import HTTPFound, HTTPMovedPermanently
-from pylons.i18n import _
+from pylons import app_globals as g
 from pylons import request, response
 from pylons import tmpl_context as c
-from pylons import app_globals as g
-
+from pylons.i18n import _
+from webob.exc import HTTPFound, HTTPMovedPermanently
 
 try:
     # place all r2 specific imports in here.  If there is a code error, it'll
@@ -39,6 +36,8 @@ try:
     # production
     from r2.config import extensions
     from r2.controllers.reddit_base import RedditController, UnloggedUser
+    from r2.lib import log, pages
+    from r2.lib.base import abort
     from r2.lib.cookies import Cookies
     from r2.lib.errors import ErrorSet
     from r2.lib.filters import (
@@ -47,19 +46,17 @@ try:
         websafe,
         websafe_json,
     )
-    from r2.lib import log, pages
     from r2.lib.strings import get_funny_translated_string
     from r2.lib.template_helpers import static
-    from r2.lib.base import abort
     from r2.models.link import Link
     from r2.models.subreddit import DefaultSR, Subreddit
-except Exception, e:
+except Exception as e:
     if g.debug:
         # if debug mode, let the error filter up to pylons to be handled
         raise e
     else:
         # production environment: protect the code integrity!
-        print "HuffmanEncodingError: make sure your python compiles before deploying, stupid!"
+        print("HuffmanEncodingError: make sure your python compiles before deploying, stupid!")
         # kill this app
         os._exit(1)
 
@@ -201,7 +198,7 @@ class ErrorController(RedditController):
             takedown = request.GET.get('takedown', '')
             error_name = request.GET.get('error_name', '')
 
-            if isinstance(c.user, basestring):
+            if isinstance(c.user, str):
                 # somehow requests are getting here with c.user unset
                 c.user_is_loggedin = False
                 c.user = UnloggedUser(browser_langs=None)
@@ -209,11 +206,11 @@ class ErrorController(RedditController):
             if srname:
                 c.site = Subreddit._by_name(srname)
 
-            if request.GET.has_key('allow_framing'):
+            if 'allow_framing' in request.GET:
                 c.allow_framing = bool(request.GET['allow_framing'] == '1')
 
             if (error_name == 'IN_TIMEOUT' and
-                    not 'usable_error_content' in request.environ):
+                    'usable_error_content' not in request.environ):
                 timeout_days_remaining = c.user.days_remaining_in_timeout
 
                 errpage = pages.InterstitialPage(
@@ -277,7 +274,7 @@ def handle_awful_failure(fail_text):
         import sys
         s = sys.exc_info()
         # reraise the original error with the original stack trace
-        raise s[1], None, s[2]
+        raise s[1].with_traceback(s[2])
     try:
         # log the traceback, and flag the "path" as the error location
         import traceback

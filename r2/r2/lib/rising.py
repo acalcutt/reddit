@@ -20,7 +20,6 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from datetime import datetime
 import heapq
 
 from pylons import app_globals as g
@@ -33,7 +32,7 @@ from r2.models.link import Link
 def calc_rising():
     link_counts = count.get_link_counts()
 
-    links = Link._by_fullname(link_counts.keys(), data=True)
+    links = Link._by_fullname(list(link_counts.keys()), data=True)
 
     def score(link):
         count = link_counts[link._fullname][0]
@@ -41,7 +40,7 @@ def calc_rising():
 
     # build the rising list, excluding items having 1 or less upvotes
     rising = []
-    for link in links.values():
+    for link in list(links.values()):
         if link._ups > 1:
             rising.append((link._fullname, score(link), link.sr_id))
 
@@ -93,6 +92,6 @@ def normalized_rising(sr_ids):
         time=90,
     )
 
-    merged = heapq.merge(*tuples_by_srid.values())
+    merged = heapq.merge(*list(tuples_by_srid.values()))
 
     return [link_name for norm_score, score, link_name in merged]

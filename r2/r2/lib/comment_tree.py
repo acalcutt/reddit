@@ -23,13 +23,13 @@
 from collections import defaultdict
 from itertools import chain
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 
 from r2.lib.sgm import sgm
 from r2.lib.utils import tup
 from r2.models.comment_tree import CommentTree
-from r2.models.link import Comment, Link, CommentScoresByLink
+from r2.models.link import Comment, CommentScoresByLink, Link
 
 MESSAGE_TREE_SIZE_LIMIT = 15000
 
@@ -52,7 +52,7 @@ def add_comments(comments):
     for comment in comments:
         comments_by_link_id[comment.link_id].append(comment)
 
-    for link_id, link_comments in comments_by_link_id.iteritems():
+    for link_id, link_comments in comments_by_link_id.items():
         link = links_by_id[link_id]
 
         timer = g.stats.get_timer('comment_tree.add.1')
@@ -134,7 +134,6 @@ def get_comment_scores(link, sort, comment_ids, timer):
 
     """
 
-    from r2.lib.db import queries
     from r2.models import CommentScoresByLink
 
     if not comment_ids:
@@ -152,7 +151,7 @@ def get_comment_scores(link, sort, comment_ids, timer):
         # want to deal in integer IDs
         scores_by_id = {
             int(id36, 36): score
-            for id36, score in scores_by_id36.iteritems()
+            for id36, score in scores_by_id36.items()
         }
 
         scores_needed = set(comment_ids) - set(scores_by_id.keys())
@@ -166,7 +165,7 @@ def get_comment_scores(link, sort, comment_ids, timer):
                 link, sort, missing)
             scores_by_missing = {
                 int(id36, 36): score
-                for id36, score in scores_by_missing_id36.iteritems()
+                for id36, score in scores_by_missing_id36.items()
             }
 
             # up to once per minute write the scores to limit writes but
@@ -184,7 +183,14 @@ def get_comment_scores(link, sort, comment_ids, timer):
             scores_by_id.update(scores_by_missing)
             timer.intermediate('sort')
 
+    # Normalize any None scores to 0 so downstream sorting/comparisons
+    # do not raise TypeError when arithmetic is performed.
+    for _k, _v in list(scores_by_id.items()):
+        if _v is None:
+            scores_by_id[_k] = 0
+
     return scores_by_id
+
 
 
 # message conversation functions
@@ -213,7 +219,7 @@ def add_message(message, update_recipient=True, update_modmail=True,
             add_message_nolock(add_to_user._id, message)
 
 def _add_message_nolock(key, message):
-    from r2.models import Account, Message
+    from r2.models import Message
     trees = g.permacache.get(key)
     if not trees:
         # in case an empty list got written at some point, delete it to
@@ -329,7 +335,7 @@ def moderator_messages(sr_ids):
     from r2.models import Subreddit
 
     srs = Subreddit._byID(sr_ids)
-    sr_ids = [sr_id for sr_id, sr in srs.iteritems()
+    sr_ids = [sr_id for sr_id, sr in srs.items()
               if sr.is_moderator_with_perms(c.user, 'mail')]
 
     def multi_load_tree(sr_ids):
@@ -343,7 +349,7 @@ def moderator_messages(sr_ids):
     res = sgm(g.permacache, sr_ids, miss_fn = multi_load_tree,
               prefix = sr_messages_key(""))
 
-    return sorted(chain(*res.values()), key = tree_sort_fn, reverse = True)
+    return sorted(chain(*list(res.values())), key = tree_sort_fn, reverse = True)
 
 def subreddit_messages_nocache(sr):
     """
@@ -398,9 +404,8 @@ def tree_sort_fn(tree):
     return threads[-1] if threads else root
 
 def _populate(after_id = None, estimate=54301242):
-    from r2.models import desc
-    from r2.lib.db import tdb_cassandra
     from r2.lib import utils
+    from r2.models import desc
 
     # larger has a chance to decrease the number of Cassandra writes,
     # but the probability is low
@@ -417,5 +422,5 @@ def _populate(after_id = None, estimate=54301242):
     q = utils.progress(q, verbosity=chunk_size, estimate = estimate)
 
     for chunk in utils.in_chunks(q, chunk_size):
-        chunk = filter(lambda x: hasattr(x, 'link_id'), chunk)
+        chunk = [x for x in chunk if hasattr(x, 'link_id')]
         add_comments(chunk)

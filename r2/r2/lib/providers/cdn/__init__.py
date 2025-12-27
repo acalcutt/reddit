@@ -20,7 +20,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-class CdnProvider(object):
+class CdnProvider:
     """Provider for handling Content Delivery Network (CDN) interactions.
 
     """

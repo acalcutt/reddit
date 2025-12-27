@@ -22,14 +22,14 @@
 
 import collections
 import json
-
 from datetime import (
     datetime,
     timedelta,
 )
-from pycassa.system_manager import ASCII_TYPE, UTF8_TYPE
-from r2.lib.db import tdb_cassandra
 
+from pycassa.system_manager import ASCII_TYPE, UTF8_TYPE
+
+from r2.lib.db import tdb_cassandra
 
 Media = collections.namedtuple('_Media', ("media_object",
                                           "secure_media_object",

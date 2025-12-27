@@ -41,7 +41,7 @@ Then, any place you want to hook into it, just throw on a decorator::
     
     @hooks.on('foo')
     def bar(ingredient):
-        print ingredient
+        print(ingredient)
 
     hooks.register_all()
 """
@@ -55,7 +55,7 @@ def all_hooks():
     return _HOOKS
 
 
-class Hook(object):
+class Hook:
     """A single hook that can be listened for."""
     def __init__(self):
         self.handlers = []
@@ -94,7 +94,7 @@ def get_hook(name):
     return _HOOKS.setdefault(name, Hook())
 
 
-class HookRegistrar(object):
+class HookRegistrar:
     """A registry for deferring module-scope hook registrations.
 
     This registry allows us to use module-level decorators but not actually

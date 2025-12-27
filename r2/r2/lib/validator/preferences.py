@@ -20,10 +20,11 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 
 from r2.config import feature
+from r2.lib.errors import errors
 from r2.lib.menus import CommentSortMenu
 from r2.lib.validator.validator import (
     VBoolean,
@@ -32,8 +33,7 @@ from r2.lib.validator.validator import (
     VOneOf,
     VSRByName,
 )
-from r2.lib.errors import errors
-from r2.models import Subreddit, NotFound
+from r2.models import NotFound, Subreddit
 
 # Validators that map directly to Account._preference_attrs
 # The key MUST be the same string as the value in _preference_attrs
@@ -95,7 +95,7 @@ PREFS_VALIDATORS = dict(
 
 
 def set_prefs(user, prefs):
-    for k, v in prefs.iteritems():
+    for k, v in prefs.items():
         if k == 'pref_beta' and v and not getattr(user, 'pref_beta', False):
             # If a user newly opted into beta, we want to subscribe them
             # to the beta subreddit.
@@ -116,7 +116,7 @@ def filter_prefs(prefs, user):
             if prefs.get("pref_other_theme", False):
                 prefs["pref_default_theme_sr"] = prefs["pref_other_theme"]
 
-    for pref_key in prefs.keys():
+    for pref_key in list(prefs.keys()):
         if pref_key not in user._preference_attrs:
             del prefs[pref_key]
 

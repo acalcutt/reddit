@@ -2,14 +2,14 @@ from collections import Counter
 
 from r2.lib.geoip import location_by_ips, organization_by_ips
 from r2.lib.utils import tup
-from r2.models.ip import IPsByAccount, AccountsByIP
+from r2.models.ip import AccountsByIP, IPsByAccount
 
 
 def ips_by_account_id(account_id, limit=None):
     ips = IPsByAccount.get(account_id, column_count=limit or 1000)
-    flattened_ips = [j for i in ips for j in i.iteritems()]
-    locations = location_by_ips(set(ip for _, ip in flattened_ips))
-    orgs = organization_by_ips(set(ip for _, ip in flattened_ips))
+    flattened_ips = [j for i in ips for j in i.items()]
+    locations = location_by_ips({ip for _, ip in flattened_ips})
+    orgs = organization_by_ips({ip for _, ip in flattened_ips})
 
     # Deduplicate and summarize total usage time
     counts = Counter((ip for _, ip in flattened_ips))
@@ -50,10 +50,10 @@ def account_ids_by_ip(ip, after=None, before=None, limit=1000):
             account_ip = AccountsByIP.get(
                 ip, column_start=after, column_count=limit)
         flattened_account_ip = [j for i in account_ip
-                                for j in i.iteritems()]
+                                for j in i.items()]
         flattened_accounts[ip] = flattened_account_ip
 
-    for ip, flattened_account_ip in flattened_accounts.iteritems():
+    for ip, flattened_account_ip in flattened_accounts.items():
         for last_visit, account in flattened_account_ip:
             results.append((account, last_visit, [ip]))
     return results

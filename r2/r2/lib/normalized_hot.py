@@ -27,9 +27,8 @@ from datetime import datetime, timedelta
 from pylons import app_globals as g
 
 from r2.config import feature
-from r2.lib.db.queries import _get_links, CachedResults
+from r2.lib.db.queries import CachedResults, _get_links
 from r2.lib.db.sorts import epoch_seconds
-
 
 MAX_PER_SUBREDDIT = 150
 MAX_LINKS = 1000
@@ -38,12 +37,12 @@ MAX_LINKS = 1000
 def get_hot_tuples(sr_ids, ageweight=None):
     queries_by_sr_id = {sr_id: _get_links(sr_id, sort='hot', time='all')
                         for sr_id in sr_ids}
-    CachedResults.fetch_multi(queries_by_sr_id.values(), stale=True)
+    CachedResults.fetch_multi(list(queries_by_sr_id.values()), stale=True)
     tuples_by_srid = {sr_id: [] for sr_id in sr_ids}
 
     now_seconds = epoch_seconds(datetime.now(g.tz))
 
-    for sr_id, q in queries_by_sr_id.iteritems():
+    for sr_id, q in queries_by_sr_id.items():
         if not q.data:
             continue
 
@@ -97,7 +96,7 @@ def normalized_hot(sr_ids, obey_age_limit=True, ageweight=None):
     else:
         oldest = 0.
 
-    merged = heapq.merge(*tuples_by_srid.values())
+    merged = heapq.merge(*list(tuples_by_srid.values()))
     generator = (link_name for ehot, hot, link_name, timestamp in merged
                            if timestamp > oldest)
     ret = list(itertools.islice(generator, MAX_LINKS))

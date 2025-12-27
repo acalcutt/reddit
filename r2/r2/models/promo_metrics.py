@@ -78,7 +78,7 @@ class LocationPromoMetrics(tdb_cassandra.View):
     @classmethod
     def _rowkey(cls, location):
         fields = [location.country, location.region, location.metro]
-        return '-'.join(map(lambda field: field or '', fields))
+        return '-'.join([field or '' for field in fields])
 
     @classmethod
     def _column_name(cls, sr):
@@ -93,7 +93,7 @@ class LocationPromoMetrics(tdb_cassandra.View):
         rowkeys = {location: cls._rowkey(location) for location in locations}
         columns = {sr: cls._column_name(sr) for sr in srs}
         rcl = cls._read_consistency_level
-        metrics = cls._cf.multiget(rowkeys.values(), columns.values(),
+        metrics = cls._cf.multiget(list(rowkeys.values()), list(columns.values()),
                                    read_consistency_level=rcl)
         ret = {}
 
@@ -104,7 +104,7 @@ class LocationPromoMetrics(tdb_cassandra.View):
             ret[(sr, location)] = impressions
 
         if is_single:
-            return ret.values()[0]
+            return list(ret.values())[0]
         else:
             return ret
 

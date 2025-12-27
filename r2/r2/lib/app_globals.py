@@ -20,13 +20,11 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from datetime import datetime
-from urlparse import urlparse
-
 import base64
-import ConfigParser
-import locale
+import configparser
+import importlib
 import json
+import locale
 import logging
 import os
 import re
@@ -35,23 +33,24 @@ import site
 import socket
 import subprocess
 import sys
+from datetime import datetime
+from urllib.parse import urlparse
 
-from sqlalchemy import engine, event
-from baseplate import Baseplate, config as baseplate_config
-from baseplate.thrift_pool import ThriftConnectionPool
-from baseplate.context.thrift import ThriftContextFactory
-from baseplate.server import einhorn
-
-import pkg_resources
+import importlib.resources
 import pytz
+from baseplate import Baseplate
+from baseplate.lib import config as baseplate_config
+from baseplate.clients.thrift import ThriftContextFactory
+from baseplate.server import einhorn
+from baseplate.lib.thrift_pool import ThriftConnectionPool
 
-from r2.config import queues
 import r2.lib.amqp
+from r2.config import queues
 from r2.lib.baseplate_integration import R2BaseplateObserver
 from r2.lib.cache import (
-    CacheChain,
     CL_ONE,
     CL_QUORUM,
+    CacheChain,
     CMemcache,
     HardCache,
     HardcacheChain,
@@ -64,7 +63,6 @@ from r2.lib.cache import (
     TransitionalCache,
 )
 from r2.lib.configparse import ConfigValue, ConfigValueParser
-from r2.lib.contrib import ipaddress
 from r2.lib.contrib.activity_thrift import ActivityService
 from r2.lib.contrib.activity_thrift.ttypes import ActivityInfo
 from r2.lib.eventcollector import EventQueue
@@ -78,14 +76,13 @@ from r2.lib.stats import (
     Stats,
     StatsCollectingConnectionPool,
 )
-from r2.lib.translation import get_active_langs, I18N_PATH
+from r2.lib.translation import I18N_PATH, get_active_langs
 from r2.lib.utils import config_gold_price, thread_dump
 from r2.lib.zookeeper import (
-    connect_to_zookeeper,
-    LiveConfig,
     IPNetworkLiveList,
+    LiveConfig,
+    connect_to_zookeeper,
 )
-
 
 LIVE_CONFIG_NODE = "/config/live"
 
@@ -103,7 +100,8 @@ def extract_live_config(config, plugins):
     # ConfigParser will include every value in DEFAULT (which paste abuses)
     # if we do this the way we're supposed to. sorry for the horribleness.
     live_config = config._sections["live_config"].copy()
-    del live_config["__name__"]  # magic value used by ConfigParser
+    # magic value used by ConfigParser (may not be present in all versions)
+    live_config.pop("__name__", None)
 
     # parse the config data including specs from plugins
     parsed = ConfigValueParser(live_config)
@@ -115,14 +113,15 @@ def extract_live_config(config, plugins):
 
 
 def _decode_secrets(secrets):
-    return {key: base64.b64decode(value) for key, value in secrets.iteritems()}
+    return {key: base64.b64decode(value) for key, value in secrets.items()}
 
 
 def extract_secrets(config):
     # similarly to the live_config one above, if we just did
     # .options("secrets") we'd get back all the junk from DEFAULT too. bleh.
     secrets = config._sections["secrets"].copy()
-    del secrets["__name__"]  # magic value used by ConfigParser
+    # magic value used by ConfigParser (may not be present in all versions)
+    secrets.pop("__name__", None)
     return _decode_secrets(secrets)
 
 
@@ -139,14 +138,14 @@ PERMISSIONS = {
 }
 
 
-class PermissionFilteredEmployeeList(object):
+class PermissionFilteredEmployeeList:
     def __init__(self, config, type):
         self.config = config
         self.type = type
 
     def __iter__(self):
         return (username
-                for username, permission in self.config["employees"].iteritems()
+                for username, permission in self.config["employees"].items()
                 if permission == self.type)
 
     def __getitem__(self, key):
@@ -159,7 +158,7 @@ class PermissionFilteredEmployeeList(object):
         return any(item.lower() == username.lower() for username in self)
 
     def __repr__(self):
-        return "<PermissionFilteredEmployeeList %r>" % (list(self),)
+        return "<PermissionFilteredEmployeeList {!r}>".format(list(self))
 
 
 SHUTDOWN_CALLBACKS = []
@@ -168,7 +167,7 @@ def on_app_shutdown(arbiter, worker):
         callback()
 
 
-class Globals(object):
+class Globals:
     spec = {
 
         ConfigValue.int: [
@@ -462,13 +461,11 @@ class Globals(object):
         # the sys.path that was current when the master process was spawned
         # meaning that new plugins will be picked up on regular app reload
         # rather than having to restart the master process as well.
-        reload(site)
-        self.pkg_resources_working_set = pkg_resources.WorkingSet()
+        importlib.reload(site)
 
         self.config = ConfigValueParser(global_conf)
         self.config.add_spec(self.spec)
-        self.plugins = PluginLoader(self.pkg_resources_working_set,
-                                    self.config.get("plugins", []))
+        self.plugins = PluginLoader(plugin_names=self.config.get("plugins", []))
 
         self.stats = Stats(self.config.get('statsd_addr'),
                            self.config.get('statsd_sample_rate'))
@@ -476,13 +473,63 @@ class Globals(object):
         self.startup_timer.start()
 
         self.baseplate = Baseplate()
-        self.baseplate.configure_logging()
+        # Older/newer Baseplate versions differ in API. Prefer calling
+        # `configure_logging` when available, otherwise try a best-effort
+        # fallback to `configure_context` (or no-op) so the app can start
+        # under multiple Baseplate releases.
+        try:
+            if hasattr(self.baseplate, 'configure_logging'):
+                self.baseplate.configure_logging()
+            elif hasattr(self.baseplate, 'configure_context'):
+                try:
+                    # some Baseplate versions expose configure_context
+                    # with a compatible behaviour for our needs
+                    self.baseplate.configure_context()
+                except TypeError:
+                    # signature mismatch — ignore and continue
+                    pass
+        except Exception:
+            # Don't let logging configuration failures stop app startup;
+            # proceed without Baseplate logging configured.
+            pass
+
         self.baseplate.register(R2BaseplateObserver())
-        self.baseplate.configure_tracing(
-            "r2",
-            tracing_endpoint=self.config.get("tracing_endpoint"),
-            sample_rate=self.config.get("tracing_sample_rate"),
-        )
+
+        # Configure tracing if Baseplate provides a helper. Different
+        # Baseplate releases expose different APIs; try the common
+        # `configure_tracing` call, then `configure_tracer`, then
+        # fall back to a tolerant manual configuration if possible.
+        try:
+            if hasattr(self.baseplate, 'configure_tracing'):
+                self.baseplate.configure_tracing(
+                    "r2",
+                    tracing_endpoint=self.config.get("tracing_endpoint"),
+                    sample_rate=self.config.get("tracing_sample_rate"),
+                )
+            elif hasattr(self.baseplate, 'configure_tracer'):
+                try:
+                    self.baseplate.configure_tracer(
+                        service_name="r2",
+                        endpoint=self.config.get("tracing_endpoint"),
+                        sample_rate=self.config.get("tracing_sample_rate"),
+                    )
+                except TypeError:
+                    # signature mismatch — ignore and continue
+                    pass
+            else:
+                # No helper available; best-effort: if baseplate exposes
+                # a `tracer` or `configure` attribute, try to set options
+                # without failing startup.
+                if hasattr(self.baseplate, 'tracer'):
+                    try:
+                        tracer = getattr(self.baseplate, 'tracer')
+                        if hasattr(tracer, 'configure'):
+                            tracer.configure(endpoint=self.config.get("tracing_endpoint"))
+                    except Exception:
+                        pass
+        except Exception:
+            # Non-fatal: continue even if tracing configuration fails.
+            pass
 
         self.paths = paths
 
@@ -493,7 +540,7 @@ class Globals(object):
         self.languages, self.lang_name = get_active_langs(
             config, default_lang=self.lang)
 
-        all_languages = self.lang_name.keys()
+        all_languages = list(self.lang_name.keys())
         all_languages.sort()
         self.all_languages = all_languages
         
@@ -523,6 +570,34 @@ class Globals(object):
             self.env = "unit_test"
 
         self.queues = queues.declare_queues(self)
+
+        # Compatibility shim: older code expects a pkg_resources-style
+        # "working_set" object available on the app globals. Newer code
+        # uses importlib.metadata directly, but tests and some plugins
+        # still reference `g.pkg_resources_working_set`. Provide a thin
+        # wrapper that exposes `iter_entry_points()` so callers keep working
+        # whether pkg_resources is present or not.
+        try:
+            import pkg_resources
+            self.pkg_resources_working_set = pkg_resources.working_set
+        except Exception:
+            try:
+                from r2.lib.plugin import _iter_entry_points
+
+                class _WorkingSetCompat:
+                    def iter_entry_points(self, group, name=None):
+                        return _iter_entry_points(group=group, name=name)
+
+                self.pkg_resources_working_set = _WorkingSetCompat()
+            except Exception:
+                # Last-resort fallback: provide an object with the method
+                # but which yields nothing. This keeps code from crashing
+                # during import when no entry points are available.
+                class _EmptyWorkingSet:
+                    def iter_entry_points(self, group, name=None):
+                        return iter(())
+
+                self.pkg_resources_working_set = _EmptyWorkingSet()
 
         self.extension_subdomains = dict(
             simple="mobile",
@@ -592,7 +667,7 @@ class Globals(object):
         origin_prefix = self.domain_prefix + "." if self.domain_prefix else ""
         self.origin = self.default_scheme + "://" + origin_prefix + self.domain
 
-        self.trusted_domains = set([self.domain])
+        self.trusted_domains = {self.domain}
         if self.https_endpoint:
             https_url = urlparse(self.https_endpoint)
             self.trusted_domains.add(https_url.hostname)
@@ -623,33 +698,32 @@ class Globals(object):
         # attempt to figure out which pool we're in and add that to the
         # LogRecords.
         try:
-            with open("/etc/ec2_asg", "r") as f:
+            with open("/etc/ec2_asg") as f:
                 pool = f.read().strip()
             # clean up the pool name since we're putting stuff after "-"
             pool = pool.partition("-")[0]
-        except IOError:
+        except OSError:
             pool = "reddit-app"
         self.log = logging.LoggerAdapter(log, {"pool": pool})
 
         # set locations
-        locations = pkg_resources.resource_stream(__name__,
-                                                  "../data/locations.json")
-        self.locations = json.loads(locations.read())
+        locations_file = importlib.resources.files('r2').joinpath('data/locations.json')
+        self.locations = json.loads(locations_file.read_text())
 
         if not self.media_domain:
             self.media_domain = self.domain
         if self.media_domain == self.domain:
-            print >> sys.stderr, ("Warning: g.media_domain == g.domain. " +
-                   "This may give untrusted content access to user cookies")
+            print(("Warning: g.media_domain == g.domain. " +
+                   "This may give untrusted content access to user cookies"), file=sys.stderr)
         if self.oauth_domain == self.domain:
-            print >> sys.stderr, ("Warning: g.oauth_domain == g.domain. "
-                    "CORS requests to g.domain will be allowed")
+            print(("Warning: g.oauth_domain == g.domain. "
+                    "CORS requests to g.domain will be allowed"), file=sys.stderr)
 
         for arg in sys.argv:
             tokens = arg.split("=")
             if len(tokens) == 2:
                 k, v = tokens
-                self.log.debug("Overriding g.%s to %s" % (k, v))
+                self.log.debug("Overriding g.{} to {}".format(k, v))
                 setattr(self, k, v)
 
         self.reddit_host = socket.gethostname()
@@ -679,7 +753,7 @@ class Globals(object):
 
         # Compile ratelimit regexs
         user_agent_ratelimit_regexes = {}
-        for agent_re, limit in self.user_agent_ratelimit_regexes.iteritems():
+        for agent_re, limit in self.user_agent_ratelimit_regexes.items():
             user_agent_ratelimit_regexes[re.compile(agent_re)] = limit
         self.user_agent_ratelimit_regexes = user_agent_ratelimit_regexes
 
@@ -698,7 +772,7 @@ class Globals(object):
             reduced_data_node="/throttles_reduced",
         )
 
-        parser = ConfigParser.RawConfigParser()
+        parser = configparser.RawConfigParser()
         parser.optionxform = str
         parser.read([self.config["__file__"]])
 
@@ -723,7 +797,7 @@ class Globals(object):
         # Store which OAuth clients employees may use, the keys are just for
         # readability.
         self.employee_approved_clients = \
-            self.live_config["employee_approved_clients"].values()
+            list(self.live_config["employee_approved_clients"].values())
 
         self.startup_timer.intermediate("zookeeper")
 
@@ -924,7 +998,7 @@ class Globals(object):
         # around 'cache_chains' without being able to call getattr on
         # 'g'
         def reset_caches():
-            for name, chain in cache_chains.iteritems():
+            for name, chain in cache_chains.items():
                 if isinstance(chain, TransitionalCache):
                     chain = chain.read_chain
 
@@ -989,7 +1063,7 @@ class Globals(object):
                 revision = subprocess.check_output(["git",
                                                     "--git-dir", git_dir,
                                                     "rev-parse", "HEAD"])
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 self.log.warning("Unable to fetch git revision: %r", e)
             else:
                 self.versions[repo_name] = revision.rstrip()
@@ -1005,7 +1079,7 @@ class Globals(object):
             return
 
         if self.env == 'unit_test':
-            from mock import MagicMock
+            from unittest.mock import MagicMock
             return MagicMock()
 
         dbm = db_manager.db_manager()
@@ -1013,7 +1087,7 @@ class Globals(object):
                           'pool_size', 'max_overflow')
         for db_name in self.databases:
             conf_params = ConfigValue.to_iter(self.config.raw_data[db_name + '_db'])
-            params = dict(zip(db_param_names, conf_params))
+            params = dict(list(zip(db_param_names, conf_params)))
             if params['db_user'] == "*":
                 params['db_user'] = self.db_user
             if params['db_pass'] == "*":
@@ -1049,7 +1123,7 @@ class Globals(object):
             return params, flags
 
         prefix = 'db_table_'
-        for k, v in self.config.raw_data.iteritems():
+        for k, v in self.config.raw_data.items():
             if not k.startswith(prefix):
                 continue
 

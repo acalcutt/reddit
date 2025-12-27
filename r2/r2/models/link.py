@@ -20,82 +20,72 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pycassa.system_manager import ASCII_TYPE, UTF8_TYPE
-from pycassa.types import LongType
+import re
+from collections import defaultdict
+from datetime import datetime, timedelta
+from itertools import cycle
 
-from r2.config import feature
-from r2.lib.db.thing import (
-    Thing, Relation, NotFound, MultiRelation, CreationError)
-from r2.lib.db.operators import desc
+import pytz
+import simplejson as json
+from pycassa.cassandra.ttypes import NotFoundException
+from pycassa.system_manager import (
+    ASCII_TYPE,
+    DOUBLE_TYPE,
+    UTF8_TYPE,
+)
+from pycassa.types import LongType
+from pylons import app_globals as g
+from pylons import request
+from pylons import tmpl_context as c
+from pylons.i18n import _
+
+from r2.config import extensions, feature
+from r2.lib import hooks, utils
+from r2.lib.db import sorts, tdb_cassandra
+from r2.lib.db.tdb_cassandra import view_of
+from r2.lib.db.thing import CreationError, MultiRelation, NotFound, Relation, Thing
 from r2.lib.errors import RedditError
+from r2.lib.filters import _force_unicode, _force_utf8
+from r2.lib.strings import Score, strings
 from r2.lib.tracking import (
     get_site,
 )
 from r2.lib.utils import (
-    base_url,
+    UrlParser,
     domain,
     epoch_timestamp,
     feature_utils,
+    sanitize_url,
     strip_www,
-    timesince,
     title_to_url,
     tup,
-    UrlParser,
 )
-from account import (
-    Account,
-    BlockedSubredditsByAccount,
-    DeletedUser,
-    SubredditParticipationByAccount,
-)
-from subreddit import (
-    DefaultSR,
-    DomainSR,
-    FakeSubreddit,
-    Subreddit,
-    SubredditsActiveForFrontPage,
-)
-from printable import Printable
-from r2.config import extensions
-from r2.lib.memoize import memoize
 from r2.lib.wrapped import Wrapped
-from r2.lib.filters import _force_utf8, _force_unicode
-from r2.lib import hooks, utils
-from mako.filters import url_escape
-from r2.lib.strings import strings, Score
-from r2.lib.db import tdb_cassandra, sorts
-from r2.lib.db.tdb_cassandra import view_of
-from r2.lib.utils import sanitize_url
 from r2.models.gold import (
     GildedCommentsByAccount,
     GildedLinksByAccount,
     make_gold_message,
 )
 from r2.models.modaction import ModAction
-from r2.models.subreddit import MultiReddit
-from r2.models.trylater import TryLater
-from r2.models.query_cache import CachedQueryMutator
 from r2.models.promo import PROMOTE_STATUS
+from r2.models.query_cache import CachedQueryMutator
+from r2.models.trylater import TryLater
 from r2.models.vote import Vote
 
-from pylons import request
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _
-from datetime import datetime, timedelta
-from hashlib import md5
-import simplejson as json
-
-import random, re
-import pycassa
-from collections import defaultdict
-from itertools import cycle
-from pycassa.cassandra.ttypes import NotFoundException
-from pycassa.system_manager import (
-    ASCII_TYPE,
-    DOUBLE_TYPE,
+from .account import (
+    Account,
+    BlockedSubredditsByAccount,
+    DeletedUser,
+    SubredditParticipationByAccount,
 )
-import pytz
+from .printable import Printable
+from .subreddit import (
+    DefaultSR,
+    DomainSR,
+    FakeSubreddit,
+    Subreddit,
+    SubredditsActiveForFrontPage,
+)
 
 NOTIFICATION_EMAIL_DELAY = timedelta(hours=1)
 
@@ -412,11 +402,11 @@ class Link(Thing, Printable):
 
         if style == "htmllite":
              s.extend([
-                 request.GET.has_key('twocolumn'),
+                 'twocolumn' in request.GET,
                  c.link_target,
             ])
         elif style == "xml":
-            s.append(request.GET.has_key("nothumbs"))
+            s.append("nothumbs" in request.GET)
         elif style == "compact":
             s.append(c.permalink_page)
 
@@ -436,20 +426,20 @@ class Link(Thing, Printable):
 
     def make_permalink(self, sr, force_domain=False):
         from r2.lib.template_helpers import get_domain
-        p = "comments/%s/%s/" % (self._id36, title_to_url(self.title))
+        p = "comments/{}/{}/".format(self._id36, title_to_url(self.title))
         # promoted links belong to a separate subreddit and shouldn't
         # include that in the path
         if self.promoted is not None:
             if force_domain:
                 permalink_domain = get_domain(subreddit=False)
-                res = "%s://%s/%s" % (g.default_scheme, permalink_domain, p)
+                res = "{}://{}/{}".format(g.default_scheme, permalink_domain, p)
             else:
                 res = "/%s" % p
         elif not force_domain:
-            res = "/r/%s/%s" % (sr.name, p)
+            res = "/r/{}/{}".format(sr.name, p)
         elif sr != c.site or force_domain:
             permalink_domain = get_domain(subreddit=False)
-            res = "%s://%s/r/%s/%s" % (g.default_scheme, permalink_domain,
+            res = "{}://{}/r/{}/{}".format(g.default_scheme, permalink_domain,
                                        sr.name, p)
         else:
             res = "/%s" % p
@@ -461,9 +451,9 @@ class Link(Thing, Printable):
         return res
 
     def make_canonical_link(self, sr, subdomain='www'):
-        domain = '%s.%s' % (subdomain, g.domain)
-        path = 'comments/%s/%s/' % (self._id36, title_to_url(self.title))
-        return '%s://%s/r/%s/%s' % (g.default_scheme, domain, sr.name, path)
+        domain = '{}.{}'.format(subdomain, g.domain)
+        path = 'comments/{}/{}/'.format(self._id36, title_to_url(self.title))
+        return '{}://{}/r/{}/{}'.format(g.default_scheme, domain, sr.name, path)
 
     def make_permalink_slow(self, force_domain=False):
         return self.make_permalink(self.subreddit_slow,
@@ -473,7 +463,7 @@ class Link(Thing, Printable):
         title = _force_unicode(self.title)
         title = title.replace("[", r"\[")
         title = title.replace("]", r"\]")
-        return "[%s](%s)" % (title, self.make_permalink_slow())
+        return "[{}]({})".format(title, self.make_permalink_slow())
 
     @classmethod
     def tracking_link(cls,
@@ -523,7 +513,7 @@ class Link(Thing, Printable):
         if site_name:
             query_params["utm_name"] = site_name
 
-        query_params = {k: v for (k, v) in query_params.iteritems() if (
+        query_params = {k: v for (k, v) in query_params.items() if (
                         v is not None)}
 
         if query_params:
@@ -582,13 +572,13 @@ class Link(Thing, Printable):
 
     @classmethod
     def add_props(cls, user, wrapped):
-        from r2.lib.pages import make_link_child
-        from r2.lib.count import incr_counts
         from r2.lib import media
+        from r2.lib.count import incr_counts
+        from r2.lib.pages import make_link_child
+        from r2.lib.template_helpers import format_html, unsafe
         from r2.lib.utils import timeago
-        from r2.lib.template_helpers import get_domain, unsafe, format_html
-        from r2.models.report import Report
         from r2.lib.wrapped import CachedVariable
+        from r2.models.report import Report
 
         # referencing c's getattr is cheap, but not as cheap when it
         # is in a loop that calls it 30 times on 25-200 things.
@@ -784,7 +774,7 @@ class Link(Thing, Printable):
                     url_subreddit = urlparser.get_subreddit()
                     if (url_subreddit and
                             not isinstance(url_subreddit, DefaultSR)):
-                        item.domain_str = ('{0}/r/{1}'
+                        item.domain_str = ('{}/r/{}'
                                            .format(item.domain,
                                                    url_subreddit.name))
                 elif isinstance(item.media_object, dict):
@@ -932,7 +922,7 @@ class Link(Thing, Printable):
                         parts = (hostname.encode("utf-8").rstrip(".").
                             split("."))
                         subparts = {".".join(parts[y:])
-                                    for y in xrange(len(parts))}
+                                    for y in range(len(parts))}
                         if subparts.intersection(banned_domains):
                             item.link_notes.append('banned domain')
 
@@ -1147,17 +1137,17 @@ class Link(Thing, Printable):
         """
         if isinstance(value, dict):
             return {cls._utf8_encode(key): cls._utf8_encode(value)
-                    for key, value in value.iteritems()}
+                    for key, value in value.items()}
         elif isinstance(value, list):
             return [cls._utf8_encode(item)
                     for item in value]
-        elif isinstance(value, unicode):
+        elif isinstance(value, str):
             return value.encode('utf-8')
         else:
             return value
 
     # There's an issue where pickling fails for collections with string values
-    # that have unicode codepoints between 128 and 256.  Encoding the strings
+    # that have str codepoints between 128 and 256.  Encoding the strings
     # as UTF-8 before storing them works around this.
     def set_media_object(self, value):
         self.media_object = Link._utf8_encode(value)
@@ -1199,7 +1189,7 @@ class LinksByUrlAndSubreddit(tdb_cassandra.View):
 
     @classmethod
     def make_canonical_url(cls, url):
-        if not utils.domain(url) in g.case_sensitive_domains:
+        if utils.domain(url) not in g.case_sensitive_domains:
             keyurl = _force_utf8(UrlParser.base_url(url.lower()))
         else:
             # Convert only hostname to lowercase
@@ -1252,7 +1242,7 @@ class LinksByUrlAndSubreddit(tdb_cassandra.View):
         except tdb_cassandra.NotFoundException:
             return []
 
-        link_ids = columns.keys()
+        link_ids = list(columns.keys())
         return link_ids
 
 
@@ -1353,7 +1343,6 @@ class Comment(Thing, Printable):
 
     @classmethod
     def _new(cls, author, link, parent, body, ip):
-        from r2.lib.emailer import message_notification_email
         from r2.lib.voting import cast_vote
 
         subreddit = link.subreddit_slow
@@ -1500,14 +1489,14 @@ class Comment(Thing, Printable):
 
         return True
 
-    cache_ignore = set((
+    cache_ignore = {
         "subreddit",
         "link",
         "to",
         "num_children",
         "depth",
         "child_ids",
-    )).union(Printable.cache_ignore)
+    }.union(Printable.cache_ignore)
 
     @staticmethod
     def wrapped_cache_key(wrapped, style):
@@ -1596,18 +1585,18 @@ class Comment(Thing, Printable):
 
     @classmethod
     def add_props(cls, user, wrapped):
-        from r2.lib.template_helpers import add_submitter_distinguish, get_domain
+        from r2.lib.pages import WrappedUser
+        from r2.lib.template_helpers import add_submitter_distinguish
         from r2.lib.utils import timeago
         from r2.lib.wrapped import CachedVariable
-        from r2.lib.pages import WrappedUser
         from r2.models.report import Report
 
         #fetch parent links
-        links = Link._byID(set(l.link_id for l in wrapped), data=True,
+        links = Link._byID({l.link_id for l in wrapped}, data=True,
                            return_dict=True, stale=True)
 
         # fetch authors
-        authors = Account._byID(set(l.author_id for l in links.values()), data=True,
+        authors = Account._byID({l.author_id for l in list(links.values())}, data=True,
                                 return_dict=True, stale=True)
 
         #get srs for comments that don't have them (old comments)
@@ -1620,10 +1609,10 @@ class Comment(Thing, Printable):
         if c.user_is_loggedin:
             is_moderator_subreddits = {
                 sr._id for sr in subreddits if sr.is_moderator(user)}
-            can_reply_srs = set(
-                sr._id for sr in subreddits if sr.can_comment(user))
-            can_distinguish_srs = set(
-                sr._id for sr in subreddits if sr.can_distinguish(user))
+            can_reply_srs = {
+                sr._id for sr in subreddits if sr.can_comment(user)}
+            can_distinguish_srs = {
+                sr._id for sr in subreddits if sr.can_distinguish(user)}
             promo_sr_id = Subreddit.get_promote_srid()
             if promo_sr_id:
                 can_reply_srs.add(promo_sr_id)
@@ -1632,10 +1621,10 @@ class Comment(Thing, Printable):
             can_reply_srs = set()
             can_distinguish_srs = set()
 
-        cids = dict((w._id, w) for w in wrapped)
-        parent_ids = set(cm.parent_id for cm in wrapped
+        cids = {w._id: w for w in wrapped}
+        parent_ids = {cm.parent_id for cm in wrapped
                          if getattr(cm, 'parent_id', None)
-                         and cm.parent_id not in cids)
+                         and cm.parent_id not in cids}
         parents = Comment._byID(
             parent_ids, data=True, stale=True, ignore_missing=True)
 
@@ -1833,7 +1822,7 @@ class Comment(Thing, Printable):
 
             item.votable = item._age < item.subreddit.archive_age
 
-            hide_period = ('{0} minutes'
+            hide_period = ('{} minutes'
                           .format(item.subreddit.comment_score_hide_mins))
 
             if item.is_sticky or item.link.contest_mode:
@@ -1905,7 +1894,7 @@ class CommentScoresByLink(tdb_cassandra.View):
     @classmethod
     def _rowkey(cls, link, sort):
         assert sort.startswith('_')
-        return '%s%s' % (link._id36, sort)
+        return '{}{}'.format(link._id36, sort)
 
     @classmethod
     def set_scores(cls, link, sort, scores_by_comment):
@@ -1993,7 +1982,7 @@ class MoreComments(Printable):
         if parent_id is not None:
             id36 = utils.to36(parent_id)
             self.parent_id = parent_id
-            self.parent_name = "t%s_%s" % (utils.to36(Comment._type_id), id36)
+            self.parent_name = "t{}_{}".format(utils.to36(Comment._type_id), id36)
             self.parent_permalink = link.make_permalink_slow() + id36
         self.link_name = link._fullname
         self.link_id = link._id
@@ -2003,7 +1992,7 @@ class MoreComments(Printable):
 
     @property
     def _fullname(self):
-        return "t%s_%s" % (utils.to36(Comment._type_id), self._id36)
+        return "t{}_{}".format(utils.to36(Comment._type_id), self._id36)
 
     @property
     def _id36(self):
@@ -2041,7 +2030,7 @@ class Message(Thing, Printable):
                      )
     _data_int_props = Thing._data_int_props + ('reported',)
     _essentials = ('author_id',)
-    cache_ignore = set(["to", "subreddit"]).union(Printable.cache_ignore)
+    cache_ignore = {"to", "subreddit"}.union(Printable.cache_ignore)
 
     @classmethod
     def _cache_prefix(cls):
@@ -2051,7 +2040,6 @@ class Message(Thing, Printable):
     def _new(cls, author, to, subject, body, ip, parent=None, sr=None,
              from_sr=False, can_send_email=True, sent_via_email=False,
              email_id=None):
-        from r2.lib.emailer import message_notification_email
         from r2.lib.message_to_email import queue_modmail_email
 
         m = Message(subject=subject, body=body, author_id=author._id, new=True,
@@ -2153,10 +2141,10 @@ class Message(Thing, Printable):
                         sender_name = '/r/%s' % sr.name
                     else:
                         sender_name = '/u/%s' % author.name
-                    permalink = 'http://%(domain)s%(path)s' % {
-                        'domain': get_domain(),
-                        'path': m.permalink,
-                    }
+                    permalink = 'http://{domain}{path}'.format(
+                        domain=get_domain(),
+                        path=m.permalink,
+                    )
                     data = {
                         'to': to._id36,
                         'from': sender_name,
@@ -2204,7 +2192,7 @@ class Message(Thing, Printable):
         p = self.permalink
         if force_domain:
             permalink_domain = get_domain(subreddit=False)
-            res = "%s://%s%s" % (g.default_scheme, permalink_domain, p)
+            res = "{}://{}{}".format(g.default_scheme, permalink_domain, p)
         else:
             res = p
         return res
@@ -2274,8 +2262,8 @@ class Message(Thing, Printable):
         parents = Comment._byID(parent_ids, data=True)
 
         # load full modlist for all subreddit messages
-        mods_by_srid = {sr._id: sr.moderator_ids() for sr in srs.itervalues()}
-        user_mod_sr_ids = {sr_id for sr_id, mod_ids in mods_by_srid.iteritems()
+        mods_by_srid = {sr._id: sr.moderator_ids() for sr in srs.values()}
+        user_mod_sr_ids = {sr_id for sr_id, mod_ids in mods_by_srid.items()
             if user._id in mod_ids}
 
         # special handling for mod replies to mod PMs
@@ -2290,7 +2278,7 @@ class Message(Thing, Printable):
         if mod_messages:
             parent_ids = [item.parent_id for item in mod_messages]
             parents = Message._byID(parent_ids, data=True, return_dict=True)
-            author_ids = {item.author_id for item in parents.itervalues()}
+            author_ids = {item.author_id for item in parents.values()}
             authors = Account._byID(author_ids, data=True, return_dict=True)
 
             for item in mod_messages:
@@ -2308,8 +2296,8 @@ class Message(Thing, Printable):
             queries.get_unread_subreddit_messages_multi(mod_msg_srs))
 
         # load blocked subreddits
-        sr_blocks = BlockedSubredditsByAccount.fast_query(user, srs.values())
-        blocked_srids = {sr._id for _user, sr in sr_blocks.iterkeys()}
+        sr_blocks = BlockedSubredditsByAccount.fast_query(user, list(srs.values()))
+        blocked_srids = {sr._id for _user, sr in sr_blocks.keys()}
 
         can_set_unread = (user.pref_mark_messages_read and
                             c.extension not in ("rss", "xml", "api", "json"))
@@ -2320,7 +2308,7 @@ class Message(Thing, Printable):
         if isinstance(c.site, FakeSubreddit):
             mod_sr_ids = Subreddit.reverse_moderator_ids(user)
             if len(mod_sr_ids) > 1:
-                sr_colors = dict(zip(mod_sr_ids, cycle(Subreddit.ACCENT_COLORS)))
+                sr_colors = dict(list(zip(mod_sr_ids, cycle(Subreddit.ACCENT_COLORS))))
 
         for item in wrapped:
             user_is_recipient = item.to_id == user._id
@@ -2488,7 +2476,7 @@ class Message(Thing, Printable):
 
     @property
     def subreddit_slow(self):
-        from subreddit import Subreddit
+        from .subreddit import Subreddit
         if self.sr_id:
             return Subreddit._byID(self.sr_id, data=True)
 
@@ -2606,7 +2594,6 @@ class _ThingSavesByAccount(_SaveHideByAccount):
     def _cached_queries_category(cls, user, thing,
                                  querycatfn, queryfn,
                                  category=None, only_category=False):
-        from r2.lib.db import queries
         cached_queries = []
         if not only_category:
             cached_queries = [queryfn(user, 'none'), queryfn(user, thing.sr_id)]
@@ -2698,7 +2685,7 @@ class _ThingSavesBySubreddit(tdb_cassandra.View):
         except NotFoundException:
             return []
 
-        return columns.keys()
+        return list(columns.keys())
 
     @classmethod
     def get_saved_subreddits(cls, user):
@@ -2720,7 +2707,7 @@ class _ThingSavesBySubreddit(tdb_cassandra.View):
     @classmethod
     def destroy(cls, user, things, **kw):
         # See if thing's sr is present anymore
-        sr_ids = set([thing.sr_id for thing in things])
+        sr_ids = {thing.sr_id for thing in things}
         for sr_id in set(sr_ids):
             if cls._check_empty(user, sr_id):
                 cls._cf.remove(user._id36, [utils.to36(sr_id)])
@@ -2741,7 +2728,6 @@ class _ThingSavesByCategory(_ThingSavesBySubreddit):
 
     @classmethod
     def _check_empty(cls, user, category):
-        from r2.lib.db import queries
         q = cls._get_query_fn()(user, 'none', category)
         q.fetch()
         return not q.data
@@ -2835,7 +2821,7 @@ class LinksByImage(tdb_cassandra.View):
             columns = cls._byID(rowkey)._values()
         except NotFoundException:
             return []
-        return columns.iterkeys()
+        return iter(columns.keys())
 
 
 _CommentInbox = Relation(Account, Comment)
@@ -2944,7 +2930,7 @@ class Inbox(MultiRelation('inbox', _CommentInbox, _MessageInbox)):
 
         # _fast_query returns a dict of {(t1, t2, name): rel}, with rel of None
         # if the relation doesn't exist
-        inbox_rels = [inbox_rel for inbox_rel in res.itervalues() if inbox_rel]
+        inbox_rels = [inbox_rel for inbox_rel in res.values() if inbox_rel]
         return inbox_rels
 
     @classmethod
@@ -2958,7 +2944,7 @@ class Inbox(MultiRelation('inbox', _CommentInbox, _MessageInbox)):
                 inbox_rel.new = unread
                 inbox_rel._commit()
 
-        for user, unread_count in unread_count_by_user.iteritems():
+        for user, unread_count in unread_count_by_user.items():
             if unread_count == 0:
                 continue
 
@@ -3001,7 +2987,7 @@ class ModeratorInbox(Relation(Subreddit, Message)):
         )
         # _fast_query returns a dict of {(t1, t2, name): rel}, with rel of None
         # if the relation doesn't exist
-        inbox_rels = [inbox_rel for inbox_rel in res.itervalues() if inbox_rel]
+        inbox_rels = [inbox_rel for inbox_rel in res.values() if inbox_rel]
         return inbox_rels
 
     @classmethod
@@ -3069,7 +3055,7 @@ class CommentVisitsByUser(tdb_cassandra.View):
 
     @classmethod
     def _rowkey(cls, user, link):
-        return "%s-%s" % (user._id36, link._id36)
+        return "{}-{}".format(user._id36, link._id36)
 
     @classmethod
     def get_previous_visits(cls, user, link):
@@ -3080,7 +3066,7 @@ class CommentVisitsByUser(tdb_cassandra.View):
         except NotFoundException:
             return []
         # NOTE: dates return from pycassa are UTC but missing their timezone
-        dates = [date.replace(tzinfo=pytz.UTC) for date in columns.keys()]
+        dates = [date.replace(tzinfo=pytz.UTC) for date in list(columns.keys())]
         return sorted(dates)
 
     @classmethod

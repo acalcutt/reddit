@@ -23,7 +23,7 @@
 from pylons import app_globals as g
 
 from r2.lib.db.operators import asc, desc, lower
-from r2.lib.db.thing import Thing, Relation, NotFound
+from r2.lib.db.thing import NotFound, Relation, Thing
 from r2.lib.memoize import memoize
 from r2.models import Account
 
@@ -68,7 +68,7 @@ class Award(Thing):
         if award:
             return cls._byID(award[0]._id, True)
         else:
-            raise NotFound, 'Award %s' % codename
+            raise NotFound('Award %s' % codename)
 
     @classmethod
     def give_if_needed(cls, codename, user,
@@ -87,10 +87,10 @@ class Award(Thing):
 
         for trophy in trophies:
             if trophy._thing2.codename == codename:
-                g.log.debug("%s already has %s" % (user, codename))
+                g.log.debug("{} already has {}".format(user, codename))
                 return trophy
 
-        g.log.debug("Gave %s to %s" % (codename, user))
+        g.log.debug("Gave {} to {}".format(codename, user))
         return Trophy._new(user, award, description=description,
                         url=url)
 
@@ -112,19 +112,19 @@ class Award(Thing):
         for trophy in trophies:
             if trophy._thing2.codename == codename:
                 if found:
-                    g.log.debug("%s had multiple %s awards!" % (user, codename))
+                    g.log.debug("{} had multiple {} awards!".format(user, codename))
                 trophy._delete()
                 Trophy.by_account(user, _update=True)
                 Trophy.by_award(award, _update=True)
                 found = True
 
         if found:
-            g.log.debug("Took %s from %s" % (codename, user))
+            g.log.debug("Took {} from {}".format(codename, user))
         else:
-            g.log.debug("%s didn't have %s" % (user, codename))
+            g.log.debug("{} didn't have {}".format(user, codename))
 
 
-class FakeTrophy(object):
+class FakeTrophy:
     def __init__(self, recipient, award, description=None, url=None):
         self._thing2 = award
         self._thing1 = recipient
@@ -197,7 +197,7 @@ class Trophy(Relation(Account, Award)):
 
     @classmethod
     def claim(cls, user, uid, award, description, url):
-        with g.make_lock("claim_award", str("%s_%s" % (user.name, uid))):
+        with g.make_lock("claim_award", str("{}_{}".format(user.name, uid))):
             existing_trophy_id = user.get_trophy_id(uid)
             if existing_trophy_id:
                 trophy = cls._byID(existing_trophy_id)

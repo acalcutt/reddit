@@ -19,11 +19,12 @@
 # All portions of the code written by reddit are Copyright (c) 2006-2015 reddit
 # Inc. All Rights Reserved.
 ###############################################################################
-from r2.tests import RedditControllerTestCase
 from r2.lib.errors import error_list
-from r2.lib.unicode import _force_unicode
+from r2.lib.str import _force_unicode
 from r2.models import Subreddit
-from common import LoginRegBase
+from r2.tests import RedditControllerTestCase
+
+from .common import LoginRegBase
 
 
 class PostLoginRegTests(LoginRegBase, RedditControllerTestCase):
@@ -33,7 +34,7 @@ class PostLoginRegTests(LoginRegBase, RedditControllerTestCase):
     }
 
     def setUp(self):
-        super(PostLoginRegTests, self).setUp()
+        super().setUp()
         self.autopatch(Subreddit, "_byID", return_value=[])
         self.dest = "/foo"
 
@@ -62,4 +63,4 @@ class PostLoginRegTests(LoginRegBase, RedditControllerTestCase):
 
     def make_qs(self, **kw):
         kw['dest'] = self.dest
-        return super(PostLoginRegTests, self).make_qs(**kw)
+        return super().make_qs(**kw)

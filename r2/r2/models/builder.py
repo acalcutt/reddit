@@ -20,62 +20,58 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from collections import defaultdict, namedtuple
-from copy import deepcopy
 import datetime
 import heapq
-from random import shuffle
 import time
+from collections import defaultdict, namedtuple
+from copy import deepcopy
+from random import shuffle
 
-from pylons import request
-from pylons import tmpl_context as c
 from pylons import app_globals as g
+from pylons import tmpl_context as c
 from pylons.i18n import _
 
 from r2.config import feature
 from r2.config.extensions import API_TYPES, RSS_TYPES
 from r2.lib import hooks
 from r2.lib.comment_tree import (
-    conversation,
-    get_comment_scores,
-    moderator_messages,
-    sr_conversation,
-    subreddit_messages,
-    tree_sort_fn,
-    user_messages,
+  conversation,
+  get_comment_scores,
+  moderator_messages,
+  sr_conversation,
+  subreddit_messages,
+  tree_sort_fn,
+  user_messages,
 )
-from r2.lib.wrapped import Wrapped
 from r2.lib.db import operators, tdb_cassandra
-from r2.lib.filters import _force_unicode
 from r2.lib.jsontemplates import get_trimmed_sr_dicts
 from r2.lib.utils import (
-    long_datetime,
-    SimpleSillyStub,
-    Storage,
-    to36,
-    tup,
+  SimpleSillyStub,
+  Storage,
+  long_datetime,
+  to36,
+  tup,
 )
-
-from r2.models import (
-    Account,
-    Comment,
-    CommentSavesByAccount,
-    Link,
-    LinkSavesByAccount,
-    Message,
-    MoreChildren,
-    MoreMessages,
-    MoreRecursion,
-    Subreddit,
-    Thing,
-    wiki,
+from r2.lib.wrapped import Wrapped
+from r2.lib.db.thing import Thing
+from r2.models.account import Account
+from r2.models.link import (
+  Comment,
+  CommentSavesByAccount,
+  Link,
+  LinkSavesByAccount,
+  Message,
+  MoreChildren,
+  MoreMessages,
+  MoreRecursion,
 )
+from r2.models.subreddit import Subreddit
+from r2.models import wiki
 from r2.models.admintools import ip_span
 from r2.models.comment_tree import CommentTree
 from r2.models.flair import Flair
 from r2.models.listing import Listing
 from r2.models.vote import Vote
-
 
 EXTRA_FACTOR = 1.5
 MAX_RECURSION = 10
@@ -85,7 +81,7 @@ class InconsistentCommentTreeError(Exception):
   pass
 
 
-class Builder(object):
+class Builder:
     def __init__(self, wrap=Wrapped, prewrap_fn=None, keep_fn=None, stale=True,
                  spam_listing=False):
         self.wrap = wrap
@@ -103,20 +99,20 @@ class Builder(object):
     def wrap_items(self, items):
         from r2.lib.db import queries
         from r2.lib.template_helpers import (
-            add_friend_distinguish,
-            add_admin_distinguish,
-            add_moderator_distinguish,
-            add_cakeday_distinguish,
-            add_special_distinguish,
+          add_admin_distinguish,
+          add_cakeday_distinguish,
+          add_friend_distinguish,
+          add_moderator_distinguish,
+          add_special_distinguish,
         )
 
         user = c.user if c.user_is_loggedin else None
-        aids = set(l.author_id for l in items if hasattr(l, 'author_id')
-                   and l.author_id is not None)
+        aids = {l.author_id for l in items if hasattr(l, 'author_id')
+                   and l.author_id is not None}
 
         authors = Account._byID(aids, data=True, stale=self.stale)
         now = datetime.datetime.now(g.tz)
-        cakes = {a._id for a in authors.itervalues()
+        cakes = {a._id for a in authors.values()
                        if a.cake_expiration and a.cake_expiration >= now}
         friend_rels = user.friend_rels() if user and user.gold else {}
 
@@ -124,7 +120,7 @@ class Builder(object):
         can_ban_set = set()
 
         if user:
-            for sr_id, sr in subreddits.iteritems():
+            for sr_id, sr in subreddits.items():
                 if sr.can_ban(user):
                     can_ban_set.add(sr_id)
 
@@ -316,7 +312,7 @@ class Builder(object):
         # recache the user object: it may be None if user is not logged in,
         # whereas now we are happy to have the UnloggedUser object
         user = c.user
-        for cls in types.keys():
+        for cls in list(types.keys()):
             cls.add_props(user, types[cls])
 
         return wrapped
@@ -403,12 +399,11 @@ class QueryBuilder(Builder):
         Builder.__init__(self, **kw)
 
     def __repr__(self):
-        return "<%s(%r)>" % (self.__class__.__name__, self.query)
+        return "<{}({!r})>".format(self.__class__.__name__, self.query)
 
     def item_iter(self, a):
         """Iterates over the items returned by get_items"""
-        for i in a[0]:
-            yield i
+        yield from a[0]
 
     def init_query(self):
         q = self.query
@@ -499,10 +494,10 @@ class QueryBuilder(Builder):
                 if isinstance(item.lookups[0], Link):
                     items_by_subreddit[item.subreddit].append(item)
 
-            srs = items_by_subreddit.keys()
+            srs = list(items_by_subreddit.keys())
             sr_dicts = get_trimmed_sr_dicts(srs, c.user)
 
-            for sr, sr_items in items_by_subreddit.iteritems():
+            for sr, sr_items in items_by_subreddit.items():
                 sr_detail = sr_dicts[sr._id]
                 for item in sr_items:
                     item.sr_detail = sr_detail
@@ -594,10 +589,10 @@ class ActionBuilder(IDBuilder):
             self.actions[id] = action
         self.query = ids
 
-        super(ActionBuilder, self).init_query()
+        super().init_query()
 
     def thing_lookup(self, names):
-        items = super(ActionBuilder, self).thing_lookup(names)
+        items = super().thing_lookup(names)
 
         for item in items:
             if item._fullname in self.actions:
@@ -675,7 +670,7 @@ class ModActionBuilder(QueryBuilder):
             w.fullname = item._fullname
             by_render_class[w.render_class].append(w)
 
-        for render_class, _items in by_render_class.iteritems():
+        for render_class, _items in by_render_class.items():
             render_class.add_props(c.user, _items)
 
         return wrapped
@@ -791,7 +786,7 @@ class WikiRevisionBuilder(QueryBuilder):
             wrapped.append(w)
 
         user = c.user
-        for cls in types.keys():
+        for cls in list(types.keys()):
             cls.add_props(user, types[cls])
 
         return wrapped
@@ -822,7 +817,7 @@ MissingChildrenTuple = namedtuple("MissingChildrenTuple",
     ["num_children", "child_ids"])
 
 
-class CommentOrdererBase(object):
+class CommentOrdererBase:
     def __init__(self, link, sort, max_comments, max_depth, timer):
         self.link = link
         self.sort = sort
@@ -1081,7 +1076,7 @@ class CommentOrderer(CommentOrdererBase):
         else:
             bucket_start = num_comments / 5 * 5
             bucket_end = bucket_start + 5
-            bucket = "%s_%s" % (bucket_start, bucket_end)
+            bucket = "{}_{}".format(bucket_start, bucket_end)
 
         # record the number of comments on this link so we can get an idea of
         # what value to use for 'precomputed_comment_sort_min_comments'
@@ -1095,7 +1090,7 @@ class CommentOrderer(CommentOrdererBase):
                 return self.read_cache()
         else:
             if bucket == "100_plus":
-                for sort_name, operator in SORT_OPERATOR_BY_NAME.iteritems():
+                for sort_name, operator in SORT_OPERATOR_BY_NAME.items():
                     if operator == self.sort:
                         break
                 else:
@@ -1565,7 +1560,7 @@ class CommentBuilder(Builder):
         if self.uncollapse_all:
             dont_collapse = set(wrapped_by_id.keys())
         elif self.comment:
-            dont_collapse = set([self.comment._id])
+            dont_collapse = {self.comment._id}
             parent_id = self.comment.parent_id
             while parent_id:
                 dont_collapse.add(parent_id)
@@ -1618,8 +1613,7 @@ class CommentBuilder(Builder):
         for i in a:
             yield i
             if hasattr(i, 'child'):
-                for j in self.item_iter(i.child.things):
-                    yield j
+                yield from self.item_iter(i.child.things)
 
 
 class MessageBuilder(Builder):
@@ -1634,7 +1628,7 @@ class MessageBuilder(Builder):
         Builder.__init__(self, **kw)
 
     def get_tree(self):
-        raise NotImplementedError, "get_tree"
+        raise NotImplementedError("get_tree")
 
     def valid_after(self, after):
         w = self.convert_items((after,))[0]
@@ -1807,8 +1801,7 @@ class MessageBuilder(Builder):
             for i in _items:
                 yield i
                 if hasattr(i, "child"):
-                    for j in _item_iter(i.child.things):
-                        yield j
+                    yield from _item_iter(i.child.things)
 
         return _item_iter(items)
 
@@ -1880,7 +1873,7 @@ class UserMessageBuilder(MessageBuilder):
                     message.to_id == c.user._id and message.del_on_recipient):
                 return False
 
-        return super(UserMessageBuilder, self)._viewable_message(message)
+        return super()._viewable_message(message)
 
     def get_tree(self):
         if self.parent:
@@ -1912,8 +1905,8 @@ class UserListBuilder(QueryBuilder):
 
 class SavedBuilder(IDBuilder):
     def wrap_items(self, items):
-        categories = LinkSavesByAccount.fast_query(c.user, items).items()
-        categories += CommentSavesByAccount.fast_query(c.user, items).items()
+        categories = list(LinkSavesByAccount.fast_query(c.user, items).items())
+        categories += list(CommentSavesByAccount.fast_query(c.user, items).items())
         categories = {item[1]._id: category for item, category in categories if category}
         wrapped = QueryBuilder.wrap_items(self, items)
         for w in wrapped:

@@ -51,20 +51,22 @@ cat links.joined | paster --plugin=r2 run $INI r2/lib/migrate/mr_domains.py -c "
 
 import sys
 
-from r2.models import Account, Subreddit, Link
-from r2.lib.db.sorts import epoch_seconds, score, controversy, _hot
-from r2.lib.db import queries
 from r2.lib import mr_tools
-from r2.lib.utils import timeago, UrlParser
-from r2.lib.jsontemplates import make_fullname # what a strange place
+from r2.lib.db import queries
+from r2.lib.db.sorts import _hot, controversy, epoch_seconds, score
+from r2.lib.jsontemplates import make_fullname  # what a strange place
+from r2.lib.utils import UrlParser, timeago
+from r2.models import Account, Link, Subreddit
+
+
                                                # for this function
 def join_links():
     mr_tools.join_things(('url',))
 
 
 def time_listings(times = ('all',)):
-    oldests = dict((t, epoch_seconds(timeago('1 %s' % t)))
-                   for t in times if t != "all")
+    oldests = {t: epoch_seconds(timeago('1 %s' % t))
+                   for t in times if t != "all"}
     oldests['all'] = epoch_seconds(timeago('10 years'))
 
     @mr_tools.dataspec_m_thing(("url", str),)
@@ -81,20 +83,20 @@ def time_listings(times = ('all',)):
                 domains = []
             ups, downs = link.ups, link.downs
 
-            for tkey, oldest in oldests.iteritems():
+            for tkey, oldest in oldests.items():
                 if timestamp > oldest:
                     sc = score(ups, downs)
                     contr = controversy(ups, downs)
                     h = _hot(ups, downs, timestamp)
                     for domain in domains:
-                        yield ('domain/top/%s/%s' % (tkey, domain),
+                        yield ('domain/top/{}/{}'.format(tkey, domain),
                                sc, timestamp, fname)
-                        yield ('domain/controversial/%s/%s' % (tkey, domain),
+                        yield ('domain/controversial/{}/{}'.format(tkey, domain),
                                contr, timestamp, fname)
                         if tkey == "all":
-                            yield ('domain/hot/%s/%s' % (tkey, domain),
+                            yield ('domain/hot/{}/{}'.format(tkey, domain),
                                    h, timestamp, fname)
-                            yield ('domain/new/%s/%s' % (tkey, domain),
+                            yield ('domain/new/{}/{}'.format(tkey, domain),
                                    timestamp, timestamp, fname)
 
     mr_tools.mr_map(process)
@@ -132,12 +134,12 @@ def store_keys(key, maxes):
             sort = 'controversial'
 
         q = queries.get_links(Subreddit._byID(sr_id), sort, time)
-        q._insert_tuples([tuple([item[-1]] + map(float, item[:-1]))
+        q._insert_tuples([tuple([item[-1]] + list(map(float, item[:-1])))
                     for item in maxes])
     elif key.startswith('domain/'):
         d_str, sort, time, domain = key.split('/')
         q = queries.get_domain_links(domain, sort, time)
-        q._insert_tuples([tuple([item[-1]] + map(float, item[:-1]))
+        q._insert_tuples([tuple([item[-1]] + list(map(float, item[:-1])))
                     for item in maxes])
 
 
@@ -146,11 +148,11 @@ def store_keys(key, maxes):
         account_id = int(account_id)
         fn = userrel_fns[key_type]
         q = fn(Account._byID(account_id))
-        q._insert_tuples([tuple([item[-1]] + map(float, item[:-1]))
+        q._insert_tuples([tuple([item[-1]] + list(map(float, item[:-1])))
                     for item in maxes])
 
 
 def write_permacache(fd = sys.stdin):
-    mr_tools.mr_reduce_max_per_key(lambda x: map(float, x[:-1]), num=1000,
+    mr_tools.mr_reduce_max_per_key(lambda x: list(map(float, x[:-1])), num=1000,
                                    post=store_keys,
                                    fd = fd)

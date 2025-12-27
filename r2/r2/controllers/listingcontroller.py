@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # The contents of this file are subject to the Common Public Attribution
 # License Version 1.0. (the "License"); you may not use this file except in
 # compliance with the License. You may obtain a copy of the License at
@@ -21,50 +20,55 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import urllib
-
-from oauth2 import require_oauth2_scope
-from reddit_base import RedditController, base_listing, paginated_listing
-
-from r2.models import *
-from r2.models.query_cache import CachedQuery, MergedCachedQuery
-from r2.config.extensions import is_api
-from r2.lib.filters import _force_unicode
-from r2.lib.jsontemplates import get_usertrophies
-from r2.lib.pages import *
-from r2.lib.pages.things import wrap_links
-from r2.lib.menus import TimeMenu, CommentsTimeMenu, SortMenu, RecSortMenu, ProfileSortMenu
-from r2.lib.menus import ControversyTimeMenu, ProfileOverviewTimeMenu, menu, QueryButton
-from r2.lib.rising import get_rising, normalized_rising
-from r2.lib.wrapped import Wrapped
-from r2.lib.normalized_hot import normalized_hot
-from r2.lib.db.thing import Query, Merge, Relations
-from r2.lib.db import queries
-from r2.lib.strings import Score
-from r2.lib.template_helpers import add_sr
-from r2.lib.csrf import csrf_exempt
-from r2.lib.utils import (
-    extract_user_mentions,
-    iters,
-    query_string,
-    timeago,
-    to36,
-    trunc_string,
-    precise_format_timedelta,
-)
-from r2.lib import hooks, organic, trending
-from r2.lib.memoize import memoize
-from r2.lib.validator import *
-import socket
-
-from api_docs import api_doc, api_section
+import random
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import timedelta
+from functools import partial
 
 from pylons import app_globals as g
 from pylons.i18n import _
 
-from datetime import timedelta
-import random
-from functools import partial
+from r2.config.extensions import is_api
+from r2.lib import hooks, organic, trending
+from r2.lib.csrf import csrf_exempt
+from r2.lib.db import queries
+from r2.lib.db.thing import Query
+from r2.lib.filters import _force_unicode
+from r2.lib.jsontemplates import get_usertrophies
+from r2.lib.menus import (
+    CommentsTimeMenu,
+    ControversyTimeMenu,
+    ProfileOverviewTimeMenu,
+    ProfileSortMenu,
+    QueryButton,
+    TimeMenu,
+    menu,
+)
+from r2.lib.normalized_hot import normalized_hot
+from r2.lib.pages import *
+from r2.lib.pages.things import wrap_links
+from r2.lib.rising import get_rising, normalized_rising
+from r2.lib.template_helpers import add_sr
+from r2.lib.utils import (
+    extract_user_mentions,
+    iters,
+    precise_format_timedelta,
+    query_string,
+    timeago,
+    to36,
+    trunc_string,
+)
+from r2.lib.validator import *
+from r2.lib.wrapped import Wrapped
+from r2.models import *
+from r2.models.query_cache import CachedQuery, MergedCachedQuery
+
+from .api_docs import api_doc, api_section
+from .oauth2 import require_oauth2_scope
+from .reddit_base import RedditController, base_listing, paginated_listing
+
 
 class ListingController(RedditController):
     """Generalized controller for pages with lists of links."""
@@ -287,10 +291,10 @@ class SubredditListingController(ListingController):
         # This doesn't handle `max_length`s shorter than `sr_fragment`.
         # Unknown what the behavior should be, but realistically it shouldn't
         # happen, since this is scoped pretty small.
-        max_title_length = max_length - len(u" • %s" % sr_fragment)
+        max_title_length = max_length - len(" • %s" % sr_fragment)
         title = trunc_string(title, max_title_length)
 
-        return u"%s • %s" % (_force_unicode(title), sr_fragment)
+        return "{} • {}".format(_force_unicode(title), sr_fragment)
 
     def canonical_link(self):
         """Return the canonical link of the subreddit.
@@ -535,7 +539,7 @@ class HotController(ListingWithPromos):
         }
 
     def content(self):
-        content = super(HotController, self).content()
+        content = super().content()
 
         if c.render_style == "html":
             stack = None
@@ -559,7 +563,7 @@ class HotController(ListingWithPromos):
                     ]
 
             if stack:
-                return PaneStack(filter(None, stack), css_class='spacer')
+                return PaneStack([_f for _f in stack if _f], css_class='spacer')
 
         return content
 
@@ -623,7 +627,7 @@ class BrowseController(ListingWithPromos):
         """For merged time-listings, don't show items that are too old
            (this can happen when mr_top hasn't run in a while)"""
         if self.time != 'all' and c.default_sr:
-            oldest = timeago('1 %s' % (str(self.time),))
+            oldest = timeago('1 {}'.format(str(self.time)))
             def keep(item):
                 if isinstance(c.site, AllSR):
                     if not item.subreddit.discoverable:
@@ -775,7 +779,7 @@ class UserController(ListingController):
             srnames = LinkSavesBySubreddit.get_saved_subreddits(self.vuser)
             srnames += CommentSavesBySubreddit.get_saved_subreddits(self.vuser)
             srs = Subreddit._by_name(set(srnames), stale=True)
-            srnames = [name for name, sr in srs.iteritems()
+            srnames = [name for name, sr in srs.items()
                             if sr.can_view(c.user)]
             srnames = sorted(set(srnames), key=lambda name: name.lower())
             if len(srnames) > 1:
@@ -785,7 +789,7 @@ class UserController(ListingController):
                     sr_buttons.append(QueryButton(srname, srname, query_param='sr'))
                 base_path = '/user/%s/saved' % self.vuser.name
                 if self.savedcategory:
-                    base_path += '/%s' % urllib.quote(self.savedcategory)
+                    base_path += '/%s' % urllib.parse.quote(self.savedcategory)
                 sr_menu = NavMenu(sr_buttons, base_path=base_path,
                                   title=_('filter by subreddit'),
                                   type='lightdrop')
@@ -797,7 +801,7 @@ class UserController(ListingController):
                 cat_buttons = [NavButton(_('all'), '/', css_class='primary')]
                 for cat in categories:
                     cat_buttons.append(NavButton(cat,
-                                                 urllib.quote(cat),
+                                                 urllib.parse.quote(cat),
                                                  use_params=True))
                 base_path = '/user/%s/saved/' % self.vuser.name
                 cat_menu = NavMenu(cat_buttons, base_path=base_path,
@@ -1073,7 +1077,7 @@ class UserController(ListingController):
 
     @validate(VUser())
     def GET_rel_user_redirect(self, rest=""):
-        url = "/user/%s/%s" % (c.user.name, rest)
+        url = "/user/{}/{}".format(c.user.name, rest)
         if request.query_string:
             url += "?" + request.query_string
         return self.redirect(url, code=302)
@@ -1793,10 +1797,10 @@ class UserListListingController(ListingController):
         # having this suffix, to make similar tabs on different subreddits
         # distinct.
         if self.where == 'moderators':
-            return '%(section)s - /r/%(subreddit)s' % {
-                'section': section_title,
-                'subreddit': c.site.name,
-            }
+            return '{section} - /r/{subreddit}'.format(
+                section=section_title,
+                subreddit=c.site.name,
+            )
 
         return section_title
 

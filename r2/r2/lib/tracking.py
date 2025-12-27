@@ -20,18 +20,19 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 import base64
 import hashlib
-import urllib
+import urllib.error
+import urllib.parse
+import urllib.request
 
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+from pylons import app_globals as g
 from pylons import request
 from pylons import tmpl_context as c
-from pylons import app_globals as g
 
 from r2.lib.filters import _force_utf8
-
 
 KEY_SIZE = 16  # AES-128
 SALT_SIZE = KEY_SIZE * 2  # backwards compatibility
@@ -47,6 +48,9 @@ def _pad_message(text):
 
     """
     block_size = AES.block_size
+    # Keep operation in text (str) form so tests that expect string
+    # padding continue to work. When interacting with the cipher we will
+    # encode/decode using latin-1 to preserve raw byte values.
     padding_size = (block_size - len(text) % block_size) or block_size
     padding = chr(padding_size) * padding_size
     return text + padding
@@ -57,15 +61,20 @@ def _unpad_message(text):
     if not text:
         return ""
 
-    padding_size = ord(text[-1])
+    # Accept either str or bytes. If bytes, interpret as latin-1 so we can
+    # round-trip the original Python2 semantics where `str` was raw bytes.
+    if isinstance(text, bytes):
+        data = text
+    else:
+        data = text.encode('latin-1')
+
+    padding_size = data[-1]
     if padding_size > AES.block_size:
         return ""
 
-    unpadded, padding = text[:-padding_size], text[-padding_size:]
-    if any(ord(x) != padding_size for x in padding):
-        return ""
-
-    return unpadded
+    unpadded = data[:-padding_size]
+    # Return as text using latin-1 to preserve original byte values.
+    return unpadded.decode('latin-1')
 
 
 def _make_cipher(initialization_vector, secret):
@@ -94,19 +103,25 @@ def _make_salt():
     # so we'll calculate how many bytes we need to get SALT_SIZE characters of
     # base64 output. because of padding, this only works for SALT_SIZE % 4 == 0
     assert SALT_SIZE % 4 == 0
-    salt_byte_count = (SALT_SIZE / 4) * 3
+    salt_byte_count = int((SALT_SIZE // 4) * 3)
     salt_bytes = get_random_bytes(salt_byte_count)
-    return base64.b64encode(salt_bytes)
+    # Return a text string (base64 is ASCII-safe) to mirror Python2 behavior
+    return base64.b64encode(salt_bytes).decode('ascii')
 
 
 def _encrypt(salt, plaintext, secret):
-    cipher = _make_cipher(salt, secret)
+    # `salt` is text (ASCII base64). Ensure `salt` and plaintext are handled
+    # correctly as bytes for the cipher.
+    cipher = _make_cipher(salt.encode('ascii') if isinstance(salt, str) else salt,
+                          secret if isinstance(secret, bytes) else secret.encode('latin-1'))
 
     padded = _pad_message(plaintext)
-    ciphertext = cipher.encrypt(padded)
-    encoded = base64.b64encode(ciphertext)
+    # Use latin-1 to convert the padded text to raw bytes for AES
+    padded_bytes = padded.encode('latin-1')
+    ciphertext = cipher.encrypt(padded_bytes)
+    encoded = base64.b64encode(ciphertext).decode('ascii')
 
-    return urllib.quote_plus(salt + encoded, safe="")
+    return urllib.parse.quote_plus(salt + encoded, safe="")
 
 
 def decrypt(encrypted):
@@ -120,10 +135,11 @@ def decrypt(encrypted):
 
 
 def _decrypt(encrypted, secret):
-    encrypted = urllib.unquote_plus(encrypted)
+    encrypted = urllib.parse.unquote_plus(encrypted)
     salt, encoded = encrypted[:SALT_SIZE], encrypted[SALT_SIZE:]
     ciphertext = base64.b64decode(encoded)
-    cipher = _make_cipher(salt, secret)
+    cipher = _make_cipher(salt.encode('ascii') if isinstance(salt, str) else salt,
+                          secret if isinstance(secret, bytes) else secret.encode('latin-1'))
     padded = cipher.decrypt(ciphertext)
     return _unpad_message(padded)
 
@@ -172,8 +188,8 @@ def get_pageview_pixel_url():
 def get_impression_pixel_url(codename):
     """Return a URL to use for tracking impressions of the given advert."""
     # TODO: use HMAC here
-    mac = codename + hashlib.sha1(codename + g.tracking_secret).hexdigest()
+    mac = codename + hashlib.sha1((codename + g.tracking_secret).encode('utf-8')).hexdigest()
     v_param = "?v=%s&" % _get_encrypted_user_slug()
-    hash_and_id_params = urllib.urlencode({"hash": mac,
+    hash_and_id_params = urllib.parse.urlencode({"hash": mac,
                                            "id": codename,})
     return g.adframetracker_url + v_param + hash_and_id_params

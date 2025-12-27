@@ -20,21 +20,20 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 import contextlib
-import unittest
 import json
-from mock import patch, MagicMock
+import unittest
 
 from r2.lib import signing
 from r2.tests import RedditControllerTestCase
-from r2.lib.validator import VThrottledLogin, VUname
-from common import LoginRegBase
+
+from .common import LoginRegBase
 
 
 class APIV1LoginTests(LoginRegBase, RedditControllerTestCase):
     CONTROLLER = "apiv1login"
 
     def setUp(self):
-        super(APIV1LoginTests, self).setUp()
+        super().setUp()
         self.device_id = "dead-beef"
 
     def make_ua_signature(self, platform="test", version=1):
@@ -123,9 +122,8 @@ class APIV1LoginTests(LoginRegBase, RedditControllerTestCase):
 
     @unittest.skip("registration captcha is unfinished")
     def test_captcha_blocking(self):
-        with contextlib.nested(
-            self.mock_register(),
-            self.failed_captcha()
-        ):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(self.mock_register())
+            stack.enter_context(self.failed_captcha())
             res = self.do_register()
             self.assert_success(res)

@@ -20,24 +20,29 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from datetime import datetime
+
+from pylons import app_globals as g
+from pylons import tmpl_context as c
+
 from r2.config import feature
 from r2.lib.db.thing import NotFound
 from r2.lib.menus import (
-  JsButton,
-  NavButton,
-  NavMenu,
-  Styled,
+    JsButton,
+    Styled,
 )
-from r2.lib.wrapped import Wrapped
-from r2.models import Comment, LinkListing, Link, Message, PromotedLink, Report
-from r2.models import IDBuilder, Thing
-from r2.lib.utils import tup
-from r2.lib.strings import Score
 from r2.lib.promote import *
-from datetime import datetime
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _, ungettext
+from r2.lib.strings import Score
+from r2.lib.utils import tup
+from r2.lib.wrapped import Wrapped
+from r2.models import (
+    IDBuilder,
+    Link,
+    LinkListing,
+    Message,
+    PromotedLink,
+)
+
 
 class PrintableButtons(Styled):
     cachable = False
@@ -334,7 +339,7 @@ class MessageButtons(PrintableButtons):
 def make_wrapper(parent_wrapper = Wrapped, **params):
     def wrapper_fn(thing):
         w = parent_wrapper(thing)
-        for k, v in params.iteritems():
+        for k, v in params.items():
             setattr(w, k, v)
         return w
     return wrapper_fn
@@ -360,7 +365,7 @@ def wrap_links(links, wrapper = default_thing_wrapper(),
                listing_cls = LinkListing, 
                num = None, show_nums = False, nextprev = False, **kw):
     links = tup(links)
-    if not all(isinstance(x, basestring) for x in links):
+    if not all(isinstance(x, str) for x in links):
         links = [x._fullname for x in links]
     b = IDBuilder(links, num = num, wrap = wrapper, **kw)
     l = listing_cls(b, nextprev = nextprev, show_nums = show_nums)

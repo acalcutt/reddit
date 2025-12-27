@@ -20,7 +20,7 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-class TicketProvider(object):
+class TicketProvider:
     """Provider for handling support tickets interactions.
 
     """

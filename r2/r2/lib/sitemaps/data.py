@@ -59,12 +59,11 @@ def _read_subreddit_etl_from_s3(s3path):
 
                 # import it
                 g.log.debug("Starting import of %r", s3key)
-                for line in ntf_decompress:
-                    yield line
+                yield from ntf_decompress
         key_count += 1
 
     if key_count == 0:
-        raise ValueError('{0} contains no readable keys.'.format(s3path))
+        raise ValueError('{} contains no readable keys.'.format(s3path))
 
 
 def find_all_subreddits(s3path):

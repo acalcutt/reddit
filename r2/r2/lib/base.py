@@ -20,27 +20,25 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from pylons import request, session, config, response
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.controllers import WSGIController
-from pylons.i18n import N_, _, ungettext, get_lang
-from webob.exc import HTTPException, status_map
-from r2.lib.filters import spaceCompress, _force_unicode
-from r2.lib.template_helpers import get_domain
-from r2.lib.utils import Agent
-from utils import string2js, read_http_date
-
-import re, hashlib
-from Cookie import CookieError
-from urllib import quote
-import urllib2
-import sys
-
 
 #TODO hack
 import logging
-from r2.lib.utils import UrlParser, query_string
+import urllib.error
+import urllib.parse
+import urllib.request
+from http.cookies import CookieError
+
+from pylons import app_globals as g
+from pylons import request, response
+from pylons import tmpl_context as c
+from pylons.controllers import WSGIController
+from webob.exc import HTTPException, status_map
+
+from r2.lib.filters import _force_unicode
+from r2.lib.utils import Agent, UrlParser, query_string
+
+from .utils import read_http_date
+
 logging.getLogger('scgi-wsgi').setLevel(logging.CRITICAL)
 
 
@@ -108,7 +106,7 @@ class BaseController(WSGIController):
         except UnicodeDecodeError:
             abort(400)
 
-        #if x-dont-decode is set, pylons won't unicode all the parameters
+        #if x-dont-decode is set, pylons won't str all the parameters
         if request.environ.get('HTTP_X_DONT_DECODE'):
             request.charset = None
 
@@ -205,7 +203,7 @@ class BaseController(WSGIController):
 
         if u.is_reddit_url():
             # make sure to pass the port along if not 80
-            if not kw.has_key('port'):
+            if 'port' not in kw:
                 kw['port'] = request.port
 
             # make sure the extensions agree with the current page
@@ -247,12 +245,11 @@ class BaseController(WSGIController):
         response.headers['Location'] = dest
 
 
-class EmbedHandler(urllib2.BaseHandler, urllib2.HTTPHandler,
-                   urllib2.HTTPErrorProcessor, urllib2.HTTPDefaultErrorHandler):
+class EmbedHandler(urllib.request.BaseHandler):
 
     def http_redirect(self, req, fp, code, msg, hdrs):
         to = hdrs['Location']
-        h = urllib2.HTTPRedirectHandler()
+        h = urllib.request.HTTPRedirectHandler()
         r = h.redirect_request(req, fp, code, msg, hdrs, to)
         return embedopen.open(r)
 
@@ -261,10 +258,9 @@ class EmbedHandler(urllib2.BaseHandler, urllib2.HTTPHandler,
     http_error_303 = http_redirect
     http_error_307 = http_redirect
 
-embedopen = urllib2.OpenerDirector()
-embedopen.add_handler(EmbedHandler())
+embedopen = urllib.request.build_opener(EmbedHandler())
 
 def proxyurl(url):
-    r = urllib2.Request(url, None, {})
+    r = urllib.request.Request(url, None, {})
     content = embedopen.open(r).read()
     return content

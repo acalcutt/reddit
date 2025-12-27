@@ -20,11 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+import hashlib
 import os
 import re
-import hashlib
-from PIL import Image
 import subprocess
+
+from PIL import Image
 
 from r2.lib.static import generate_static_name
 
@@ -58,7 +59,7 @@ def _extract_css_info(match):
     return image_filename, should_stretch, pixel_ratio
 
 
-class SpritableImage(object):
+class SpritableImage:
     def __init__(self, image, should_stretch=False):
         self.image = image
         self.stretch = should_stretch
@@ -76,7 +77,7 @@ class SpritableImage(object):
         self.image = self.image.resize((width, self.height))
 
 
-class SpriteBin(object):
+class SpriteBin:
     def __init__(self, bounding_box):
         # the bounding box is a tuple of
         # top-left-x, top-left-y, bottom-right-x, bottom-right-y
@@ -97,7 +98,7 @@ def _load_spritable_images(css_filename):
     css_location = os.path.dirname(os.path.abspath(css_filename))
 
     images = {}
-    with open(css_filename, 'r') as f:
+    with open(css_filename) as f:
         for line in f:
             m = sprite_line.search(line)
             if not m:
@@ -114,7 +115,7 @@ def _load_spritable_images(css_filename):
             images[image_hash].filenames.append(image_filename)
 
     # Sort images by filename to group the layout by names when possible.
-    return sorted(images.values(), key=lambda i: i.filenames[0])
+    return sorted(list(images.values()), key=lambda i: i.filenames[0])
 
 
 def _generate_sprite(images, sprite_path):
@@ -194,7 +195,7 @@ def _rewrite_css(css_filename, sprite_path, images, sprite_size):
         return ''.join(css_properties)
 
     # read in the css and replace sprite references
-    with open(css_filename, 'r') as f:
+    with open(css_filename) as f:
         css = f.read()
     return sprite_line.sub(rewrite_sprite_reference, css)
 
@@ -207,4 +208,4 @@ def spritify(css_filename, sprite_path):
 
 if __name__ == '__main__':
     import sys
-    print spritify(sys.argv[1], sys.argv[2])
+    print(spritify(sys.argv[1], sys.argv[2]))

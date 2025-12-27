@@ -25,7 +25,6 @@ import hmac
 import json
 
 from pylons import app_globals as g
-import requests
 
 from r2.lib import amqp
 from r2.lib.filters import _force_unicode
@@ -39,7 +38,7 @@ from r2.models import (
 
 
 def get_reply_to_address(message):
-    """Construct a reply-to address that encodes the message id.
+    r"""Construct a reply-to address that encodes the message id.
 
     The address is of the form:
         zendeskreply+{message_id36}-{email_mac}
@@ -111,7 +110,7 @@ def get_message_subject(message):
     else:
         conversation_subject = message.subject
 
-    return u"[r/{subreddit} mail]: {subject}".format(
+    return "[r/{subreddit} mail]: {subject}".format(
         subreddit=sr.name, subject=_force_unicode(conversation_subject))
 
 

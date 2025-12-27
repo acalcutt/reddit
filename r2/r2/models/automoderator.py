@@ -58,4 +58,4 @@ class PerformedRulesByThing(tdb_cassandra.View):
         except NotFoundException:
             return []
 
-        return columns.keys()
+        return list(columns.keys())

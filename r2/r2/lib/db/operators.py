@@ -20,25 +20,25 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-class BooleanOp(object):
+class BooleanOp:
     def __init__(self, *ops):
         self.ops = ops
 
     def __repr__(self):
-        return '<%s_ %s>' % (self.__class__.__name__, str(self.ops))
+        return '<{}_ {}>'.format(self.__class__.__name__, str(self.ops))
 
 class or_(BooleanOp): pass
 class and_(BooleanOp): pass
 class not_(BooleanOp): pass
 
-class op(object):
+class op:
     def __init__(self, lval, lval_name, rval):
         self.lval = lval
         self.rval = rval
         self.lval_name = lval_name
 
     def __repr__(self):
-        return '<%s: %s, %s>' % (self.__class__.__name__, self.lval, self.rval)
+        return '<{}: {}, {}>'.format(self.__class__.__name__, self.lval, self.rval)
 
     # sorts in a consistent order, required for Query._cache_key()
     def __cmp__(self, other):
@@ -52,7 +52,7 @@ class gt(op): pass
 class gte(op): pass
 class in_(op): pass
 
-class Slot(object):
+class Slot:
     def __init__(self, lval):
         if isinstance(lval, Slot):
             self.name = lval.name
@@ -61,7 +61,7 @@ class Slot(object):
             self.name = lval
 
     def __repr__(self):
-        return '<%s: %s>' % (self.__class__.__name__, self.name)
+        return '<{}: {}>'.format(self.__class__.__name__, self.name)
 
     def __eq__(self, other):
         return eq(self, self.name, other)
@@ -84,7 +84,7 @@ class Slot(object):
     def in_(self, other):
         return in_(self, self.name, other)
 
-class Slots(object):
+class Slots:
     def __getattr__(self, attr):
         return Slot(attr)
 
@@ -96,8 +96,7 @@ def op_iter(ops):
         if isinstance(o, op):
             yield o
         elif isinstance(o, BooleanOp):
-            for p in op_iter(o.ops):
-                yield p
+            yield from op_iter(o.ops)
 
 class query_func(Slot): pass
 class lower(query_func): pass
@@ -106,25 +105,28 @@ class base_url(query_func): pass
 class domain(query_func): pass
 class year_func(query_func): pass
 
-class timeago(object):
+class timeago:
     def __init__(self, interval):
         self.interval = interval
 
     def __repr__(self):
         return '<interval: %s>' % self.interval
 
-class sort(object):
+class sort:
     def __init__(self, col):
         self.col = col
 
     def __repr__(self):
-        return '<sort:%s %s>' % (self.__class__.__name__, str(self.col))
+        return '<sort:{} {}>'.format(self.__class__.__name__, str(self.col))
 
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.col == other.col
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash((self.__class__.__name__, self.col))
 
 
 class asc(sort): pass

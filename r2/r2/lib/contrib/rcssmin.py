@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: ascii -*-
 #
 # Copyright 2011, 2012
 # Andr\xe9 Malo or his licensors, as applicable
@@ -40,7 +39,7 @@ Here's a feature list:
   space is kept if it's outside a ruleset.)
 - Space/Comments at the very beginning or after various characters are
   stripped: ``{}(=:>+[,!``
-- Optional space after unicode escapes is kept, resp. replaced by a simple
+- Optional space after str escapes is kept, resp. replaced by a simple
   space
 - whitespaces inside ``url()`` definitions are stripped
 - Comments starting with an exclamation mark (``!``) can be kept optionally.
@@ -124,16 +123,16 @@ def _make_cssmin(python_only=False):
     string1 = \
         r'(?:\047[^\047\\\r\n\f]*(?:\\[^\r\n\f][^\047\\\r\n\f]*)*\047)'
     string2 = r'(?:"[^"\\\r\n\f]*(?:\\[^\r\n\f][^"\\\r\n\f]*)*")'
-    strings = r'(?:%s|%s)' % (string1, string2)
+    strings = r'(?:{}|{})'.format(string1, string2)
 
     nl_string1 = \
         r'(?:\047[^\047\\\r\n\f]*(?:\\(?:[^\r]|\r\n?)[^\047\\\r\n\f]*)*\047)'
     nl_string2 = r'(?:"[^"\\\r\n\f]*(?:\\(?:[^\r]|\r\n?)[^"\\\r\n\f]*)*")'
-    nl_strings = r'(?:%s|%s)' % (nl_string1, nl_string2)
+    nl_strings = r'(?:{}|{})'.format(nl_string1, nl_string2)
 
     uri_nl_string1 = r'(?:\047[^\047\\]*(?:\\(?:[^\r]|\r\n?)[^\047\\]*)*\047)'
     uri_nl_string2 = r'(?:"[^"\\]*(?:\\(?:[^\r]|\r\n?)[^"\\]*)*")'
-    uri_nl_strings = r'(?:%s|%s)' % (uri_nl_string1, uri_nl_string2)
+    uri_nl_strings = r'(?:{}|{})'.format(uri_nl_string1, uri_nl_string2)
 
     nl_escaped = r'(?:\\%(nl)s)' % locals()
 

@@ -22,12 +22,11 @@
 
 """An implementation of the RFC-6238 Time-Based One Time Password algorithm."""
 
-import time
-import hmac
 import base64
-import struct
 import hashlib
-
+import hmac
+import struct
+import time
 
 PERIOD = 30
 

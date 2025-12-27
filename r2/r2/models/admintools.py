@@ -20,39 +20,33 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
+from copy import copy
+from datetime import datetime, timedelta
+
+from _pylibmc import MemcachedError
+from pylons import app_globals as g
+from pylons import config
+from pylons.i18n import _
+
 from r2.lib import amqp
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.thing import NotFound
 from r2.lib.errors import MessageError
-from r2.lib.utils import tup, fetch_things2
 from r2.lib.filters import websafe
 from r2.lib.hooks import HookRegistrar
-from r2.models import (
-    Account,
-    Comment,
-    Link,
-    Message,
-    NotFound,
-    Report,
-    Subreddit,
-)
+from r2.lib.utils import fetch_things2, tup
+from r2.models.account import Account
+from r2.models.link import Comment, Link, Message
+from r2.models.report import Report
+from r2.models.subreddit import Subreddit
 from r2.models.award import Award
 from r2.models.gold import append_random_bottlecap_phrase, creddits_lock
 from r2.models.token import AwardClaimToken
 from r2.models.wiki import WikiPage
 
-from _pylibmc import MemcachedError
-from pylons import config
-from pylons import tmpl_context as c
-from pylons import app_globals as g
-from pylons.i18n import _
-
-from datetime import datetime, timedelta
-from copy import copy
-
 admintools_hooks = HookRegistrar()
 
-class AdminTools(object):
+class AdminTools:
 
     def spam(self, things, auto=True, moderator_banned=False,
              banner=None, date=None, train_spam=True, **kw):
@@ -175,9 +169,9 @@ class AdminTools(object):
                 by_aid.setdefault(thing.author_id, []).append(thing)
 
         if by_aid:
-            authors = Account._byID(by_aid.keys(), data=True, return_dict=True)
+            authors = Account._byID(list(by_aid.keys()), data=True, return_dict=True)
 
-            for aid, author_things in by_aid.iteritems():
+            for aid, author_things in by_aid.items():
                 author = authors[aid]
                 author._incr('spammer', len(author_things) if spam else -len(author_things))
 
@@ -188,8 +182,8 @@ class AdminTools(object):
                 by_srid.setdefault(thing.sr_id, []).append(thing)
 
         if by_srid:
-            srs = Subreddit._byID(by_srid.keys(), data=True, return_dict=True)
-            for sr_id, sr_things in by_srid.iteritems():
+            srs = Subreddit._byID(list(by_srid.keys()), data=True, return_dict=True)
+            for sr_id, sr_things in by_srid.items():
                 sr = srs[sr_id]
 
                 sr.last_mod_action = datetime.now(g.tz)

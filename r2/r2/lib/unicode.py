@@ -23,19 +23,21 @@
 
 def _force_unicode(text):
     if text == None:
-        return u''
+        return ''
 
-    if isinstance(text, unicode):
+    if isinstance(text, str):
         return text
 
     try:
-        text = unicode(text, 'utf-8')
+        text = str(text, 'utf-8')
     except UnicodeDecodeError:
-        text = unicode(text, 'latin1')
+        text = str(text, 'latin1')
     except TypeError:
-        text = unicode(text)
+        text = str(text)
     return text
 
 
 def _force_utf8(text):
-    return str(_force_unicode(text).encode('utf8'))
+    # Return a Unicode string (UTF-8 decoded). Historically this helper
+    # returned bytes; modern code and tests expect text to be `str`.
+    return _force_unicode(text)

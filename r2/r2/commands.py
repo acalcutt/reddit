@@ -20,11 +20,12 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import os, sys
+import os
+import sys
 
 import paste.fixture
-from paste.script import command
 from paste.deploy import loadapp
+from paste.script import command
 
 from r2.lib.log import RavenErrorReporter
 
@@ -90,10 +91,10 @@ class RunCommand(command.Command):
 
         try:
             if self.args[1:]:
-                execfile(self.args[1], loaded_namespace)
+                exec(compile(open(self.args[1], "rb").read(), self.args[1], 'exec'), loaded_namespace)
 
             if self.options.command:
-                exec self.options.command in loaded_namespace
+                exec(self.options.command, loaded_namespace)
         except Exception:
             if report_to_sentry:
                 exc_info = sys.exc_info()

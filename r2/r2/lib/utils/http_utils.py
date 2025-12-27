@@ -20,8 +20,9 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-import pytz
 from datetime import datetime
+
+import pytz
 
 DATE_RFC822 = '%a, %d %b %Y %H:%M:%S %Z'
 DATE_RFC850 = '%A, %d-%b-%y %H:%M:%S %Z'

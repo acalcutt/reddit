@@ -20,45 +20,52 @@
 # Inc. All Rights Reserved.
 ###############################################################################
 
-from __future__ import absolute_import
 
-import random, string
+import secrets
+import string
 
 from pylons import app_globals as g
 
-from Captcha.Base import randomIdentifier
-from Captcha.Visual import Text, Backgrounds, Distortions, ImageCaptcha
-
+# Use the modern 'captcha' package (pip install captcha) instead of pycaptcha
+from captcha.image import ImageCaptcha
 
 IDEN_LENGTH = 32
 SOL_LENGTH = 6
 
-class RandCaptcha(ImageCaptcha):
-    defaultSize = (120, 50)
-    fontFactory = Text.FontFactory(18, "vera/VeraBd.ttf")
+# Create a reusable ImageCaptcha instance with dimensions matching original (120x50)
+_captcha_generator = ImageCaptcha(width=120, height=50)
 
-    def getLayers(self, solution="blah"):
-        self.addSolution(solution)
-        return ((Backgrounds.Grid(size=8, foreground="white"),
-                 Distortions.SineWarp(amplitudeRange=(5,9))),
-                (Text.TextLayer(solution,
-                               textColor = 'white',
-                               fontFactory = self.fontFactory),
-                 Distortions.SineWarp()))
+
+def _random_identifier(alphabet=string.ascii_letters + string.digits, length=32):
+    """Generate a random identifier string.
+
+    Replaces pycaptcha's randomIdentifier with a secure Python 3 implementation.
+    """
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
 
 def get_iden():
-    return randomIdentifier(length=IDEN_LENGTH)
+    return _random_identifier(length=IDEN_LENGTH)
+
 
 def make_solution():
-    return randomIdentifier(alphabet=string.ascii_letters, length = SOL_LENGTH).upper()
+    return _random_identifier(alphabet=string.ascii_letters, length=SOL_LENGTH).upper()
+
 
 def get_image(iden):
+    """Generate a CAPTCHA image for the given identifier.
+
+    Returns a PIL Image object.
+    """
     key = "captcha:%s" % iden
     solution = g.gencache.get(key)
     if not solution:
         solution = make_solution()
         g.gencache.set(key, solution, time=300)
-    return RandCaptcha(solution=solution).render()
+
+    # Generate image using the modern captcha library
+    # generate_image returns a PIL Image object
+    return _captcha_generator.generate_image(solution)
 
 
 def valid_solution(iden, solution):

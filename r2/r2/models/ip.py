@@ -1,13 +1,12 @@
 import datetime
 
+import pytz
 from pycassa.batch import Mutator
 from pycassa.system_manager import ASCII_TYPE
 from pylons import app_globals as g
-import pytz
 
 from r2.lib.contrib.ipaddress import ip_address
 from r2.lib.db import tdb_cassandra
-
 
 __all__ = ["IPsByAccount", "AccountsByIP"]
 
@@ -73,7 +72,7 @@ class IPsByAccount(tdb_cassandra.View):
             column_count=column_count,
             column_reversed=column_reversed)
         for date_ip in query:
-            for dt, ip in date_ip.iteritems():
+            for dt, ip in date_ip.items():
                 results.append({dt.replace(tzinfo=pytz.utc): ip})
         return results
 
@@ -127,7 +126,7 @@ class AccountsByIP(tdb_cassandra.View):
             column_count=column_count,
             column_reversed=column_reversed)
         for date_account in query:
-            for dt, account in date_account.iteritems():
+            for dt, account in date_account.items():
                 results.append({dt.replace(tzinfo=pytz.utc): int(account)})
         return results
 
