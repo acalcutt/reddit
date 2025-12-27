@@ -177,7 +177,8 @@ $RUNDIR/setup_rabbitmq.sh
 ###############################################################################
 
 # Install baseplate - required for building websockets and activity services
-sudo -u $REDDIT_USER pip3 install --user baseplate
+# --break-system-packages is required on Ubuntu 24.04 (PEP 668)
+sudo -u $REDDIT_USER pip3 install --user --break-system-packages baseplate
 
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
