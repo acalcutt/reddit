@@ -210,36 +210,18 @@ install_reddit_repo reddit/r2
 if [ -f "$REDDIT_SRC/i18n/setup.py" ]; then
     if ! grep -Eq "version\s*=\s*['\"][^'\"]+['\"]" "$REDDIT_SRC/i18n/setup.py"; then
         echo "Patching i18n/setup.py to add default version 0.0.1"
-        python3 - "$REDDIT_SRC/i18n/setup.py" <<'PY'
-import sys
-from pathlib import Path
+        # Backup original for debugging
+        cp "$REDDIT_SRC/i18n/setup.py" "$REDDIT_SRC/i18n/setup.py.orig" || true
+        # Replace with a minimal, safe setup.py to avoid legacy packaging issues
+        cat > "$REDDIT_SRC/i18n/setup.py" <<'PYSETUP'
+from setuptools import setup, find_packages
 
-p = Path(sys.argv[1])
-text = p.read_text()
-# Always ensure a VERSION constant is present and use it for empty or missing
-# version fields. This handles historical checkouts with either no version or
-# an explicitly empty version string.
-if 'VERSION' not in text.splitlines()[0:20]:
-    text = 'VERSION = "0.0.1"\n\n' + text
-
-import re
-# replace empty version assignments like version = '' or ""
-text, n1 = re.subn(r"version\s*=\s*(['\"])\s*\1", 'version=VERSION', text)
-# if version arg is completely missing from setup(...), insert version=VERSION
-def insert_version(m):
-    inner = m.group(1)
-    if inner.strip():
-        return 'setup(' + inner + ',\n    version=VERSION'
-    return 'setup(version=VERSION'
-
-text, n2 = re.subn(r'setup\s*\(([^)]*)\)', lambda m: insert_version(m) + ')', text, count=1, flags=re.S)
-
-# If no replacements occurred, force-add VERSION at top to be safe
-if n1 + n2 == 0 and 'VERSION' not in text.splitlines()[0:20]:
-    text = 'VERSION = "0.0.1"\n\n' + text
-
-p.write_text(text)
-PY
+setup(
+    name='i18n',
+    version='0.0.1',
+    packages=find_packages(),
+)
+PYSETUP
     fi
     install_reddit_repo i18n
 else
