@@ -51,10 +51,17 @@ else:
 # guard against import errors in case this is the first run of setup.py and we
 # don't have any dependencies (including baseplate) yet
 try:
-    from baseplate.integration.thrift.command import ThriftBuildPyCommand
+    # baseplate 1.0+ moved integration -> frameworks
+    from baseplate.frameworks.thrift.command import ThriftBuildPyCommand
 except ImportError:
-    print("Cannot find Baseplate. Skipping Thrift build.")
-else:
+    try:
+        # fallback for older baseplate versions
+        from baseplate.integration.thrift.command import ThriftBuildPyCommand
+    except ImportError:
+        print("Cannot find Baseplate. Skipping Thrift build.")
+        ThriftBuildPyCommand = None
+
+if ThriftBuildPyCommand is not None:
     commands["build_py"] = ThriftBuildPyCommand
 
 
@@ -114,10 +121,11 @@ setup(
         # raven is deprecated, sentry-sdk is the replacement
         # Using raven for now as it still works, but consider migrating to sentry-sdk
         "raven",
+        # Test dependencies (formerly in tests_require, now in install_requires for modern setuptools)
+        "mock",
+        "nose",
+        "coverage",
     ],
-    # setup tests (allowing for "python setup.py test")
-    tests_require=['mock', 'nose', 'coverage'],
-    test_suite="nose.collector",
     packages=find_packages(exclude=["ez_setup"]),
     cmdclass=commands,
     ext_modules=pyx_extensions + [
