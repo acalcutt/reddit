@@ -189,6 +189,9 @@ $RUNDIR/setup_rabbitmq.sh
 echo "Creating Python virtual environment at $REDDIT_VENV"
 sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
 
+# Create 'python' symlink for compatibility with Makefiles that expect 'python'
+sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
+
 # Upgrade pip and install build tools in venv
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
 
@@ -249,7 +252,8 @@ install_reddit_repo activity
 
 # generate binary translation files from source
 if [ "${SKIP_I18N}" != "1" ]; then
-    sudo -u $REDDIT_USER make -C $REDDIT_SRC/i18n clean all
+    # Use venv's python for make commands
+    sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" make -C $REDDIT_SRC/i18n clean all
 else
     echo "Skipping i18n message compilation because i18n package was not installed"
 fi
@@ -258,7 +262,8 @@ fi
 # so that the proper language-specific static files can be generated and after
 # plugins are installed so all the static files are available.
 pushd $REDDIT_SRC/reddit/r2
-sudo -u $REDDIT_USER make clean pyx
+# Use venv's python for make commands
+sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" make clean pyx
 
 plugin_str=$(echo -n "$REDDIT_AVAILABLE_PLUGINS" | tr " " ,)
 if [ ! -f development.update ]; then
