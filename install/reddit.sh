@@ -184,9 +184,10 @@ $RUNDIR/setup_rabbitmq.sh
 # Install and configure the reddit code
 ###############################################################################
 
-# Pin setuptools to compatible version and install packaging
+# Pin setuptools to compatible version
 # Newer setuptools (81+) has breaking changes with canonicalize_version()
-pip3 install --break-system-packages --ignore-installed 'setuptools<81' 'packaging<24'
+# Use --force-reinstall to ensure the correct version is actually used
+pip3 install --break-system-packages --force-reinstall 'setuptools<81'
 
 # Install baseplate - required for building websockets and activity services
 # --break-system-packages is required on Ubuntu 24.04 (PEP 668)
