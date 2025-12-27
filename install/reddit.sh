@@ -156,6 +156,14 @@ clone_reddit_repo i18n reddit/reddit-i18n
 clone_reddit_service_repo websockets
 clone_reddit_service_repo activity
 
+# Patch activity and websockets setup.py to use new baseplate module path
+# (baseplate.integration was renamed to baseplate.frameworks in baseplate 1.0)
+for repo in activity websockets; do
+    if [ -f "$REDDIT_SRC/$repo/setup.py" ]; then
+        sed -i 's/baseplate\.integration\./baseplate.frameworks./g' "$REDDIT_SRC/$repo/setup.py"
+    fi
+done
+
 ###############################################################################
 # Configure Services
 ###############################################################################
