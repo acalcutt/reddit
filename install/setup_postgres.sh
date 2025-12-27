@@ -31,8 +31,9 @@ source $RUNDIR/install.cfg
 SQL="SELECT COUNT(1) FROM pg_catalog.pg_database WHERE datname = 'reddit';"
 IS_DATABASE_CREATED=$(sudo -u postgres psql -t -c "$SQL" | tr -d '[:space:]')
 
-# Ensure the proper locale is generated and available. Use en_US.UTF-8
-if ! locale -a | grep -iq "en_US.UTF-8"; then
+# Ensure the proper locale is generated and available. Prefer en_US.UTF-8 but
+# tolerate variants like en_US.utf8 which PostgreSQL may expect.
+if ! locale -a | grep -iq "en_US"; then
     echo "Generating en_US.UTF-8 locale..."
     apt-get update -y
     apt-get install -y locales || true
@@ -40,11 +41,34 @@ if ! locale -a | grep -iq "en_US.UTF-8"; then
     update-locale LANG=en_US.UTF-8 || true
 fi
 
+# Determine a locale string PostgreSQL will accept (try common variants).
+LOCALE_NAME=""
+for cand in "en_US.UTF-8" "en_US.utf8" "en_US.UTF8" "en_US"; do
+    if locale -a | grep -iq "^${cand}$"; then
+        LOCALE_NAME=$cand
+        break
+    fi
+done
+
 if [ "$IS_DATABASE_CREATED" != "1" ]; then
-    cat <<PGSCRIPT | sudo -u postgres psql
-CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8';
-CREATE USER reddit WITH PASSWORD 'password';
-PGSCRIPT
+    # Try creating the DB specifying LC_COLLATE/LC_CTYPE if we detected a usable locale.
+    if [ -n "$LOCALE_NAME" ]; then
+        if sudo -u postgres psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='${LOCALE_NAME}' LC_CTYPE='${LOCALE_NAME}';" 2>/tmp/createdb.err; then
+            echo "Database created with locale ${LOCALE_NAME}"
+        else
+            echo "Failed to create database with locale ${LOCALE_NAME}, retrying without explicit locale..."
+            cat /tmp/createdb.err || true
+            sudo -u postgres psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
+        fi
+    else
+        sudo -u postgres psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
+    fi
+fi
+
+# Create role if it doesn't exist
+ROLE_EXISTS=$(sudo -u postgres psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='reddit';" | tr -d '[:space:]')
+if [ "$ROLE_EXISTS" != "1" ]; then
+    sudo -u postgres psql -c "CREATE USER reddit WITH PASSWORD 'password';" || true
 fi
 
 sudo -u postgres psql reddit <<FUNCTIONSQL
