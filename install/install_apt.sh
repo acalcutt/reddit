@@ -25,40 +25,110 @@
 RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
-# run an aptitude update to make sure python-software-properties
-# dependencies are found
+# run an aptitude update to make sure dependencies are found
 apt-get update
 
-# add the datastax cassandra repos (NB: this is required for
-# install_cassandra.sh to work correctly, and the non-existence of this
-# file will trigger install_cassandra.sh to rerun this script)
-echo deb http://debian.datastax.com/community stable main | \
-    sudo tee $CASSANDRA_SOURCES_LIST
-    
-wget -qO- -L https://debian.datastax.com/debian/repo_key | \
-    sudo apt-key add -
+# Check Ubuntu version and install appropriate packages
+source /etc/lsb-release
 
-# add the reddit ppa for some custom packages
-apt-get install $APTITUDE_OPTIONS python-software-properties
-apt-add-repository -y ppa:reddit/ppa
+if [ "$DISTRIB_RELEASE" == "24.04" ]; then
+    ###########################################################################
+    # Ubuntu 24.04 (Noble) with Python 3.12
+    ###########################################################################
 
-# pin the ppa -- packages present in the ppa will take precedence over
-# ones in other repositories (unless further pinning is done)
-cat <<HERE > /etc/apt/preferences.d/reddit
+    # install prerequisites - Python 3 versions
+    cat <<PACKAGES | xargs apt-get install $APTITUDE_OPTIONS
+netcat-openbsd
+git
+wget
+
+python3-dev
+python3-pip
+python3-setuptools
+python3-venv
+python3-six
+python3-tz
+python3-babel
+python3-numpy
+python3-dateutil
+cython3
+python3-sqlalchemy
+python3-bs4
+python3-chardet
+python3-psycopg2
+python3-pil
+python3-lxml
+python3-yaml
+python3-redis
+python3-pyramid
+python3-flask
+python3-bcrypt
+python3-snappy
+python3-cassandra
+
+geoip-bin
+geoip-database
+python3-geoip
+
+nodejs
+npm
+gettext
+make
+optipng
+jpegoptim
+
+libpcre3-dev
+libpq-dev
+build-essential
+libssl-dev
+libmemcached-dev
+libsnappy-dev
+gperf
+
+memcached
+PACKAGES
+
+    # Install additional Python packages via pip
+    pip3 install --break-system-packages \
+        pyramid-mako \
+        Paste \
+        PasteDeploy \
+        pylibmc \
+        simplejson \
+        pytest
+
+else
+    ###########################################################################
+    # Ubuntu 14.04 (Trusty) - Legacy Python 2 installation
+    ###########################################################################
+
+    # add the datastax cassandra repos
+    echo deb http://debian.datastax.com/community stable main | \
+        sudo tee $CASSANDRA_SOURCES_LIST
+
+    wget -qO- -L https://debian.datastax.com/debian/repo_key | \
+        sudo apt-key add -
+
+    # add the reddit ppa for some custom packages
+    apt-get install $APTITUDE_OPTIONS python-software-properties
+    apt-add-repository -y ppa:reddit/ppa
+
+    # pin the ppa
+    cat <<HERE > /etc/apt/preferences.d/reddit
 Package: *
 Pin: release o=LP-PPA-reddit
 Pin-Priority: 600
 HERE
 
-# grab the new ppas' package listings
-apt-get update
+    # grab the new ppas' package listings
+    apt-get update
 
-# travis gives us a stock libmemcached.  We have to remove that
-apt-get remove $APTITUDE_OPTIONS $(dpkg-query  -W -f='${binary:Package}\n' | grep libmemcached | tr '\n' ' ')
-apt-get autoremove $APTITUDE_OPTIONS
+    # travis gives us a stock libmemcached. We have to remove that
+    apt-get remove $APTITUDE_OPTIONS $(dpkg-query -W -f='${binary:Package}\n' | grep libmemcached | tr '\n' ' ') || true
+    apt-get autoremove $APTITUDE_OPTIONS
 
-# install prerequisites
-cat <<PACKAGES | xargs apt-get install $APTITUDE_OPTIONS
+    # install prerequisites - Python 2 versions
+    cat <<PACKAGES | xargs apt-get install $APTITUDE_OPTIONS
 netcat-openbsd
 git-core
 
@@ -120,3 +190,5 @@ python-redis
 python-pyramid
 python-raven
 PACKAGES
+
+fi
