@@ -313,7 +313,7 @@ else
     sed -i "s/^oauth_domain = .*$/oauth_domain = $REDDIT_DOMAIN/" $REDDIT_SRC/reddit/r2/development.update
 fi
 
-sudo -u $REDDIT_USER make ini
+sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC" make ini
 
 if [ ! -L run.ini ]; then
     sudo -u $REDDIT_USER ln -nsf development.ini run.ini
