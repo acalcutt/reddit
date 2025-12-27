@@ -6,6 +6,7 @@ and intended to be replaced by Pyramid-specific code during migration.
 """
 from typing import Any, List
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from .configuration import PylonsConfig
 
@@ -134,7 +135,7 @@ class _DefaultTmplContext(SimpleNamespace):
         # commonly referenced flags/attributes in templates/tests
         self.have_sent_bucketing_event = False
         self.subdomain = None
-        self.user = None
+        self.user = MagicMock(_id=1)
 
 
 # Do not push a default `PylonsConfig` object so that `bool(pylons.config)` is
