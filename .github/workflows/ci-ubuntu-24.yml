@@ -97,7 +97,7 @@ jobs:
         env:
           DATABASE_URL: "postgresql://reddit:password@127.0.0.1/reddit"
         run: |
-          python -m pytest r2/r2/tests -v --tb=short
+          python -m pytest r2/r2/tests -v --tb=long 2>&1 | head -500
 
       - name: Archive test logs
         if: failure()
