@@ -207,7 +207,9 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     PasteDeploy \
     pylibmc \
     simplejson \
-    pytest
+    pytest \
+    Babel \
+    Cython
 
 # Convert legacy Python 2 sources in i18n to Python 3 using lib2to3
 if [ -d "$REDDIT_SRC/i18n" ]; then
