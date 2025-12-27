@@ -29,11 +29,20 @@ source $RUNDIR/install.cfg
 # Configure PostgreSQL
 ###############################################################################
 SQL="SELECT COUNT(1) FROM pg_catalog.pg_database WHERE datname = 'reddit';"
-IS_DATABASE_CREATED=$(sudo -u postgres psql -t -c "$SQL")
+IS_DATABASE_CREATED=$(sudo -u postgres psql -t -c "$SQL" | tr -d '[:space:]')
 
-if [ $IS_DATABASE_CREATED -ne 1 ]; then
+# Ensure the proper locale is generated and available. Use en_US.UTF-8
+if ! locale -a | grep -iq "en_US.UTF-8"; then
+    echo "Generating en_US.UTF-8 locale..."
+    apt-get update -y
+    apt-get install -y locales || true
+    locale-gen en_US.UTF-8 || true
+    update-locale LANG=en_US.UTF-8 || true
+fi
+
+if [ "$IS_DATABASE_CREATED" != "1" ]; then
     cat <<PGSCRIPT | sudo -u postgres psql
-CREATE DATABASE reddit WITH ENCODING = 'utf8' TEMPLATE template0 LC_COLLATE='en_US.utf8' LC_CTYPE='en_US.utf8';
+CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8';
 CREATE USER reddit WITH PASSWORD 'password';
 PGSCRIPT
 fi
