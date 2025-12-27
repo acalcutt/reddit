@@ -32,6 +32,8 @@ from setuptools import Extension, find_packages, setup
 # commands. Only attempt to locate and cythonize .pyx files when an actual
 # build is requested.
 pyx_extensions = []
+# command class mapping used by setuptools (populated below if Thrift present)
+commands = {}
 build_commands = {"build", "build_ext", "bdist_wheel", "bdist_egg", "install"}
 if build_commands.intersection(sys.argv):
     try:
