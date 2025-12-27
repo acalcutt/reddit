@@ -273,7 +273,7 @@ fi
 # plugins are installed so all the static files are available.
 pushd $REDDIT_SRC/reddit/r2
 # Use venv's python for make commands
-sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" make clean pyx
+sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC" make clean pyx
 
 plugin_str=$(echo -n "$REDDIT_AVAILABLE_PLUGINS" | tr " " ,)
 if [ ! -f development.update ]; then
