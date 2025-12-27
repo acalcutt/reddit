@@ -195,13 +195,3 @@ fi
       /etc/init.d/mcrouter restart || true
     fi
   fi
-MCROUTER_DEFAULT
-
-# set an upstart override so mcrouter starts when reddit starts (only when upstart exists)
-# Do not write Upstart overrides on this platform. If a SysV script exists,
-# restart it; otherwise skip restart silently.
-if [ -x /etc/init.d/mcrouter ]; then
-  /etc/init.d/mcrouter restart || true
-else
-  echo "mcrouter service not found; skipping restart" >&2
-fi
