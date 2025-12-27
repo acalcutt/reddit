@@ -95,9 +95,11 @@ jobs:
           python -c "from r2.r2.lib import loid; print('loid OK:', len(loid.LOID_CHARSPACE))"
 
 
+
       - name: Run unit tests (r2)
         env:
           DATABASE_URL: "postgresql://reddit:password@127.0.0.1/reddit"
+          PYTHONFAULTHANDLER: 1
         run: |
           python -m pytest r2/r2/tests/functional/controller/del_msg_test.py -v -s --tb=long --maxfail=5 | tee pytest-output.log
 
