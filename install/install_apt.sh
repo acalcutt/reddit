@@ -84,6 +84,7 @@ libssl-dev
 libmemcached-dev
 libsnappy-dev
 gperf
+thrift-compiler
 
 memcached
 PACKAGES
