@@ -37,6 +37,12 @@ if [ "$DISTRIB_RELEASE" == "24.04" ]; then
     ###########################################################################
 
     # Create keyspace using cqlsh
+    # Ensure python3 'six' package is available for cqlsh's Cassandra driver
+    if ! python3 -c "import six" >/dev/null 2>&1; then
+        apt-get update -y
+        apt-get install -y python3-six || true
+    fi
+
     cqlsh -e "CREATE KEYSPACE IF NOT EXISTS reddit WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};" || true
 
     # Create permacache table
