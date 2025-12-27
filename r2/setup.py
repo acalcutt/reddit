@@ -39,7 +39,13 @@ else:
     for root, directories, files in os.walk('.'):
         for f in fnmatch.filter(files, '*.pyx'):
             pyx_files.append(os.path.join(root, f))
-    pyx_extensions = cythonize(pyx_files)
+    # Some Cython sources in this project use Python 2 style syntax (print
+    # statements, etc.). For a quick compatibility fix keep Cython in
+    # Python-2 language mode when translating those .pyx files.
+    pyx_extensions = cythonize(
+        pyx_files,
+        compiler_directives={"language_level": "2"},
+    )
 
 
 # guard against import errors in case this is the first run of setup.py and we
