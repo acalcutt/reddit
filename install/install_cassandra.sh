@@ -29,20 +29,23 @@ source /etc/lsb-release
 
 if [ "$DISTRIB_RELEASE" == "24.04" ]; then
     ###########################################################################
-    # Ubuntu 24.04 - Install Cassandra 4.x from Apache
+    # Ubuntu 24.04 - Install Cassandra 4.1.x from Apache repository
     ###########################################################################
 
-    # Install Java (required for Cassandra)
-    apt-get install $APTITUDE_OPTIONS openjdk-11-jre-headless
+    # Install Java 11 (required for Cassandra)
+    apt-get install $APTITUDE_OPTIONS openjdk-11-jdk
 
-    # Add Apache Cassandra repository
-    echo "deb https://debian.cassandra.apache.org 41x main" | sudo tee /etc/apt/sources.list.d/cassandra.sources.list
-    curl -fsSL https://www.apache.org/dist/cassandra/KEYS | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/cassandra.gpg
+    # Add Apache Cassandra 4.1.x repository
+    echo "deb https://debian.cassandra.apache.org 41x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
 
+    # Import Cassandra GPG key
+    curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
+
+    # Install Cassandra
     apt-get update
     apt-get install $APTITUDE_OPTIONS cassandra
 
-    # Start Cassandra
+    # Enable and start Cassandra
     sudo systemctl enable cassandra
     sudo systemctl start cassandra
 

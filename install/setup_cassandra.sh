@@ -33,7 +33,7 @@ source /etc/lsb-release
 
 if [ "$DISTRIB_RELEASE" == "24.04" ]; then
     ###########################################################################
-    # Ubuntu 24.04 - Use cqlsh and cassandra-driver (Python 3)
+    # Ubuntu 24.04 - Use cqlsh (installed via apt with Cassandra)
     ###########################################################################
 
     # Create keyspace using cqlsh
