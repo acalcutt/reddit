@@ -183,7 +183,47 @@ function install_reddit_repo {
 }
 
 install_reddit_repo reddit/r2
-install_reddit_repo i18n
+# Only install the external `i18n` package if its setup.py contains a
+# valid version string. Some historical `i18n` checkouts have an empty
+# version which breaks modern packaging tools; in that case skip the
+# install and rely on local compatibility shims in the tree.
+# Ensure i18n is installed; if its setup.py lacks a version, inject a
+# minimal default to satisfy modern packaging tools.
+if [ -f "$REDDIT_SRC/i18n/setup.py" ]; then
+    if ! grep -Eq "version\s*=\s*['\"][^'\"]+['\"]" "$REDDIT_SRC/i18n/setup.py"; then
+        echo "Patching i18n/setup.py to add default version 0.0.1"
+        python3 - "$REDDIT_SRC/i18n/setup.py" <<'PY'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+text = p.read_text()
+
+# Add a VERSION variable near the top if missing
+if 'VERSION' not in text.splitlines()[0:10]:
+    text = 'VERSION = "0.0.1"\n\n' + text
+
+# Ensure setup(...) includes version=VERSION
+if 'version=' not in text:
+    # naive insertion before the first closing paren of setup(...)
+    import re
+    def insert_version(m):
+        inner = m.group(1)
+        # if there are already args, append version; otherwise add version
+        if inner.strip():
+            return 'setup(' + inner + ',\n    version=VERSION'
+        return 'setup(version=VERSION'
+
+    text, n = re.subn(r'setup\s*\(([^)]*)\)', lambda m: insert_version(m) + ')', text, count=1, flags=re.S)
+
+p.write_text(text)
+PY
+    fi
+    install_reddit_repo i18n
+else
+    echo "i18n checkout not present; skipping i18n install"
+    SKIP_I18N=1
+fi
 for plugin in $REDDIT_AVAILABLE_PLUGINS; do
     copy_upstart $REDDIT_SRC/$plugin
     install_reddit_repo $plugin
@@ -192,7 +232,11 @@ install_reddit_repo websockets
 install_reddit_repo activity
 
 # generate binary translation files from source
-sudo -u $REDDIT_USER make -C $REDDIT_SRC/i18n clean all
+if [ "${SKIP_I18N}" != "1" ]; then
+    sudo -u $REDDIT_USER make -C $REDDIT_SRC/i18n clean all
+else
+    echo "Skipping i18n message compilation because i18n package was not installed"
+fi
 
 # this builds static files and should be run *after* languages are installed
 # so that the proper language-specific static files can be generated and after
