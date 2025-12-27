@@ -101,8 +101,11 @@ cat > /etc/default/mcrouter <<MCROUTER_DEFAULT
 MCROUTER_FLAGS="-f /etc/mcrouter/global.conf -L /var/log/mcrouter/mcrouter.log -p 5050 -R /././ --stats-root=/var/mcrouter/stats"
 MCROUTER_DEFAULT
 
-# set an upstart override so mcrouter starts when reddit starts
-echo "start on networking or reddit-start" > /etc/init/mcrouter.override
-
-# restart mcrouter to read the updated config
-service mcrouter restart
+# set an upstart override so mcrouter starts when reddit starts (only when upstart exists)
+# Do not write Upstart overrides on this platform. If a SysV script exists,
+# restart it; otherwise skip restart silently.
+if [ -x /etc/init.d/mcrouter ]; then
+  /etc/init.d/mcrouter restart || true
+else
+  echo "mcrouter service not found; skipping restart" >&2
+fi
