@@ -175,6 +175,10 @@ $RUNDIR/setup_rabbitmq.sh
 ###############################################################################
 # Install and configure the reddit code
 ###############################################################################
+
+# Install baseplate - required for building websockets and activity services
+sudo -u $REDDIT_USER pip3 install --user baseplate
+
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
     sudo -u $REDDIT_USER python3 setup.py build
