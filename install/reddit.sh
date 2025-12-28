@@ -416,17 +416,41 @@ REDDITSHELL
 
 helper-script /usr/local/bin/reddit-start <<REDDITSTART
 #!/bin/bash
-initctl emit reddit-start
+if command -v initctl >/dev/null 2>&1; then
+    initctl emit reddit-start
+elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    # Restart common reddit units if systemd is available
+    systemctl restart reddit-websockets reddit-activity gunicorn-click gunicorn-geoip || true
+else
+    echo "No initctl or systemctl found; cannot start services"
+fi
 REDDITSTART
 
 helper-script /usr/local/bin/reddit-stop <<REDDITSTOP
 #!/bin/bash
-initctl emit reddit-stop
+if command -v initctl >/dev/null 2>&1; then
+    initctl emit reddit-stop
+elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl stop reddit-websockets reddit-activity gunicorn-click gunicorn-geoip || true
+else
+    echo "No initctl or systemctl found; cannot stop services"
+fi
 REDDITSTOP
 
 helper-script /usr/local/bin/reddit-restart <<REDDITRESTART
 #!/bin/bash
-initctl emit reddit-restart TARGET=${1:-all}
+if command -v initctl >/dev/null 2>&1; then
+    initctl emit reddit-restart TARGET=${1:-all}
+elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    # If a specific target is provided, attempt to restart matching unit(s)
+    if [ -n "$1" ] && [ "$1" != "all" ]; then
+        systemctl restart "$1" || true
+    else
+        systemctl restart reddit-websockets reddit-activity gunicorn-click gunicorn-geoip || true
+    fi
+else
+    echo "No initctl or systemctl found; cannot restart services"
+fi
 REDDITRESTART
 
 helper-script /usr/local/bin/reddit-flush <<REDDITFLUSH
@@ -884,9 +908,16 @@ done
 # vying with eachother to get there first
 reddit-run -c 'print("ok done")'
 
-# ok, now start everything else up
-initctl emit reddit-stop
-initctl emit reddit-start
+# ok, now start everything else up (portable)
+if command -v initctl >/dev/null 2>&1; then
+    initctl emit reddit-stop
+    initctl emit reddit-start
+elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    systemctl stop reddit-websockets reddit-activity gunicorn-click gunicorn-geoip || true
+    systemctl start reddit-websockets reddit-activity gunicorn-click gunicorn-geoip || true
+else
+    echo "No init system found (initctl/systemctl); services not started."
+fi
 
 ###############################################################################
 # Cron Jobs
