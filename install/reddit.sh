@@ -444,11 +444,7 @@ upstream click_server {
 
 server {
   listen 8082;
-
-  log_format directlog '\$remote_addr - \$remote_user [\$time_local] '
-                      '"\$request_method \$request_uri \$server_protocol" \$status \$body_bytes_sent '
-                      '"\$http_referer" "\$http_user_agent"';
-  access_log      /var/log/nginx/traffic/traffic.log directlog;
+    access_log      /var/log/nginx/traffic/traffic.log directlog;
 
   location / {
 
@@ -509,6 +505,13 @@ ln -nsf /etc/nginx/sites-available/reddit-ssl /etc/nginx/sites-enabled/
 
 # make the pixel log directory
 mkdir -p /var/log/nginx/traffic
+
+# Ensure the custom log_format is defined in the http context (conf.d)
+cat > /etc/nginx/conf.d/reddit-log.conf <<'LOGCONF'
+log_format directlog '$remote_addr - $remote_user [$time_local] '
+                   '"$request_method $request_uri $server_protocol" $status $body_bytes_sent '
+                   '"$http_referer" "$http_user_agent"';
+LOGCONF
 
 # link the ini file for the Flask click tracker
 ln -nsf $REDDIT_SRC/reddit/r2/development.ini $REDDIT_SRC/reddit/scripts/production.ini
