@@ -31,27 +31,6 @@
 RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
-# BEGIN r2 compatibility shim added by install/reddit.sh
-try:
-    from baseplate.lib.metrics import metrics_client_from_config as _r2_metrics_client_from_config
-except Exception:
-    _r2_metrics_client_from_config = None
-
-if _r2_metrics_client_from_config is not None:
-    metrics_client_from_config = _r2_metrics_client_from_config
-else:
-    class _NoopMetricsClient:
-        def __getattr__(self, name):
-            def _noop(*args, **kwargs):
-                return None
-
-            return _noop
-
-    def metrics_client_from_config(config=None):
-        return _NoopMetricsClient()
-
-# END r2 compatibility shim
-
 
 ###############################################################################
 # Sanity Checks
@@ -242,6 +221,42 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     raven \
     Flask \
     GeoIP
+
+# After installing baseplate in the venv, ensure the installed package
+# exposes `metrics_client_from_config` for older r2 code. Prefer the
+# implementation in `baseplate.lib.metrics` when available; otherwise
+# append a noop shim to the venv package so runtime imports succeed.
+for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
+    if [ -d "$p" ]; then
+        target="$p/__init__.py"
+        if [ -f "$target" ]; then
+            if ! grep -q "BEGIN r2 compatibility shim" "$target" >/dev/null 2>&1; then
+                cat >> "$target" <<'PYSHIM'
+
+# BEGIN r2 compatibility shim
+try:
+    from baseplate.lib.metrics import metrics_client_from_config as _r2_metrics_client_from_config
+except Exception:
+    _r2_metrics_client_from_config = None
+
+if _r2_metrics_client_from_config is not None:
+    metrics_client_from_config = _r2_metrics_client_from_config
+else:
+    class _NoopMetricsClient:
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                return None
+            return _noop
+
+    def metrics_client_from_config(config=None):
+        return _NoopMetricsClient()
+
+# END r2 compatibility shim
+PYSHIM
+            fi
+        fi
+    fi
+done
 
 # Create a writable directory for Prometheus multiprocess mode if needed
 # and make it owned by the reddit user so prometheus-client can write there.
