@@ -397,7 +397,9 @@ fi
 
 # Create a per-app systemd service for the click server so it can be managed
 # under systemd on modern systems.
-cat > /etc/systemd/system/gunicorn-click.service <<UNIT
+# under systemd on modern systems. Only create/enable when systemd is present.
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    cat > /etc/systemd/system/gunicorn-click.service <<UNIT
 [Unit]
 Description=Gunicorn click server for reddit
 After=network.target
@@ -415,8 +417,9 @@ Restart=on-failure
 WantedBy=multi-user.target
 UNIT
 
-systemctl daemon-reload || true
-systemctl enable --now gunicorn-click.service || true
+    systemctl daemon-reload || true
+    systemctl enable --now gunicorn-click.service || true
+fi
 
 ###############################################################################
 # nginx
@@ -609,9 +612,11 @@ service haproxy restart
 ###############################################################################
 # websocket service
 ###############################################################################
-
-if [ ! -f /etc/init/reddit-websockets.conf ]; then
-    cat > /etc/init/reddit-websockets.conf << UPSTART_WEBSOCKETS
+ 
+# Only install Upstart jobs if /etc/init exists (do not create it)
+if [ -d /etc/init ]; then
+    if [ ! -f /etc/init/reddit-websockets.conf ]; then
+        cat > /etc/init/reddit-websockets.conf << UPSTART_WEBSOCKETS
 description "websockets service"
 
 stop on runlevel [!2345] or reddit-restart all or reddit-restart websockets
@@ -625,16 +630,41 @@ limit nofile 65535 65535
 
 exec $REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 UPSTART_WEBSOCKETS
+    fi
 fi
 
-service reddit-websockets restart
+# Create a systemd unit for websockets (preferred on modern systems)
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    cat > /etc/systemd/system/reddit-websockets.service <<'UNIT'
+[Unit]
+Description=Reddit Websockets Service
+After=network.target
+
+[Service]
+Type=simple
+User=$REDDIT_USER
+Group=$REDDIT_GROUP
+WorkingDirectory=$REDDIT_SRC/websockets
+Environment=PATH=$REDDIT_VENV/bin
+ExecStart=$REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    systemctl daemon-reload || true
+    systemctl enable --now reddit-websockets.service || service reddit-websockets restart || true
+fi
 
 ###############################################################################
 # activity service
 ###############################################################################
 
-if [ ! -f /etc/init/reddit-activity.conf ]; then
-    cat > /etc/init/reddit-activity.conf << UPSTART_ACTIVITY
+# Only install Upstart jobs if /etc/init exists (do not create it)
+if [ -d /etc/init ]; then
+    if [ ! -f /etc/init/reddit-activity.conf ]; then
+        cat > /etc/init/reddit-activity.conf << UPSTART_ACTIVITY
 description "activity service"
 
 stop on runlevel [!2345] or reddit-restart all or reddit-restart activity
@@ -646,9 +676,32 @@ kill timeout 15
 
 exec $REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9002 $REDDIT_SRC/activity/example.ini
 UPSTART_ACTIVITY
+    fi
 fi
 
-service reddit-activity restart
+# Create a systemd unit for activity service
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    cat > /etc/systemd/system/reddit-activity.service <<'UNIT'
+[Unit]
+Description=Reddit Activity Service
+After=network.target
+
+[Service]
+Type=simple
+User=$REDDIT_USER
+Group=$REDDIT_GROUP
+WorkingDirectory=$REDDIT_SRC/activity
+Environment=PATH=$REDDIT_VENV/bin
+ExecStart=$REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    systemctl daemon-reload || true
+    systemctl enable --now reddit-activity.service || service reddit-activity restart || true
+fi
 
 ###############################################################################
 # geoip service
@@ -672,7 +725,8 @@ GEOIP
 fi
 
 # Create a per-app systemd service for the geoip server
-cat > /etc/systemd/system/gunicorn-geoip.service <<UNIT
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    cat > /etc/systemd/system/gunicorn-geoip.service <<UNIT
 [Unit]
 Description=Gunicorn geoip server for reddit
 After=network.target
@@ -690,8 +744,9 @@ Restart=on-failure
 WantedBy=multi-user.target
 UNIT
 
-systemctl daemon-reload || true
-systemctl enable --now gunicorn-geoip.service || true
+    systemctl daemon-reload || true
+    systemctl enable --now gunicorn-geoip.service || true
+fi
 
 ###############################################################################
 # Job Environment
