@@ -328,7 +328,39 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     "raven" \
     "Flask" \
     "GeoIP" \
-    "pika>=1.3.2,<2"
+    "pika>=1.3.2,<2" \
+    "sentry-sdk"
+
+# Patch installed baseplate sentry observer to ignore removed sentry-sdk options
+# (sentry-sdk 2.x removed the `with_locals` option; older baseplate may pass it).
+for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
+    if [ -f "$s" ]; then
+        echo "Patching $s to tolerate newer sentry-sdk options"
+        sudo -u $REDDIT_USER python3 - <<PYPATCH
+from pathlib import Path
+p = Path(r"$s")
+src = p.read_text()
+old = "client = sentry_sdk.Client(**kwargs)"
+if old in src:
+    new = (
+        "try:\n"
+        "        client = sentry_sdk.Client(**kwargs)\n"
+        "    except TypeError as e:\n"
+        "        msg = str(e)\n"
+        "        if 'Unknown option' in msg and 'with_locals' in msg:\n"
+        "            kwargs.pop('with_locals', None)\n"
+        "            client = sentry_sdk.Client(**kwargs)\n"
+        "        else:\n"
+        "            raise\n"
+    )
+    src = src.replace(old, new)
+    p.write_text(src)
+    print('patched', p)
+else:
+    print('no patch needed for', p)
+PYPATCH
+    fi
+done
 
 # After installing baseplate in the venv, ensure the installed package
 # exposes `metrics_client_from_config` for older r2 code. Prefer the
@@ -399,7 +431,6 @@ fi
 # system libs (e.g. libpq-dev, libxml2-dev); failures will be reported
 # but won't abort the installer.
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
-    amqp \
     bcrypt \
     beautifulsoup4 \
     captcha \
@@ -919,7 +950,8 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
     cat > /etc/systemd/system/reddit-websockets.service <<UNIT
 [Unit]
 Description=Reddit Websockets Service
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
@@ -931,6 +963,7 @@ Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 Restart=on-failure
+TimeoutStartSec=120
 
 [Install]
 WantedBy=multi-user.target
@@ -967,7 +1000,8 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
     cat > /etc/systemd/system/reddit-activity.service <<UNIT
 [Unit]
 Description=Reddit Activity Service
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
@@ -978,6 +1012,7 @@ Environment=PATH=$REDDIT_VENV/bin
 Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
 Restart=on-failure
+TimeoutStartSec=120
 
 [Install]
 WantedBy=multi-user.target
