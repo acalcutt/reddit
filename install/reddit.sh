@@ -101,6 +101,47 @@ for plugin in $REDDIT_PLUGINS; do
     fi
 done
 
+# Ensure venv-installed baseplate exposes `secrets_store_from_config` by
+# creating a small `secrets.py` shim in the package when missing. This
+# keeps runtime imports working for older services that import
+# `baseplate.secrets` directly.
+for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
+    if [ -d "$p" ]; then
+        target="$p/secrets.py"
+        if [ ! -f "$target" ]; then
+            cat > "$target" <<'PYSECRETS'
+"""Compatibility shim for baseplate.secrets added by installer.
+
+Prefer `baseplate.lib.secrets.secrets_store_from_config` when available,
+otherwise provide a noop secrets store for development.
+"""
+try:
+    from baseplate.lib.secrets import secrets_store_from_config as _r2_secrets_store_from_config
+except Exception:
+    _r2_secrets_store_from_config = None
+
+if _r2_secrets_store_from_config is not None:
+    secrets_store_from_config = _r2_secrets_store_from_config
+else:
+    class _NoopSecretsStore:
+        def get(self, key, default=None):
+            return default
+
+        def get_bytes(self, key, default=None):
+            return default
+
+        def put(self, key, value):
+            return None
+
+    def secrets_store_from_config(config=None):
+        return _NoopSecretsStore()
+
+__all__ = ['secrets_store_from_config']
+PYSECRETS
+        fi
+    fi
+done
+
 ###############################################################################
 # Install prerequisites
 ###############################################################################
