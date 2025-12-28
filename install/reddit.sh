@@ -363,12 +363,16 @@ function helper-script() {
 
 helper-script /usr/local/bin/reddit-run <<REDDITRUN
 #!/bin/bash
-exec $REDDIT_VENV/bin/paster --plugin=r2 run $REDDIT_SRC/reddit/r2/run.ini "\$@"
+# Use paster without --plugin flag; r2 is already installed in the venv
+cd $REDDIT_SRC/reddit/r2
+exec $REDDIT_VENV/bin/paster run run.ini "\$@"
 REDDITRUN
 
 helper-script /usr/local/bin/reddit-shell <<REDDITSHELL
 #!/bin/bash
-exec $REDDIT_VENV/bin/paster --plugin=r2 shell $REDDIT_SRC/reddit/r2/run.ini
+# Use paster without --plugin flag; r2 is already installed in the venv
+cd $REDDIT_SRC/reddit/r2
+exec $REDDIT_VENV/bin/paster shell run.ini
 REDDITSHELL
 
 helper-script /usr/local/bin/reddit-start <<REDDITSTART
@@ -393,7 +397,8 @@ REDDITFLUSH
 
 helper-script /usr/local/bin/reddit-serve <<REDDITSERVE
 #!/bin/bash
-exec $REDDIT_VENV/bin/paster serve --reload $REDDIT_SRC/reddit/r2/run.ini
+cd $REDDIT_SRC/reddit/r2
+exec $REDDIT_VENV/bin/paster serve --reload run.ini
 REDDITSERVE
 
 ###############################################################################
