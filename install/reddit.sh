@@ -336,25 +336,34 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
     if [ -f "$s" ]; then
         echo "Patching $s to tolerate newer sentry-sdk options"
-        sudo -u $REDDIT_USER python3 - <<PYPATCH
+        sudo -u $REDDIT_USER python3 - <<'PYPATCH'
 from pathlib import Path
+import re
+
 p = Path(r"$s")
 src = p.read_text()
-old = "client = sentry_sdk.Client(**kwargs)"
-if old in src:
-    new = (
-        "try:\n"
-        "        client = sentry_sdk.Client(**kwargs)\n"
-        "    except TypeError as e:\n"
-        "        msg = str(e)\n"
-        "        if 'Unknown option' in msg and 'with_locals' in msg:\n"
-        "            kwargs.pop('with_locals', None)\n"
-        "            client = sentry_sdk.Client(**kwargs)\n"
-        "        else:\n"
-        "            raise\n"
+
+# Replace the client instantiation with a try/except that removes
+# the obsolete `with_locals` option when sentry-sdk rejects it.
+pattern = re.compile(r'(?m)^(?P<indent>\s*)client = sentry_sdk.Client\(\*\*kwargs\)')
+
+def _repl(m):
+    indent = m.group('indent')
+    return (
+        f"{indent}try:\n"
+        f"{indent}    client = sentry_sdk.Client(**kwargs)\n"
+        f"{indent}except TypeError as e:\n"
+        f"{indent}    msg = str(e)\n"
+        f"{indent}    if 'Unknown option' in msg and 'with_locals' in msg:\n"
+        f"{indent}        kwargs.pop('with_locals', None)\n"
+        f"{indent}        client = sentry_sdk.Client(**kwargs)\n"
+        f"{indent}    else:\n"
+        f"{indent}        raise"
     )
-    src = src.replace(old, new)
-    p.write_text(src)
+
+new_src, n = pattern.subn(_repl, src)
+if n:
+    p.write_text(new_src)
     print('patched', p)
 else:
     print('no patch needed for', p)
