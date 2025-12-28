@@ -362,14 +362,14 @@ function helper-script() {
 }
 
 # Create a Python script for reddit-run that bypasses paster's plugin discovery
-cat > $REDDIT_VENV/bin/reddit-run-cmd <<'PYCMD'
+cat > $REDDIT_VENV/bin/reddit-run-cmd <<PYCMD
 #!/usr/bin/env python3
 """Direct invocation of r2's RunCommand, bypassing paster plugin discovery."""
 import sys
 import os
 
 # Change to r2 directory
-os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/../src/reddit/r2')
+os.chdir('$REDDIT_SRC/reddit/r2')
 
 from r2.commands import RunCommand
 cmd = RunCommand('run')
@@ -377,9 +377,6 @@ cmd = RunCommand('run')
 cmd.run(sys.argv[1:])
 PYCMD
 chmod +x $REDDIT_VENV/bin/reddit-run-cmd
-
-# Fix the path in the script to be absolute
-sed -i "s|/../src/reddit/r2|$REDDIT_SRC/reddit/r2|g" $REDDIT_VENV/bin/reddit-run-cmd
 
 helper-script /usr/local/bin/reddit-run <<REDDITRUN
 #!/bin/bash
