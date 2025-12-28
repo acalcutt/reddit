@@ -519,6 +519,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/reddit/scripts
 Environment=PATH=$REDDIT_VENV/bin
+Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 ExecStart=$REDDIT_VENV/bin/gunicorn --bind unix:/var/opt/reddit/click.sock --workers=1 tracker:application
 Restart=on-failure
@@ -756,6 +757,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/websockets
 Environment=PATH=$REDDIT_VENV/bin
+Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 Restart=on-failure
@@ -803,6 +805,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/activity
 Environment=PATH=$REDDIT_VENV/bin
+Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
 Restart=on-failure
 
