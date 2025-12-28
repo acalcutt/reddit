@@ -73,6 +73,13 @@ else
     sudo -u postgres env LC_ALL=C psql -c "ALTER USER reddit WITH PASSWORD 'password';" || true
 fi
 
+# Ensure the reddit user owns the reddit database so it can create tables
+sudo -u postgres env LC_ALL=C psql -c "ALTER DATABASE reddit OWNER TO reddit;" || true
+
+# Grant privileges on the public schema to the reddit user (needed when the
+# database owner is different or defaults are restrictive)
+sudo -u postgres env LC_ALL=C psql reddit -c "GRANT ALL PRIVILEGES ON SCHEMA public TO reddit;" || true
+
 sudo -u postgres env LC_ALL=C psql reddit <<FUNCTIONSQL
 create or replace function hot(ups integer, downs integer, date timestamp with time zone) returns numeric as \$\$
     select round(cast(log(greatest(abs(\$1 - \$2), 1)) * sign(\$1 - \$2) + (date_part('epoch', \$3) - 1134028003) / 45000.0 as numeric), 7)
