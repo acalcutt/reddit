@@ -360,10 +360,13 @@ fi
 # Ensure run.ini is a symlink to a real ini. Prefer development.ini, fall
 # back to example.ini if generation failed.
 if [ -f development.ini ]; then
-    sudo -u $REDDIT_USER ln -nsf development.ini run.ini
+    # Create a real file (not a symlink) to avoid broken-link surprises in CI
+    sudo -u $REDDIT_USER cp -f development.ini run.ini
+    sudo -u $REDDIT_USER chown $REDDIT_USER run.ini || true
 else
     echo "Falling back to example.ini for run.ini (development.ini missing)"
-    sudo -u $REDDIT_USER ln -nsf example.ini run.ini
+    sudo -u $REDDIT_USER cp -f example.ini run.ini
+    sudo -u $REDDIT_USER chown $REDDIT_USER run.ini || true
 fi
 
 popd
