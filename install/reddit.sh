@@ -211,7 +211,9 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     pytest \
     Babel \
     Cython \
-    raven
+    raven \
+    Flask \
+    GeoIP
 
 # Additional packages that `r2` currently lists as runtime/test deps.
 # Install them into the venv as the reddit user. Some packages require
