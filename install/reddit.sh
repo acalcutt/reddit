@@ -336,11 +336,11 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
     if [ -f "$s" ]; then
         echo "Patching $s to tolerate newer sentry-sdk options"
-        sudo -u $REDDIT_USER python3 - <<PYPATCH
+        sudo -u $REDDIT_USER python3 - "$s" <<'PYPATCH'
 from pathlib import Path
-import re
+import re, sys
 
-p = Path(r"$s")
+p = Path(sys.argv[1])
 src = p.read_text()
 
 # Replace the client instantiation with a try/except that removes
@@ -366,7 +366,7 @@ if n:
     p.write_text(new_src)
     print('patched', p)
 else:
-    print('no patch needed for', p)
+    print('no change needed', p)
 PYPATCH
     fi
 done
