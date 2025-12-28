@@ -195,7 +195,8 @@ sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
 sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 
 # Upgrade pip and install build tools in venv
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
+# Pin setuptools to below 81 to avoid reliance on pkg_resources removal
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip 'setuptools<81' wheel
 
 # Install baseplate and other runtime dependencies
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
@@ -215,6 +216,14 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     Flask \
     GeoIP
 
+# Create a writable directory for Prometheus multiprocess mode if needed
+# and make it owned by the reddit user so prometheus-client can write there.
+PROMETHEUS_DIR=/var/lib/reddit/prometheus-multiproc
+if [ ! -d "$PROMETHEUS_DIR" ]; then
+    mkdir -p "$PROMETHEUS_DIR"
+    chown $REDDIT_USER:$REDDIT_GROUP "$PROMETHEUS_DIR"
+    chmod 0775 "$PROMETHEUS_DIR"
+fi
 # Additional packages that `r2` currently lists as runtime/test deps.
 # Install them into the venv as the reddit user. Some packages require
 # system libs (e.g. libpq-dev, libxml2-dev); failures will be reported
@@ -510,6 +519,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/reddit/scripts
 Environment=PATH=$REDDIT_VENV/bin
+Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 ExecStart=$REDDIT_VENV/bin/gunicorn --bind unix:/var/opt/reddit/click.sock --workers=1 tracker:application
 Restart=on-failure
 
@@ -746,6 +756,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/websockets
 Environment=PATH=$REDDIT_VENV/bin
+Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 Restart=on-failure
 
