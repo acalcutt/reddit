@@ -728,7 +728,7 @@ kill timeout 15
 
 limit nofile 65535 65535
 
-exec $REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+exec $REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 UPSTART_WEBSOCKETS
     fi
 fi
@@ -746,7 +746,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/websockets
 Environment=PATH=$REDDIT_VENV/bin
-ExecStart=$REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
 Restart=on-failure
 
 [Install]
@@ -774,7 +774,7 @@ respawn
 respawn limit 10 5
 kill timeout 15
 
-exec $REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+exec $REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
 UPSTART_ACTIVITY
     fi
 fi
@@ -792,7 +792,7 @@ User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/activity
 Environment=PATH=$REDDIT_VENV/bin
-ExecStart=$REDDIT_VENV/bin/baseplate-serve2 --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
 Restart=on-failure
 
 [Install]
