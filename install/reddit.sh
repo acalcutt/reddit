@@ -212,6 +212,37 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     Babel \
     Cython
 
+# Additional packages that `r2` currently lists as runtime/test deps.
+# Install them into the venv as the reddit user. Some packages require
+# system libs (e.g. libpq-dev, libxml2-dev); failures will be reported
+# but won't abort the installer.
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+    amqp \
+    bcrypt \
+    beautifulsoup4 \
+    captcha \
+    cassandra-driver \
+    chardet \
+    httpagentparser \
+    kazoo \
+    lxml \
+    stripe \
+    tinycss2 \
+    unidecode \
+    PyYAML \
+    Pillow \
+    python-snappy \
+    pylibmc \
+    webtest \
+    mock \
+    nose \
+    coverage || true
+
+# Prefer psycopg2-binary to avoid requiring system postgres headers during
+# install; if you need the real psycopg2 build from source, install
+# libpq-dev and python3-dev on the host instead.
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install psycopg2-binary || true
+
 # Convert legacy Python 2 sources in i18n to Python 3 using lib2to3
 if [ -d "$REDDIT_SRC/i18n" ]; then
     echo "Converting i18n Python files to Python 3 with lib2to3"
