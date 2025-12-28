@@ -237,7 +237,8 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     webtest \
     mock \
     nose \
-    coverage || true
+    coverage \
+    "snudown @ https://github.com/nicnacnic/snudown/archive/refs/heads/master.zip" || true
 
 # Prefer psycopg2-binary to avoid requiring system postgres headers during
 # install; if you need the real psycopg2 build from source, install
