@@ -31,6 +31,10 @@
 RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
+# Allow overriding service repo locations (format: owner/repo)
+: ${REDDIT_WEBSOCKETS_REPO:=acalcutt/reddit-service-websockets}
+: ${REDDIT_ACTIVITY_REPO:=acalcutt/reddit-service-activity}
+
 
 ###############################################################################
 # Sanity Checks
@@ -255,13 +259,15 @@ function clone_reddit_repo {
 }
 
 function clone_reddit_service_repo {
-    clone_reddit_repo $1 reddit/reddit-service-$1
+    local name=$1
+    local repo=${2:-reddit/reddit-service-$1}
+    clone_reddit_repo $name "$repo"
 }
 
 clone_reddit_repo reddit acalcutt/reddit
 clone_reddit_repo i18n reddit/reddit-i18n
-clone_reddit_service_repo websockets
-clone_reddit_service_repo activity
+clone_reddit_service_repo websockets "$REDDIT_WEBSOCKETS_REPO"
+clone_reddit_service_repo activity "$REDDIT_ACTIVITY_REPO"
 
 # Patch activity and websockets setup.py to use new baseplate module path
 # (baseplate.integration was renamed to baseplate.frameworks in baseplate 1.0)
@@ -307,21 +313,22 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip 'setuptools<81' 
 
 # Install baseplate and other runtime dependencies
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
-    baseplate \
-    gunicorn \
-    PasteScript \
-    pyramid-mako \
-    Paste \
-    PasteDeploy \
-    pylibmc \
-    simplejson \
-    pytz \
-    pytest \
-    Babel \
-    Cython \
-    raven \
-    Flask \
-    GeoIP
+    "baseplate" \
+    "gunicorn" \
+    "PasteScript" \
+    "pyramid-mako" \
+    "Paste" \
+    "PasteDeploy" \
+    "pylibmc" \
+    "simplejson" \
+    "pytz" \
+    "pytest" \
+    "Babel" \
+    "Cython" \
+    "raven" \
+    "Flask" \
+    "GeoIP" \
+    "pika>=1.3.2,<2"
 
 # After installing baseplate in the venv, ensure the installed package
 # exposes `metrics_client_from_config` for older r2 code. Prefer the
