@@ -347,10 +347,23 @@ else
     sed -i "s/^oauth_domain = .*$/oauth_domain = $REDDIT_DOMAIN/" $REDDIT_SRC/reddit/r2/development.update
 fi
 
-sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC" make ini
+sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC" make ini || true
 
-if [ ! -L run.ini ]; then
+# Ensure `development.ini` exists. If `make ini` didn't create it (CI or
+# permission issues), try generating it directly with `updateini.py`.
+if [ ! -f development.ini ]; then
+    echo "development.ini not found; attempting to generate with updateini.py"
+    sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC" \
+        python updateini.py example.ini development.update > development.ini || true
+fi
+
+# Ensure run.ini is a symlink to a real ini. Prefer development.ini, fall
+# back to example.ini if generation failed.
+if [ -f development.ini ]; then
     sudo -u $REDDIT_USER ln -nsf development.ini run.ini
+else
+    echo "Falling back to example.ini for run.ini (development.ini missing)"
+    sudo -u $REDDIT_USER ln -nsf example.ini run.ini
 fi
 
 popd
