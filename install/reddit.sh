@@ -336,7 +336,7 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
     if [ -f "$s" ]; then
         echo "Patching $s to tolerate newer sentry-sdk options"
-        sudo -u $REDDIT_USER python3 - <<'PYPATCH'
+        sudo -u $REDDIT_USER python3 - <<PYPATCH
 from pathlib import Path
 import re
 
