@@ -369,8 +369,10 @@ cat > $REDDIT_VENV/bin/reddit-run-cmd <<PYCMD
 import sys
 import os
 
-# Change to r2 directory
-os.chdir('$REDDIT_SRC/reddit/r2')
+# Change to r2 directory and add it to Python path for local shims (e.g., pylons)
+r2_dir = '$REDDIT_SRC/reddit/r2'
+os.chdir(r2_dir)
+sys.path.insert(0, r2_dir)
 
 from r2.commands import RunCommand
 cmd = RunCommand('run')
