@@ -44,11 +44,11 @@ def main(source_ini, update_ini):
     try:
         # Existing *.update files don't include section
         # headers; inject a [DEFAULT] header if the parsing
-        # fails
-        parser.readfp(StringIO(updates))
+        # fails. Use read_file for Python 3 compatibility.
+        parser.read_file(StringIO(updates))
     except MissingSectionHeaderError:
         updates = "[DEFAULT]\n" + updates
-        parser.readfp(StringIO(updates))
+        parser.read_file(StringIO(updates))
     print(HEADER)
     parser.write(sys.stdout)
 

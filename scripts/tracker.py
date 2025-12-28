@@ -68,7 +68,8 @@ class ApplicationConfig:
         self.input = RawConfigParser()
         config_filename = os.environ.get("CONFIG", "production.ini")
         with open(config_filename) as f:
-            self.input.readfp(f)
+            # readfp is deprecated/removed; use read_file for Python 3
+            self.input.read_file(f)
         self.output = RawConfigParser()
 
     def get(self, section, key):

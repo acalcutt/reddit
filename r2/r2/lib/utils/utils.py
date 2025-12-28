@@ -1810,7 +1810,8 @@ def parse_ini_file(config_file):
 
     parser = configparser.RawConfigParser()
     parser.optionxform = str  # ensure keys are case-sensitive as expected
-    parser.readfp(config_file)
+    # Use read_file for Python 3 compatibility (readfp is deprecated/removed)
+    parser.read_file(config_file)
     return parser
 
 def fuzz_activity(count):
