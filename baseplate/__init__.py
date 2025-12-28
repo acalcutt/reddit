@@ -129,9 +129,13 @@ else:
             return None
 
 
-    def error_reporter_from_config(config=None):
+    def error_reporter_from_config(config=None, *args, **kwargs):
         """Return a noop error reporter when a real implementation isn't
         available in the runtime environment.
+
+        Accept extra positional and keyword arguments for compatibility
+        with older r2 callers that pass an additional package/name
+        parameter.
         """
         return _NoopErrorReporter()
 

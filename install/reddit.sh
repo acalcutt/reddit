@@ -376,8 +376,8 @@ else:
 		def report_message(self, *args, **kwargs):
 			return None
 
-	def error_reporter_from_config(config=None):
-		return _NoopErrorReporter()
+    def error_reporter_from_config(config=None, *args, **kwargs):
+        return _NoopErrorReporter()
 
 # END r2 compatibility shim
 PYSHIM
