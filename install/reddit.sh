@@ -17,6 +17,12 @@
 # Several configuration options (listed in the "Configuration" section below)
 # are overridable with environment variables. e.g.
 #
+
+# Ensure installed baseplate package exposes `metrics_client_from_config`
+# for older code that imports it from `baseplate` directly. Prefer the
+# implementation in `baseplate.lib.metrics` if available, otherwise
+# provide a noop fallback. This edits the venv site-packages package
+# after pip installs so runtime imports succeed regardless of PYTHONPATH.
 #    sudo REDDIT_DOMAIN=example.com ./install/reddit.sh
 #
 ###############################################################################
@@ -24,6 +30,27 @@
 # load configuration
 RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
+
+# BEGIN r2 compatibility shim added by install/reddit.sh
+try:
+    from baseplate.lib.metrics import metrics_client_from_config as _r2_metrics_client_from_config
+except Exception:
+    _r2_metrics_client_from_config = None
+
+if _r2_metrics_client_from_config is not None:
+    metrics_client_from_config = _r2_metrics_client_from_config
+else:
+    class _NoopMetricsClient:
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                return None
+
+            return _noop
+
+    def metrics_client_from_config(config=None):
+        return _NoopMetricsClient()
+
+# END r2 compatibility shim
 
 
 ###############################################################################
