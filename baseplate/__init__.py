@@ -87,3 +87,28 @@ else:
 
 
 __all__ = ['Baseplate', 'BaseplateObserver', 'ServerSpanObserver', 'SpanObserver', 'config']
+
+
+# Metrics compatibility: prefer the real metrics factory under
+# `baseplate.lib.metrics.metrics_client_from_config` when available.
+# Otherwise expose a no-op metrics client for development/testing.
+_metrics_mod = _import_or_none('baseplate.lib.metrics') or _import_or_none('baseplate.metrics')
+if _metrics_mod is not None and hasattr(_metrics_mod, 'metrics_client_from_config'):
+    metrics_client_from_config = _metrics_mod.metrics_client_from_config
+else:
+    class _NoopMetricsClient:
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                return None
+
+            return _noop
+
+
+    def metrics_client_from_config(config=None):
+        """Return a noop metrics client when baseplate.lib.metrics isn't
+        available in the runtime environment.
+        """
+        return _NoopMetricsClient()
+
+
+__all__.append('metrics_client_from_config')
