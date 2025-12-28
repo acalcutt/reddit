@@ -547,10 +547,10 @@ frontend frontend
     option forwardfor except 127.0.0.1
     option httpclose
 
-    # make sure that requests have x-forwarded-proto: https iff tls
-    reqidel ^X-Forwarded-Proto:.*
+    # ensure X-Forwarded-Proto is set to 'https' when requests arrive via TLS
+    http-request del-header X-Forwarded-Proto
     acl is-ssl dst_port 8080
-    reqadd X-Forwarded-Proto:\ https if is-ssl
+    http-request add-header X-Forwarded-Proto https if is-ssl
 
     # send websockets to the websocket service
     acl is-websocket hdr(Upgrade) -i WebSocket
