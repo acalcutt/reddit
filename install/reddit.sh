@@ -396,7 +396,6 @@ CLICK
 fi
 
 # Create a per-app systemd service for the click server so it can be managed
-# under systemd on modern systems.
 # under systemd on modern systems. Only create/enable when systemd is present.
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
     cat > /etc/systemd/system/gunicorn-click.service <<UNIT
@@ -635,7 +634,7 @@ fi
 
 # Create a systemd unit for websockets (preferred on modern systems)
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-    cat > /etc/systemd/system/reddit-websockets.service <<'UNIT'
+    cat > /etc/systemd/system/reddit-websockets.service <<UNIT
 [Unit]
 Description=Reddit Websockets Service
 After=network.target
@@ -681,7 +680,7 @@ fi
 
 # Create a systemd unit for activity service
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-    cat > /etc/systemd/system/reddit-activity.service <<'UNIT'
+    cat > /etc/systemd/system/reddit-activity.service <<UNIT
 [Unit]
 Description=Reddit Activity Service
 After=network.target
