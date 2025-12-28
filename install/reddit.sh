@@ -233,26 +233,47 @@ for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
             if ! grep -q "BEGIN r2 compatibility shim" "$target" >/dev/null 2>&1; then
                 cat >> "$target" <<'PYSHIM'
 
-# BEGIN r2 compatibility shim
-try:
-    from baseplate.lib.metrics import metrics_client_from_config as _r2_metrics_client_from_config
-except Exception:
-    _r2_metrics_client_from_config = None
+                # BEGIN r2 compatibility shim
+                # Prefer the real implementations under baseplate.lib when available,
+                # otherwise provide no-op fallbacks for development/testing.
+                try:
+                    from baseplate.lib.metrics import metrics_client_from_config as _r2_metrics_client_from_config
+                except Exception:
+                    _r2_metrics_client_from_config = None
 
-if _r2_metrics_client_from_config is not None:
-    metrics_client_from_config = _r2_metrics_client_from_config
-else:
-    class _NoopMetricsClient:
-        def __getattr__(self, name):
-            def _noop(*args, **kwargs):
-                return None
-            return _noop
+                if _r2_metrics_client_from_config is not None:
+                    metrics_client_from_config = _r2_metrics_client_from_config
+                else:
+                    class _NoopMetricsClient:
+                        def __getattr__(self, name):
+                            def _noop(*args, **kwargs):
+                                return None
+                            return _noop
 
-    def metrics_client_from_config(config=None):
-        return _NoopMetricsClient()
+                    def metrics_client_from_config(config=None):
+                        return _NoopMetricsClient()
 
-# END r2 compatibility shim
-PYSHIM
+
+                try:
+                    from baseplate.lib.error import error_reporter_from_config as _r2_error_reporter_from_config
+                except Exception:
+                    _r2_error_reporter_from_config = None
+
+                if _r2_error_reporter_from_config is not None:
+                    error_reporter_from_config = _r2_error_reporter_from_config
+                else:
+                    class _NoopErrorReporter:
+                        def report_exception(self, *args, **kwargs):
+                            return None
+
+                        def report_message(self, *args, **kwargs):
+                            return None
+
+                    def error_reporter_from_config(config=None):
+                        return _NoopErrorReporter()
+
+                # END r2 compatibility shim
+                PYSHIM
             fi
         fi
     fi
