@@ -395,7 +395,28 @@ CONFIG = {
 CLICK
 fi
 
-service gunicorn start || true
+# Create a per-app systemd service for the click server so it can be managed
+# under systemd on modern systems.
+cat > /etc/systemd/system/gunicorn-click.service <<UNIT
+[Unit]
+Description=Gunicorn click server for reddit
+After=network.target
+
+[Service]
+Type=simple
+User=$REDDIT_USER
+Group=$REDDIT_GROUP
+WorkingDirectory=$REDDIT_SRC/reddit/scripts
+Environment=PATH=$REDDIT_VENV/bin
+ExecStart=$REDDIT_VENV/bin/gunicorn --bind unix:/var/opt/reddit/click.sock --workers=1 tracker:application
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload || true
+systemctl enable --now gunicorn-click.service || true
 
 ###############################################################################
 # nginx
@@ -647,7 +668,27 @@ CONFIG = {
 GEOIP
 fi
 
-service gunicorn start || true
+# Create a per-app systemd service for the geoip server
+cat > /etc/systemd/system/gunicorn-geoip.service <<UNIT
+[Unit]
+Description=Gunicorn geoip server for reddit
+After=network.target
+
+[Service]
+Type=simple
+User=$REDDIT_USER
+Group=$REDDIT_GROUP
+WorkingDirectory=$REDDIT_SRC/reddit/scripts
+Environment=PATH=$REDDIT_VENV/bin
+ExecStart=$REDDIT_VENV/bin/gunicorn --bind 127.0.0.1:5000 --workers=1 --limit-request-line=8190 geoip_service:application
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload || true
+systemctl enable --now gunicorn-geoip.service || true
 
 ###############################################################################
 # Job Environment
