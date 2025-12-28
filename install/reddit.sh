@@ -142,6 +142,31 @@ PYSECRETS
     fi
 done
 
+# Provide a small compatibility module for Python 2 `urlparse` imports.
+# Some older services do `import urlparse`; create a shim in the venv
+# site-packages that re-exports `urllib.parse` for Python 3.
+for p in "$REDDIT_VENV"/lib/python*/site-packages; do
+    if [ -d "$p" ]; then
+        target="$p/urlparse.py"
+        if [ ! -f "$target" ]; then
+            cat > "$target" <<'PYURL'
+"""Compatibility shim: provide Python2 `urlparse` module for Python3.
+
+This module re-exports the `urllib.parse` API under the old
+`urlparse` name so legacy code importing `urlparse` continues to work.
+"""
+from urllib.parse import *
+
+__all__ = [
+    'urlparse', 'urlunparse', 'urljoin', 'urlsplit', 'urlunsplit',
+    'parse_qs', 'parse_qsl', 'quote', 'quote_plus', 'unquote',
+    'unquote_plus', 'urlencode',
+]
+PYURL
+        fi
+    fi
+done
+
 ###############################################################################
 # Install prerequisites
 ###############################################################################
