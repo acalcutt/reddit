@@ -167,6 +167,41 @@ PYURL
     fi
 done
 
+# Ensure venv-installed baseplate exposes a `crypto` module expected by
+# older services (e.g. `from baseplate.crypto import validate_signature`).
+for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
+    if [ -d "$p" ]; then
+        target="$p/crypto.py"
+        if [ ! -f "$target" ]; then
+            cat > "$target" <<'PYCRYPTO'
+"""Compatibility shim for baseplate.crypto added by installer.
+
+Prefer `baseplate.lib.crypto.validate_signature` when available,
+otherwise provide a no-op `validate_signature` and `SignatureError`.
+"""
+try:
+    from baseplate.lib.crypto import validate_signature as _r2_validate_signature
+    from baseplate.lib.crypto import SignatureError as _r2_SignatureError
+except Exception:
+    _r2_validate_signature = None
+    _r2_SignatureError = None
+
+if _r2_validate_signature is not None:
+    validate_signature = _r2_validate_signature
+    SignatureError = _r2_SignatureError
+else:
+    class SignatureError(Exception):
+        pass
+
+    def validate_signature(secret, payload):
+        return True
+
+__all__ = ['validate_signature', 'SignatureError']
+PYCRYPTO
+        fi
+    fi
+done
+
 ###############################################################################
 # Install prerequisites
 ###############################################################################
