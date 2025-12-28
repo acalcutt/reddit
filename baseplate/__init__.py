@@ -112,3 +112,28 @@ else:
 
 
 __all__.append('metrics_client_from_config')
+
+
+# Error reporter compatibility: prefer `baseplate.lib.metrics`-style reporter
+# factories when available (variously named in baseplate versions). Fallback
+# to a noop reporter that provides the basic `report_exception` API.
+_err_mod = _import_or_none('baseplate.lib.error') or _import_or_none('baseplate.lib.error_reporter') or _import_or_none('baseplate.lib.errors') or _import_or_none('baseplate.error')
+if _err_mod is not None and hasattr(_err_mod, 'error_reporter_from_config'):
+    error_reporter_from_config = _err_mod.error_reporter_from_config
+else:
+    class _NoopErrorReporter:
+        def report_exception(self, *args, **kwargs):
+            return None
+
+        def report_message(self, *args, **kwargs):
+            return None
+
+
+    def error_reporter_from_config(config=None):
+        """Return a noop error reporter when a real implementation isn't
+        available in the runtime environment.
+        """
+        return _NoopErrorReporter()
+
+
+__all__.append('error_reporter_from_config')
