@@ -353,8 +353,7 @@ sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddi
 # permission issues), try generating it directly with `updateini.py`.
 if [ ! -f development.ini ]; then
     echo "development.ini not found; attempting to generate with updateini.py"
-    sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC" \
-        python updateini.py example.ini development.update > development.ini || true
+    sudo -u $REDDIT_USER bash -lc "PATH=\"$REDDIT_VENV/bin:\$PATH\" PYTHONPATH=\"$REDDIT_SRC/reddit:$REDDIT_SRC\" python updateini.py example.ini development.update > development.ini" || true
 fi
 
 # Ensure run.ini is a symlink to a real ini. Prefer development.ini, fall
