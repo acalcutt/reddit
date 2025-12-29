@@ -319,7 +319,7 @@ sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 # Install current setuptools/wheel and ensure `packaging` is recent so editable
 # installs / metadata generation behave correctly.
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging=25.0'
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging>=23.1'
 
 # Install `baseplate` early so packages that inspect/import it at build time
 # (e.g., r2) can detect it. Prefer a local checkout at $REDDIT_SRC/baseplate.py
