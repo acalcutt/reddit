@@ -972,7 +972,8 @@ ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
 ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
 
 # Bind to 127.0.0.1 to avoid potential localhost resolution issues
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9001 $REDDIT_SRC/websockets/example.ini
+ExecStart=$REDDIT_VENV/bin/python $REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9001 $REDDIT_SRC/websockets/example.ini
+Environment=HOME=/home/$REDDIT_USER
 Restart=on-failure
 TimeoutStartSec=120
 
