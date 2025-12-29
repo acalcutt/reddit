@@ -312,62 +312,79 @@ sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip 'setuptools<81' wheel
 
 # Install baseplate and other runtime dependencies
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
-    "baseplate" \
-    "gunicorn" \
-    "PasteScript" \
-    "pyramid-mako" \
-    "Paste" \
-    "PasteDeploy" \
-    "pylibmc" \
-    "simplejson" \
-    "pytz" \
-    "pytest" \
-    "Babel" \
-    "Cython" \
-    "raven" \
-    "Flask" \
-    "GeoIP" \
-    "pika>=1.3.2,<2" \
-    "sentry-sdk"
+# Installation order/options:
+# 1. If `REDDIT_BASEPLATE_PIP_URL` is set, install baseplate from that pip
+#    spec (supports git+ URLs, file://, or local editable installs).
+# 2. Else if `REDDIT_BASEPLATE_REPO` is set, install from the given fork
+#    (legacy behavior).
+# 3. Otherwise install `baseplate` from PyPI.
+if [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
+    echo "Installing baseplate from pip spec: $REDDIT_BASEPLATE_PIP_URL"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+        "$REDDIT_BASEPLATE_PIP_URL" \
+        "gunicorn" \
+        "PasteScript" \
+        "pyramid-mako" \
+        "Paste" \
+        "PasteDeploy" \
+        "pylibmc" \
+        "simplejson" \
+        "pytz" \
+        "pytest" \
+        "Babel" \
+        "Cython" \
+        "raven" \
+        "Flask" \
+        "GeoIP" \
+        "pika>=1.3.2,<2" \
+        "sentry-sdk"
+elif [ -n "$REDDIT_BASEPLATE_REPO" ]; then
+    echo "Installing baseplate from fork: $REDDIT_BASEPLATE_REPO"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+        "git+https://github.com/$REDDIT_BASEPLATE_REPO.git@main#egg=baseplate" \
+        "gunicorn" \
+        "PasteScript" \
+        "pyramid-mako" \
+        "Paste" \
+        "PasteDeploy" \
+        "pylibmc" \
+        "simplejson" \
+        "pytz" \
+        "pytest" \
+        "Babel" \
+        "Cython" \
+        "raven" \
+        "Flask" \
+        "GeoIP" \
+        "pika>=1.3.2,<2" \
+        "sentry-sdk"
+else
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+        "baseplate" \
+        "gunicorn" \
+        "PasteScript" \
+        "pyramid-mako" \
+        "Paste" \
+        "PasteDeploy" \
+        "pylibmc" \
+        "simplejson" \
+        "pytz" \
+        "pytest" \
+        "Babel" \
+        "Cython" \
+        "raven" \
+        "Flask" \
+        "GeoIP" \
+        "pika>=1.3.2,<2" \
+        "sentry-sdk"
+fi
 
 # Patch installed baseplate sentry observer to ignore removed sentry-sdk options
 # (sentry-sdk 2.x removed the `with_locals` option; older baseplate may pass it).
 for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
     if [ -f "$s" ]; then
         echo "Patching $s to tolerate newer sentry-sdk options"
-        sudo -u $REDDIT_USER python3 - "$s" <<'PYPATCH'
-from pathlib import Path
-import re, sys
-
-p = Path(sys.argv[1])
-src = p.read_text()
-
-# Replace the client instantiation with a try/except that removes
-# the obsolete `with_locals` option when sentry-sdk rejects it.
-pattern = re.compile(r'(?m)^(?P<indent>\s*)client = sentry_sdk.Client\(\*\*kwargs\)')
-
-def _repl(m):
-    indent = m.group('indent')
-    return (
-        f"{indent}try:\n"
-        f"{indent}    client = sentry_sdk.Client(**kwargs)\n"
-        f"{indent}except TypeError as e:\n"
-        f"{indent}    msg = str(e)\n"
-        f"{indent}    if 'Unknown option' in msg and 'with_locals' in msg:\n"
-        f"{indent}        kwargs.pop('with_locals', None)\n"
-        f"{indent}        client = sentry_sdk.Client(**kwargs)\n"
-        f"{indent}    else:\n"
-        f"{indent}        raise"
-    )
-
-new_src, n = pattern.subn(_repl, src)
-if n:
-    p.write_text(new_src)
-    print('patched', p)
-else:
-    print('no change needed', p)
-PYPATCH
+        sudo -u $REDDIT_USER python3 "$RUNDIR/patch_sentry.py" "$s" || true
     fi
 done
 
