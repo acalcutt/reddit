@@ -41,3 +41,23 @@ jobs:
           path: |
             /var/log/*.log
             /var/log/apt/* || true
+
+      - name: Show services status (always)
+        run: |
+          echo "=== Checking systemd units and service processes ==="
+          services=(postgresql rabbitmq-server memcached cassandra zookeeper nginx redis-server)
+          for s in "${services[@]}"; do
+            if sudo systemctl list-units --full -all --no-legend | grep -Fq "${s}.service"; then
+              echo "\n--- systemctl status ${s} ---"
+              sudo systemctl --no-pager status ${s} || true
+            else
+              echo "\n--- ${s}.service not present under systemd; checking process list ---"
+              sudo ps auxww | grep -i ${s} | grep -v grep || true
+            fi
+          done
+
+          echo "\n=== Listening TCP ports ==="
+          sudo ss -ltnp || true
+
+          echo "\n=== Matching processes (ps/grep) ==="
+          ps auxww | egrep 'postgres|rabbit|memcache|cassandra|zookeeper|nginx|redis|java' || true
