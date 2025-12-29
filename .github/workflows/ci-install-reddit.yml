@@ -22,6 +22,16 @@ jobs:
         run: |
           chmod +x install/*.sh
 
+      - name: Prepare venv and install baseplate (runner venv)
+        run: |
+          # Create a venv at the default location the installer will use
+          python -m venv /home/runner/venv
+          /home/runner/venv/bin/pip install --upgrade pip setuptools wheel 'packaging>=23.1'
+          # Install the local baseplate checkout editable so builds find it
+          if [ -d ./baseplate.py ]; then
+            /home/runner/venv/bin/pip install -e ./baseplate.py
+          fi
+
       - name: Install reddit via installer (non-interactive)
         env:
           # Prefer develop branch of baseplate for these smoke runs
