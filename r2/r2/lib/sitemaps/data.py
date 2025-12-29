@@ -27,38 +27,38 @@ Currently only supports subreddit links but will soon support comment links.
 
 import tempfile
 
-from boto.s3.connection import S3Connection
+import boto3
 from pylons import app_globals as g
 
 from r2.lib.hadoop_decompress import hadoop_decompress
 
 
 def _read_subreddit_etl_from_s3(s3path):
-    s3conn = S3Connection()
-    bucket = s3conn.get_bucket(s3path.bucket, validate=False)
-    s3keys = bucket.list(s3path.key)
+    s3 = boto3.resource('s3')
+    bucket = s3.Bucket(s3path.bucket)
+    objects = bucket.objects.filter(Prefix=s3path.key)
 
     key_count = 0
-    for s3key in s3keys:
-        g.log.info("Importing key %r", s3key)
+    for obj in objects:
+        g.log.info("Importing key %s", obj.key)
 
-        with tempfile.TemporaryFile(mode='rw+b') as ntf_download:
-            with tempfile.TemporaryFile(mode='rw+b') as ntf_decompress:
+        with tempfile.TemporaryFile(mode='w+b') as ntf_download:
+            with tempfile.TemporaryFile(mode='w+b') as ntf_decompress:
 
                 # download it
-                g.log.debug("Downloading %r", s3key)
-                s3key.get_contents_to_file(ntf_download)
+                g.log.debug("Downloading %s", obj.key)
+                obj.Object().download_fileobj(ntf_download)
 
                 # decompress it
                 ntf_download.flush()
                 ntf_download.seek(0)
-                g.log.debug("Decompressing %r", s3key)
+                g.log.debug("Decompressing %s", obj.key)
                 hadoop_decompress(ntf_download, ntf_decompress)
                 ntf_decompress.flush()
                 ntf_decompress.seek(0)
 
                 # import it
-                g.log.debug("Starting import of %r", s3key)
+                g.log.debug("Starting import of %s", obj.key)
                 yield from ntf_decompress
         key_count += 1
 

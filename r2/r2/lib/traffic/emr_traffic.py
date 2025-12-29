@@ -24,9 +24,74 @@ import os
 from copy import copy
 from time import sleep, time
 
-from boto.emr.bootstrap_action import BootstrapAction
-from boto.emr.step import InstallPigStep, PigStep
 from pylons import app_globals as g
+
+
+# boto3-compatible EMR step classes
+# These replace boto.emr.bootstrap_action.BootstrapAction and boto.emr.step.*
+
+class BootstrapAction:
+    """boto3-compatible bootstrap action for EMR."""
+    def __init__(self, name, path, args=None):
+        self.name = name
+        self.path = path
+        self.args = args or []
+
+    def to_dict(self):
+        """Convert to boto3 EMR API format."""
+        return {
+            'Name': self.name,
+            'ScriptBootstrapAction': {
+                'Path': self.path,
+                'Args': self.args,
+            }
+        }
+
+
+class EmrStep:
+    """Base class for EMR steps."""
+    def __init__(self, name, action_on_failure='TERMINATE_CLUSTER'):
+        self.name = name
+        self.action_on_failure = action_on_failure
+
+    def to_dict(self):
+        raise NotImplementedError
+
+
+class InstallPigStep(EmrStep):
+    """Step to install Pig on EMR cluster."""
+    def __init__(self):
+        super().__init__('Install Pig')
+
+    def to_dict(self):
+        return {
+            'Name': self.name,
+            'ActionOnFailure': self.action_on_failure,
+            'HadoopJarStep': {
+                'Jar': 'command-runner.jar',
+                'Args': ['pig-script', '--install-pig'],
+            }
+        }
+
+
+class PigStep(EmrStep):
+    """Step to run a Pig script on EMR."""
+    def __init__(self, name, pig_file, pig_args=None):
+        super().__init__(name)
+        self.pig_file = pig_file
+        self.pig_args = pig_args or []
+
+    def to_dict(self):
+        args = ['pig-script', '--run-pig-script', '--args', '-f', self.pig_file]
+        args.extend(self.pig_args)
+        return {
+            'Name': self.name,
+            'ActionOnFailure': self.action_on_failure,
+            'HadoopJarStep': {
+                'Jar': 'command-runner.jar',
+                'Args': args,
+            }
+        }
 
 from r2.lib.emr_helpers import (
     COMPLETED,

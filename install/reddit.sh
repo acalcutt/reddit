@@ -171,6 +171,137 @@ PYURL
     fi
 done
 
+# Provide a compatibility module for Python 2 `imp` module.
+# The `imp` module was removed in Python 3.12. Some legacy packages
+# still use it. This shim provides the commonly used functions
+# using importlib.
+for p in "$REDDIT_VENV"/lib/python*/site-packages; do
+    if [ -d "$p" ]; then
+        target="$p/imp.py"
+        if [ ! -f "$target" ]; then
+            cat > "$target" <<'PYIMP'
+"""Compatibility shim: provide deprecated `imp` module for Python 3.12+.
+
+The `imp` module was removed in Python 3.12. This shim provides the
+commonly used functions using importlib for legacy packages.
+"""
+import importlib
+import importlib.util
+import sys
+import os
+import tokenize
+
+# Constants that were in the imp module
+PY_SOURCE = 1
+PY_COMPILED = 2
+C_EXTENSION = 3
+PKG_DIRECTORY = 5
+C_BUILTIN = 6
+PY_FROZEN = 7
+
+def find_module(name, path=None):
+    """Find a module, returning (file, pathname, description)."""
+    if path is None:
+        path = sys.path
+    for directory in path:
+        if not isinstance(directory, str):
+            continue
+        full_path = os.path.join(directory, name)
+        # Check for package
+        if os.path.isdir(full_path):
+            init_path = os.path.join(full_path, '__init__.py')
+            if os.path.exists(init_path):
+                return (None, full_path, ('', '', PKG_DIRECTORY))
+        # Check for .py file
+        py_path = full_path + '.py'
+        if os.path.exists(py_path):
+            return (open(py_path, 'r'), py_path, ('.py', 'r', PY_SOURCE))
+        # Check for .pyc file
+        pyc_path = full_path + '.pyc'
+        if os.path.exists(pyc_path):
+            return (open(pyc_path, 'rb'), pyc_path, ('.pyc', 'rb', PY_COMPILED))
+    raise ImportError(f"No module named {name}")
+
+def load_module(name, file, pathname, description):
+    """Load a module given the info from find_module."""
+    suffix, mode, type_ = description
+    if type_ == PKG_DIRECTORY:
+        spec = importlib.util.spec_from_file_location(
+            name, os.path.join(pathname, '__init__.py'),
+            submodule_search_locations=[pathname]
+        )
+    elif type_ == PY_SOURCE:
+        spec = importlib.util.spec_from_file_location(name, pathname)
+    elif type_ == PY_COMPILED:
+        spec = importlib.util.spec_from_file_location(name, pathname)
+    else:
+        spec = importlib.util.find_spec(name)
+
+    if spec is None:
+        raise ImportError(f"Cannot load module {name}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+def reload(module):
+    """Reload a module."""
+    return importlib.reload(module)
+
+def get_suffixes():
+    """Return a list of (suffix, mode, type) tuples."""
+    return [
+        ('.py', 'r', PY_SOURCE),
+        ('.pyc', 'rb', PY_COMPILED),
+    ]
+
+def new_module(name):
+    """Create a new empty module."""
+    import types
+    return types.ModuleType(name)
+
+def is_builtin(name):
+    """Return True if the module is built-in."""
+    return name in sys.builtin_module_names
+
+def is_frozen(name):
+    """Return True if the module is frozen."""
+    return importlib.util.find_spec(name) is not None and \
+           getattr(importlib.util.find_spec(name), 'origin', None) == 'frozen'
+
+# NullImporter for compatibility
+class NullImporter:
+    def __init__(self, path):
+        if os.path.isdir(path):
+            raise ImportError("existing directory")
+
+    def find_module(self, fullname, path=None):
+        return None
+
+def acquire_lock():
+    """Acquire the import lock (no-op in Python 3)."""
+    pass
+
+def release_lock():
+    """Release the import lock (no-op in Python 3)."""
+    pass
+
+def lock_held():
+    """Return True if the import lock is held."""
+    return False
+
+__all__ = [
+    'find_module', 'load_module', 'reload', 'get_suffixes', 'new_module',
+    'is_builtin', 'is_frozen', 'NullImporter', 'acquire_lock', 'release_lock',
+    'lock_held', 'PY_SOURCE', 'PY_COMPILED', 'C_EXTENSION', 'PKG_DIRECTORY',
+    'C_BUILTIN', 'PY_FROZEN',
+]
+PYIMP
+        fi
+    fi
+done
+
 # Ensure venv-installed baseplate exposes a `crypto` module expected by
 # older services (e.g. `from baseplate.crypto import validate_signature`).
 for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
@@ -427,6 +558,7 @@ fi
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     bcrypt \
     beautifulsoup4 \
+    boto3 \
     captcha \
     cassandra-driver \
     chardet \
