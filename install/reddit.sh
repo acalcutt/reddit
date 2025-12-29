@@ -300,8 +300,16 @@ $RUNDIR/setup_rabbitmq.sh
 ###############################################################################
 
 # Create Python virtual environment for reddit
-# This avoids PEP 668 issues and keeps dependencies isolated
+# Ensure the venv parent exists and is writable by the reddit user
+# Remove any stale venv that is not writable by the runtime user so we can
+# recreate it as the correct owner.
 echo "Creating Python virtual environment at $REDDIT_VENV"
+mkdir -p "$(dirname "$REDDIT_VENV")"
+chown $REDDIT_USER:$REDDIT_GROUP "$(dirname "$REDDIT_VENV")" || true
+if [ -d "$REDDIT_VENV" ] && [ ! -w "$REDDIT_VENV" ]; then
+    echo "Existing venv at $REDDIT_VENV is not writable by $REDDIT_USER; removing"
+    rm -rf "$REDDIT_VENV"
+fi
 sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
 
 # Create 'python' symlink for compatibility with Makefiles that expect 'python'
@@ -499,6 +507,11 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 # install; if you need the real psycopg2 build from source, install
 # libpq-dev and python3-dev on the host instead.
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install psycopg2-binary || true
+
+# Ensure `packaging` remains at a modern version — some packages may pull
+# older versions during bulk installs. Force-reinstall without deps to keep
+# the build-toolchain compatible for later editable installs.
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade --force-reinstall --no-deps 'packaging>=23.1' || true
 
 # Convert legacy Python 2 sources in i18n to Python 3 using lib2to3
 if [ -d "$REDDIT_SRC/i18n" ]; then
