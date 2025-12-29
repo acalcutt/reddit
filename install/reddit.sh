@@ -958,12 +958,21 @@ After=network-online.target
 [Service]
 Type=simple
 User=$REDDIT_USER
-Group=$REDDIT_GROUP
+# Use the app user as group to avoid permission issues with user-owned venvs
+Group=$REDDIT_USER
 WorkingDirectory=$REDDIT_SRC/websockets
-Environment=PATH=$REDDIT_VENV/bin
+# Provide the venv bin first, but keep system PATH entries so helpers are found
+Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=VIRTUAL_ENV=$REDDIT_VENV
 Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+
+# Ensure prometheus multiproc dir exists and is owned by the service user
+ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
+ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
+
+# Bind to 127.0.0.1 to avoid potential localhost resolution issues
+ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9001 $REDDIT_SRC/websockets/example.ini
 Restart=on-failure
 TimeoutStartSec=120
 
