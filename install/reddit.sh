@@ -319,7 +319,7 @@ sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 # Install current setuptools/wheel and ensure `packaging` is recent so editable
 # installs / metadata generation behave correctly.
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging>=23.1'
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging=25.0'
 
 # Install `baseplate` early so packages that inspect/import it at build time
 # (e.g., r2) can detect it. Prefer a local checkout at $REDDIT_SRC/baseplate.py
@@ -334,6 +334,14 @@ elif [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
 else
     echo "Installing baseplate from PyPI"
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install baseplate
+fi
+
+# If provided, prefer a fork of `formenergy-observability` that supports
+# modern `packaging`, install it early so it cannot force a downgrade of
+# `packaging` during later bulk installs.
+if [ -n "$REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL" ]; then
+    echo "Installing formenergy-observability from $REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install "$REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL" || true
 fi
 
 # Install baseplate and other runtime dependencies
@@ -523,6 +531,9 @@ fi
 
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
+    # Ensure build-toolchain is pinned so metadata generation won't fail
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade --force-reinstall --no-deps pip setuptools wheel 'packaging>=23.1' || true
+
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/python setup.py build
     # --no-build-isolation uses the venv's packages (like baseplate) instead of isolated env
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --no-build-isolation -e .

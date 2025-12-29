@@ -31,6 +31,8 @@ jobs:
           if [ -d ./baseplate.py ]; then
             /home/runner/venv/bin/pip install -e ./baseplate.py
           fi
+          # Install a packaging-compatible formenergy-observability fork early
+          /home/runner/venv/bin/pip install 'git+https://github.com/acalcutt/formenergy-observability.git@main#egg=formenergy-observability' || true
 
       - name: Install reddit via installer (non-interactive)
         env:
