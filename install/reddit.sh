@@ -1020,9 +1020,14 @@ Type=simple
 User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/activity
-Environment=PATH=$REDDIT_VENV/bin
-Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+# Provide the venv bin first and common system paths; omit /sbin for compatibility
+Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$REDDIT_VENV
+Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
+Environment=HOME=/home/$REDDIT_USER
+ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
+ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
+ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9002 $REDDIT_SRC/activity/example.ini
 Restart=on-failure
 TimeoutStartSec=120
 
