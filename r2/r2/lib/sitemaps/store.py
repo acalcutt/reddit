@@ -43,54 +43,58 @@ have to load all of the subreddits into memory, which would be ... bad.
 
 
 import gzip
-from io import StringIO
+from io import BytesIO
 
-from boto.s3.connection import S3Connection
-from boto.s3.key import Key
+import boto3
 from pylons import app_globals as g
 
 from r2.lib.sitemaps.generate import sitemap_index, subreddit_sitemaps
 
-HEADERS = {
-    'Content-Type': 'text/xml',
-    'Content-Encoding': 'gzip',
-}
+CONTENT_TYPE = 'text/xml'
+CONTENT_ENCODING = 'gzip'
 
 
 def zip_string(string):
-    zipbuffer = StringIO()
-    with gzip.GzipFile(mode='w', fileobj=zipbuffer) as f:
+    """Compress a string using gzip."""
+    zipbuffer = BytesIO()
+    # Ensure string is bytes
+    if isinstance(string, str):
+        string = string.encode('utf-8')
+    with gzip.GzipFile(mode='wb', fileobj=zipbuffer) as f:
         f.write(string)
     return zipbuffer.getvalue()
 
 
-def upload_sitemap(key, sitemap):
-    key.set_contents_from_string(zip_string(sitemap), headers=HEADERS)
+def upload_sitemap(s3_client, bucket_name, key_name, sitemap):
+    """Upload a gzipped sitemap to S3."""
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=key_name,
+        Body=zip_string(sitemap),
+        ContentType=CONTENT_TYPE,
+        ContentEncoding=CONTENT_ENCODING,
+    )
 
 
-def store_subreddit_sitemap(bucket, index, sitemap):
-    key = Key(bucket)
-    key.key = 'subreddit_sitemap/{}.xml'.format(index)
-    g.log.debug("Uploading %r", key)
-
-    upload_sitemap(key, sitemap)
+def store_subreddit_sitemap(s3_client, bucket_name, index, sitemap):
+    key_name = 'subreddit_sitemap/{}.xml'.format(index)
+    g.log.debug("Uploading %s/%s", bucket_name, key_name)
+    upload_sitemap(s3_client, bucket_name, key_name, sitemap)
 
 
-def store_sitemap_index(bucket, count):
-    key = Key(bucket)
-    key.key = g.sitemap_subreddit_keyname
-    g.log.debug("Uploading %r", key)
-
-    upload_sitemap(key, sitemap_index(count))
+def store_sitemap_index(s3_client, bucket_name, count):
+    key_name = g.sitemap_subreddit_keyname
+    g.log.debug("Uploading %s/%s", bucket_name, key_name)
+    upload_sitemap(s3_client, bucket_name, key_name, sitemap_index(count))
 
 
 def store_sitemaps_in_s3(subreddits):
-    s3conn = S3Connection()
-    bucket = s3conn.get_bucket(g.sitemap_upload_s3_bucket, validate=False)
+    s3_client = boto3.client('s3')
+    bucket_name = g.sitemap_upload_s3_bucket
 
     sitemap_count = 0
     for i, sitemap in enumerate(subreddit_sitemaps(subreddits)):
-        store_subreddit_sitemap(bucket, i, sitemap)
+        store_subreddit_sitemap(s3_client, bucket_name, i, sitemap)
         sitemap_count += 1
 
-    store_sitemap_index(bucket, sitemap_count)
+    store_sitemap_index(s3_client, bucket_name, sitemap_count)

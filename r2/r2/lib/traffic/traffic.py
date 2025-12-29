@@ -25,9 +25,8 @@ import datetime
 import os
 from time import sleep
 
-from boto.emr.connection import EmrConnection
-from boto.exception import S3ResponseError
-from boto.s3.connection import S3Connection
+import boto3
+from botocore.exceptions import ClientError
 from pylons import app_globals as g
 from sqlalchemy.exc import DataError
 
@@ -55,12 +54,20 @@ PROCESSED_DIR = g.PROCESSED_DIR
 AGGREGATE_DIR = g.AGGREGATE_DIR
 AWS_LOG_DIR = g.AWS_LOG_DIR
 
-# the "or None" business is so that a blank string becomes None to cause boto
+# Create boto3 clients for S3 and EMR
+# the "or None" business is so that a blank string becomes None to cause boto3
 # to look for credentials in other places.
-s3_connection = S3Connection(g.TRAFFIC_ACCESS_KEY or None,
-                             g.TRAFFIC_SECRET_KEY or None)
-emr_connection = EmrConnection(g.TRAFFIC_ACCESS_KEY or None,
-                               g.TRAFFIC_SECRET_KEY or None)
+_s3_kwargs = {}
+_emr_kwargs = {}
+if g.TRAFFIC_ACCESS_KEY:
+    _s3_kwargs['aws_access_key_id'] = g.TRAFFIC_ACCESS_KEY
+    _emr_kwargs['aws_access_key_id'] = g.TRAFFIC_ACCESS_KEY
+if g.TRAFFIC_SECRET_KEY:
+    _s3_kwargs['aws_secret_access_key'] = g.TRAFFIC_SECRET_KEY
+    _emr_kwargs['aws_secret_access_key'] = g.TRAFFIC_SECRET_KEY
+
+s3_connection = boto3.resource('s3', **_s3_kwargs)
+emr_connection = boto3.client('emr', **_emr_kwargs)
 
 traffic_categories = (SitewidePageviews, PageviewsBySubreddit,
                       PageviewsBySubredditAndPath, PageviewsByLanguage,
@@ -99,7 +106,7 @@ def get_aggregate(interval, category_cls):
         for i in range(5):
             try:
                 txt = get_text_from_s3(s3_connection, path)
-            except S3ResponseError:
+            except ClientError:
                 print('S3ResponseError on %s, retrying' % path)
                 sleep(300)
             else:
