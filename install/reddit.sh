@@ -308,10 +308,25 @@ sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
 sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 
 # Upgrade pip and install build tools in venv
-# Pin setuptools to below 81 to avoid reliance on pkg_resources removal
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip 'setuptools<81' wheel
-# Ensure `packaging` is up-to-date so setuptools' version handling works
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade packaging
+# Install current setuptools/wheel and ensure `packaging` is recent so editable
+# installs / metadata generation behave correctly.
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging>=23.1'
+
+# Install `baseplate` early so packages that inspect/import it at build time
+# (e.g., r2) can detect it. Prefer a local checkout at $REDDIT_SRC/baseplate.py
+# when available, otherwise use the configured REDDIT_BASEPLATE_PIP_URL or
+# fall back to PyPI.
+if [ -d "$REDDIT_SRC/baseplate.py" ]; then
+    echo "Installing local baseplate from $REDDIT_SRC/baseplate.py"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install -e "$REDDIT_SRC/baseplate.py"
+elif [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
+    echo "Installing baseplate from $REDDIT_BASEPLATE_PIP_URL"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install "$REDDIT_BASEPLATE_PIP_URL"
+else
+    echo "Installing baseplate from PyPI"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install baseplate
+fi
 
 # Install baseplate and other runtime dependencies
 # Installation order/options:
