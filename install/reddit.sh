@@ -310,6 +310,8 @@ sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 # Upgrade pip and install build tools in venv
 # Pin setuptools to below 81 to avoid reliance on pkg_resources removal
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip 'setuptools<81' wheel
+# Ensure `packaging` is up-to-date so setuptools' version handling works
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade packaging
 
 # Install baseplate and other runtime dependencies
 # Installation order/options:
