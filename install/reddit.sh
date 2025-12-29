@@ -675,6 +675,7 @@ REDDITFLUSH
 helper-script /usr/local/bin/reddit-serve <<REDDITSERVE
 #!/bin/bash
 cd $REDDIT_SRC/reddit/r2
+export PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC:\$PYTHONPATH"
 exec $REDDIT_VENV/bin/paster serve --reload run.ini
 REDDITSERVE
 
