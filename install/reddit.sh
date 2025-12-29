@@ -962,9 +962,9 @@ User=$REDDIT_USER
 Group=$REDDIT_USER
 WorkingDirectory=$REDDIT_SRC/websockets
 # Provide the venv bin first, but keep system PATH entries so helpers are found
-Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Omit /sbin which can cause the service to fail on some systems
+Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
 Environment=VIRTUAL_ENV=$REDDIT_VENV
-Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 
 # Ensure prometheus multiproc dir exists and is owned by the service user
