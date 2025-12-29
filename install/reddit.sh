@@ -412,34 +412,6 @@ else
         "sentry-sdk"
 fi
 
-# Patch installed baseplate sentry observer to ignore removed sentry-sdk options
-# (sentry-sdk 2.x removed the `with_locals` option; older baseplate may pass it).
-for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
-    if [ -f "$s" ]; then
-        echo "Patching $s to tolerate newer sentry-sdk options"
-        sudo -u $REDDIT_USER python3 "$RUNDIR/patch_sentry.py" "$s" || true
-    fi
-done
-
-# After installing baseplate in the venv, ensure the installed package
-# exposes `metrics_client_from_config` for older r2 code. Prefer the
-# implementation in `baseplate.lib.metrics` when available; otherwise
-# append a noop shim to the venv package so runtime imports succeed.
-for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
-    if [ -d "$p" ]; then
-        target="$p/__init__.py"
-        if [ -f "$target" ]; then
-                # No longer appending r2 compatibility shim here. The local
-                # `baseplate` package should provide the correct implementations
-                # (or tests should provide their own fallbacks). Leaving the
-                # codebase as-is avoids introducing indentation or compatibility
-                # issues during installs.
-                :
-                fi
-            fi
-        fi
-done
-
 # Create a writable directory for Prometheus multiprocess mode if needed
 # and make it owned by the reddit user so prometheus-client can write there.
 PROMETHEUS_DIR=/var/lib/reddit/prometheus-multiproc
