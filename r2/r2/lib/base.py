@@ -124,6 +124,19 @@ class BaseController(WSGIController):
             request.if_modified_since = None
 
         self.fix_cookie_header()
+
+        # Ensure template context has expected attributes used by controllers.
+        # Some Pylons contexts may not expose these; provide safe defaults so
+        # downstream `pre()` handlers can check them without error.
+        if not hasattr(c, 'error_page'):
+            c.error_page = False
+        if not hasattr(c, 'user_is_loggedin'):
+            c.user_is_loggedin = False
+        if not hasattr(c, 'loid'):
+            c.loid = None
+        if not hasattr(c, 'location'):
+            c.location = ''
+
         self.pre()
 
     def __after__(self):
