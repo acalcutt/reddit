@@ -41,12 +41,16 @@ def make_server_span(span_name):
 
     # Baseplate API has changed across releases. Try the older signature
     # first (context, name=...), then fall back to newer variants.
+    # Try several possible Baseplate signatures and handle the case where
+    # the Baseplate instance does not expose `make_server_span` (older/new
+    # different API). Catch AttributeError as well as TypeError so attribute
+    # absence doesn't propagate here.
     try:
         span = bp.make_server_span(context=c, name=span_name)
-    except TypeError:
+    except (TypeError, AttributeError):
         try:
             span = bp.make_server_span(span_name)
-        except TypeError:
+        except (TypeError, AttributeError):
             try:
                 span = bp.make_server_span(name=span_name)
             except Exception:
