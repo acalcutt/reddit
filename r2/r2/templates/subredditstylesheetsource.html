@@ -42,7 +42,7 @@
   <div id="images">
     <h2><a name="images">${_("images")}</a></h2>
     <ul id="image-preview-list" class="image-list">
-      %for name, url in thing.images.iteritems():
+      %for name, url in thing.images.items():
          ${make_li(name=name, img=url, mod=False)}
       %endfor
     </ul>

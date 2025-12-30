@@ -90,7 +90,7 @@
     ${search_faq()}
   %endif
 
-  %for k, v in thing.search_params.iteritems():
+  %for k, v in thing.search_params.items():
     <input type="hidden" name="${k}" value="${v}">
   %endfor
 </form>

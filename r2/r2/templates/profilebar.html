@@ -68,7 +68,7 @@
         </tr>
      </thead>
      <tbody>
-     %for i, (sr_name, (link_karma, comment_karma)) in enumerate(thing.all_karmas.iteritems()):
+    %for i, (sr_name, (link_karma, comment_karma)) in enumerate(thing.all_karmas.items()):
        %if c.user_is_admin and i >= 5:
          <tr class="more-karmas">
        %else:

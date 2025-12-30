@@ -37,7 +37,7 @@
     from r2.lib.utils import long_datetime
 %>
 <%def name="tags(**kw)">
-%for k, v in kw.iteritems():
+%for k, v in kw.items():
   %if v:
     %if k == "data":
       ${data(**v)}
@@ -69,7 +69,7 @@ class="${" ".join(filter(None, class_names))}"
 </%def>
 
 <%def name="data(**data_attrs)">
-%for name, value in data_attrs.iteritems():
+%for name, value in data_attrs.items():
 data-${name}="${value}"
 %endfor
 </%def>
@@ -81,7 +81,7 @@ data-${name}="${value}"
   %if c.user_is_loggedin:
      <input type="hidden" name="uh" value="${c.modhash}">
   %endif
-  %for key, value in params.iteritems():
+  %for key, value in params.items():
   <input type="hidden" name="${key}" value="${value}" />
   %endfor
   ${caller.body()}
@@ -167,7 +167,7 @@ ${first_defined(kw[1:])}
     link = _a_buffered(link_text, href=href, onclick=onclick, **kw)
   %>
   <form method="POST" action="${action}">
-    %for k, v in params.iteritems():
+    %for k, v in params.items():
       <input type="hidden" name="${k}" value="${v}">
     %endfor
     ${unsafe((fmt % link) if fmt else link)}
@@ -178,7 +178,7 @@ ${first_defined(kw[1:])}
 <%def name="text_with_links(txt, _sr_path = False, nocname=False, **kw)">
 <%
    from r2.lib.filters import conditional_websafe
-   for key, link_args in kw.iteritems():
+  for key, link_args in kw.items():
       link_args.setdefault("_sr_path", _sr_path)
       kw[key]=spaceCompress(capture(plain_link, **link_args))
    txt = conditional_websafe(txt) % kw

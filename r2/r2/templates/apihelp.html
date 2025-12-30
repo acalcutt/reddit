@@ -69,7 +69,7 @@
   <strong>API methods</strong>
   ${mode_selector('oauth')}
   <ul>
-  %for scope, keys in sorted(oauth_index.iteritems()):
+  %for scope, keys in sorted(oauth_index.items()):
     <li>
       <a href="#scope_${scope}" class="section">${scope}</a>
       <ul>

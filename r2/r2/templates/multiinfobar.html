@@ -58,7 +58,7 @@
           %if thing.multi.key_color not in thing.color_options:
             <option selected value="${thing.multi.key_color}">${_('custom')}</option>
           %endif
-          %for color, name in thing.color_options.iteritems():
+          %for color, name in thing.color_options.items():
             <option ${'selected' if color == thing.multi.key_color else ''} value="${color}">${_(name)}</option>
           %endfor
         </select>

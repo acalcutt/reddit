@@ -605,7 +605,7 @@ try participating in other communities on reddit for a little while first before
       <li>
         <p><label>${_('color')}</label> <span class="gray">${_('used as a thematic color for your subreddit on mobile')}</span></p>
         <ul class="colors">
-          %for color, color_name in thing.color_options.iteritems():
+          %for color, color_name in thing.color_options.items():
             %if color:
             <li>
               <label>

@@ -81,13 +81,13 @@
   %endif
 
   %if hasattr(thing, "og_data"):
-    %for (og_property, og_value) in thing.og_data.iteritems():
+    %for (og_property, og_value) in thing.og_data.items():
       <meta property="og:${og_property}" content="${og_value}">
     %endfor
   %endif
 
   %if hasattr(thing, "twitter_card"):
-    %for (twitter_card_property, twitter_card_value) in thing.twitter_card.iteritems():
+    %for (twitter_card_property, twitter_card_value) in thing.twitter_card.items():
       <meta property="twitter:${twitter_card_property}" content="${twitter_card_value}">
     %endfor
   %endif
