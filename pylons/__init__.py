@@ -148,6 +148,13 @@ class _DefaultTmplContext(SimpleNamespace):
         self.have_sent_bucketing_event = False
         self.subdomain = None
         self.user = None
+        self.have_messages = False
+        self.have_mod_messages = False
+        self.show_signing_body = False
+        self.render_tracker = ''
+        self.site = None
+        self.firsttime = None
+        self.cookies = {}
 
     def __getattr__(self, name):
         # Pylons tmpl_context returns empty string for missing attributes

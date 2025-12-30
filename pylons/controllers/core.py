@@ -57,6 +57,9 @@ class WSGIController:
             # `webob.Response` instance so we can call it as a WSGI app.
             if hasattr(pylons.response, '_current_obj'):
                 response = pylons.response._current_obj()
+            elif hasattr(pylons.response, '_stack') and pylons.response._stack:
+                # LocalStack - get the top object from the stack
+                response = pylons.response._stack[-1]
             else:
                 response = pylons.response
 
@@ -73,6 +76,11 @@ class WSGIController:
                         pass
                 if hasattr(response, 'headers') and isinstance(response.headers, dict):
                     r.headers.update(response.headers)
+                # Copy cookies if present (critical for login!)
+                if hasattr(response, 'headerlist'):
+                    for name, value in response.headerlist:
+                        if name.lower() == 'set-cookie':
+                            r.headers.add('Set-Cookie', value)
                 # prefer explicit body/text attributes if present
                 if hasattr(response, 'body'):
                     r.body = getattr(response, 'body')

@@ -636,9 +636,9 @@
     <form action="/post/${name}" method="post" 
           class="state-button ${name}-button">
         <input type="hidden" name="executed" value="${executed}" />
-        %for key, value in hidden_data.iteritems():
-          <input type="hidden" name="${key}" value="${value}" />
-        %endfor
+          %for key, value in hidden_data.items():
+            <input type="hidden" name="${key}" value="${value}" />
+          %endfor
         <span>
           ${unsafe(link)}
         </span>
@@ -651,7 +651,7 @@
   <form method="post" action="/api/${op}"
         class="toggle ajax-yn-button ${op}-button ${_class}">
     <input type="hidden" name="_op" value="${op}" />
-    %for k, v in hidden_data.iteritems():
+    %for k, v in hidden_data.items():
       <input type="hidden" name="${k}" value="${v}" />
     %endfor
     <span class="option main active">
@@ -699,7 +699,7 @@
    %>
   <form class="toggle ${op}-button ${_class}" action="#" method="get">
     <input type="hidden" name="executed" value="${executed}"/>
-    %for k, v in hidden_data.iteritems():
+    %for k, v in hidden_data.items():
       <input type="hidden" name="${k}" value="${v}"/>
     %endfor
     <span class="option main active">

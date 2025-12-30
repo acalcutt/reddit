@@ -337,7 +337,7 @@ ${unsafe(txt)}
           %endif
           <input type="hidden" name="formid" value="${form_id}" />
           %if hidden_data:
-            %for name, value in hidden_data.iteritems():
+            %for name, value in hidden_data.items():
               <input type="hidden" name="${name}" value="${value}" />
             %endfor
           %endif
@@ -551,7 +551,7 @@ ${unsafe(txt)}
 
 <%def name="block_field(kind, title, description = '', css_class= '', **kw)">
   <div class="${kind} ${css_class}"
-       %for k, v in kw.iteritems():
+        %for k, v in kw.items():
          ${k}="${v}"
        %endfor
        >

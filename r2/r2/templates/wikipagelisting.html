@@ -23,7 +23,7 @@
 <% from r2.models.wiki import WikiPage %>
 
 <%def name="listing(pages)">
-    %for name, page_info in pages.iteritems():
+    %for name, page_info in pages.items():
         <ul>
         <li>
         %if page_info[0]:

@@ -238,7 +238,7 @@ def diffable(report):
 
     """
     updated = []
-    for toolname, violations in report.iteritems():
+    for toolname, violations in report.items():
         updated.append(toolname)
         updated.extend('%(file)s %(violation)s' % v for v in violations)
         updated.append('')
@@ -248,7 +248,7 @@ def diffable(report):
 def human(report):
     """Convert the report to a list of human useful lines."""
     updated = []
-    for toolname, violations in report.iteritems():
+    for toolname, violations in report.items():
         updated.append(toolname)
         updated.extend('%(file)s:%(line)s %(violation)s' % v
                        for v in violations)

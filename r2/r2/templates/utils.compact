@@ -29,7 +29,7 @@
         %if outer_class :
             class="${outer_class}"
         %endif
-        %for k, v in kw.iteritems():
+        %for k, v in kw.items():
             ${k}="${v}"
         %endfor
     >

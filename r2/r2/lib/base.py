@@ -132,6 +132,12 @@ class BaseController(WSGIController):
             c.error_page = False
         if not hasattr(c, 'user_is_loggedin'):
             c.user_is_loggedin = False
+        if not hasattr(c, 'have_messages'):
+            c.have_messages = False
+        if not hasattr(c, 'have_mod_messages'):
+            c.have_mod_messages = False
+        if not hasattr(c, 'show_signing_body'):
+            c.show_signing_body = False
         if not hasattr(c, 'loid'):
             c.loid = None
         if not hasattr(c, 'location'):

@@ -37,7 +37,10 @@ def make_poisoning_report_mac(
     """
     Make a MAC to send with cache poisoning reports for this page
     """
-    mac_key = g.secrets["cache_poisoning"]
+    mac_key = g.secrets.get("cache_poisoning", "default_cache_poisoning_secret")
+    # Ensure mac_key is bytes for Python 3
+    if isinstance(mac_key, str):
+        mac_key = mac_key.encode('utf-8')
     mac_data = (
         poisoner_canary,
         poisoner_name,
@@ -46,7 +49,9 @@ def make_poisoning_report_mac(
         source,
         route_name,
     )
-    return hmac.new(mac_key, "|".join(mac_data), hashlib.sha1).hexdigest()
+    # Join and encode to bytes for Python 3
+    mac_msg = "|".join(mac_data).encode('utf-8')
+    return hmac.new(mac_key, mac_msg, hashlib.sha1).hexdigest()
 
 
 def cache_headers_valid(policy_name, headers):
