@@ -84,6 +84,7 @@ build-essential
 libssl-dev
 libmemcached-dev
 libsnappy-dev
+libgeoip-dev
 gperf
 thrift-compiler
 

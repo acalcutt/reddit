@@ -68,6 +68,9 @@ class PylonsApp:
         pylons.response._push_object(response_obj)
         pylons.tmpl_context._push_object(pylons_obj.tmpl_context)
         pylons.translator._push_object(pylons_obj.translator)
+        # Push the app globals so `from pylons import g` works
+        if self.globals is not None:
+            pylons.app_globals._push_object(self.globals)
 
         environ['pylons.pylons'] = pylons_obj
         environ['pylons.environ_config'] = self.environ_config
@@ -140,6 +143,10 @@ class PylonsApp:
                         pass
                     try:
                         pylons.translator._pop_object()
+                    except Exception:
+                        pass
+                    try:
+                        pylons.app_globals._pop_object()
                     except Exception:
                         pass
 

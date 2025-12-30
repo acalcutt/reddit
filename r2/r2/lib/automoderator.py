@@ -515,7 +515,7 @@ class RuleTarget(object):
         "set_sticky": RuleComponent(
             valid_types=(bool, int),
             valid_values=set(
-                [True, False] + range(1, Subreddit.MAX_STICKIES+1)),
+                [True, False] + list(range(1, Subreddit.MAX_STICKIES+1))),
             valid_targets=Link,
             component_type="action",
         ),

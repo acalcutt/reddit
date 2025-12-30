@@ -68,6 +68,12 @@ def load_environment(global_conf={}, app_conf={}, setup_globals=True):
     g = Globals(config, global_conf, app_conf, paths)
     config['pylons.app_globals'] = g
 
+    # Push the globals and config onto pylons stacks so `from pylons import g, config` works
+    # during module imports and app initialization
+    import pylons
+    pylons.app_globals._push_object(g)
+    pylons.config._push_object(config)
+
     if setup_globals:
         config['r2.import_private'] = \
             ConfigValue.bool(global_conf['import_private'])

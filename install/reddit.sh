@@ -171,6 +171,137 @@ PYURL
     fi
 done
 
+# Provide a compatibility module for Python 2 `imp` module.
+# The `imp` module was removed in Python 3.12. Some legacy packages
+# still use it. This shim provides the commonly used functions
+# using importlib.
+for p in "$REDDIT_VENV"/lib/python*/site-packages; do
+    if [ -d "$p" ]; then
+        target="$p/imp.py"
+        if [ ! -f "$target" ]; then
+            cat > "$target" <<'PYIMP'
+"""Compatibility shim: provide deprecated `imp` module for Python 3.12+.
+
+The `imp` module was removed in Python 3.12. This shim provides the
+commonly used functions using importlib for legacy packages.
+"""
+import importlib
+import importlib.util
+import sys
+import os
+import tokenize
+
+# Constants that were in the imp module
+PY_SOURCE = 1
+PY_COMPILED = 2
+C_EXTENSION = 3
+PKG_DIRECTORY = 5
+C_BUILTIN = 6
+PY_FROZEN = 7
+
+def find_module(name, path=None):
+    """Find a module, returning (file, pathname, description)."""
+    if path is None:
+        path = sys.path
+    for directory in path:
+        if not isinstance(directory, str):
+            continue
+        full_path = os.path.join(directory, name)
+        # Check for package
+        if os.path.isdir(full_path):
+            init_path = os.path.join(full_path, '__init__.py')
+            if os.path.exists(init_path):
+                return (None, full_path, ('', '', PKG_DIRECTORY))
+        # Check for .py file
+        py_path = full_path + '.py'
+        if os.path.exists(py_path):
+            return (open(py_path, 'r'), py_path, ('.py', 'r', PY_SOURCE))
+        # Check for .pyc file
+        pyc_path = full_path + '.pyc'
+        if os.path.exists(pyc_path):
+            return (open(pyc_path, 'rb'), pyc_path, ('.pyc', 'rb', PY_COMPILED))
+    raise ImportError(f"No module named {name}")
+
+def load_module(name, file, pathname, description):
+    """Load a module given the info from find_module."""
+    suffix, mode, type_ = description
+    if type_ == PKG_DIRECTORY:
+        spec = importlib.util.spec_from_file_location(
+            name, os.path.join(pathname, '__init__.py'),
+            submodule_search_locations=[pathname]
+        )
+    elif type_ == PY_SOURCE:
+        spec = importlib.util.spec_from_file_location(name, pathname)
+    elif type_ == PY_COMPILED:
+        spec = importlib.util.spec_from_file_location(name, pathname)
+    else:
+        spec = importlib.util.find_spec(name)
+
+    if spec is None:
+        raise ImportError(f"Cannot load module {name}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+def reload(module):
+    """Reload a module."""
+    return importlib.reload(module)
+
+def get_suffixes():
+    """Return a list of (suffix, mode, type) tuples."""
+    return [
+        ('.py', 'r', PY_SOURCE),
+        ('.pyc', 'rb', PY_COMPILED),
+    ]
+
+def new_module(name):
+    """Create a new empty module."""
+    import types
+    return types.ModuleType(name)
+
+def is_builtin(name):
+    """Return True if the module is built-in."""
+    return name in sys.builtin_module_names
+
+def is_frozen(name):
+    """Return True if the module is frozen."""
+    return importlib.util.find_spec(name) is not None and \
+           getattr(importlib.util.find_spec(name), 'origin', None) == 'frozen'
+
+# NullImporter for compatibility
+class NullImporter:
+    def __init__(self, path):
+        if os.path.isdir(path):
+            raise ImportError("existing directory")
+
+    def find_module(self, fullname, path=None):
+        return None
+
+def acquire_lock():
+    """Acquire the import lock (no-op in Python 3)."""
+    pass
+
+def release_lock():
+    """Release the import lock (no-op in Python 3)."""
+    pass
+
+def lock_held():
+    """Return True if the import lock is held."""
+    return False
+
+__all__ = [
+    'find_module', 'load_module', 'reload', 'get_suffixes', 'new_module',
+    'is_builtin', 'is_frozen', 'NullImporter', 'acquire_lock', 'release_lock',
+    'lock_held', 'PY_SOURCE', 'PY_COMPILED', 'C_EXTENSION', 'PKG_DIRECTORY',
+    'C_BUILTIN', 'PY_FROZEN',
+]
+PYIMP
+        fi
+    fi
+done
+
 # Ensure venv-installed baseplate exposes a `crypto` module expected by
 # older services (e.g. `from baseplate.crypto import validate_signature`).
 for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
@@ -300,132 +431,117 @@ $RUNDIR/setup_rabbitmq.sh
 ###############################################################################
 
 # Create Python virtual environment for reddit
-# This avoids PEP 668 issues and keeps dependencies isolated
+# Ensure the venv parent exists and is writable by the reddit user
+# Remove any stale venv that is not writable by the runtime user so we can
+# recreate it as the correct owner.
 echo "Creating Python virtual environment at $REDDIT_VENV"
+mkdir -p "$(dirname "$REDDIT_VENV")"
+chown $REDDIT_USER:$REDDIT_GROUP "$(dirname "$REDDIT_VENV")" || true
+if [ -d "$REDDIT_VENV" ] && [ ! -w "$REDDIT_VENV" ]; then
+    echo "Existing venv at $REDDIT_VENV is not writable by $REDDIT_USER; removing"
+    rm -rf "$REDDIT_VENV"
+fi
 sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
 
 # Create 'python' symlink for compatibility with Makefiles that expect 'python'
 sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
 
 # Upgrade pip and install build tools in venv
-# Pin setuptools to below 81 to avoid reliance on pkg_resources removal
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip 'setuptools<81' wheel
+# Install current setuptools/wheel and ensure `packaging` is recent so editable
+# installs / metadata generation behave correctly.
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging>=23.1'
+
+# Install `baseplate` early so packages that inspect/import it at build time
+# (e.g., r2) can detect it. Prefer a local checkout at $REDDIT_SRC/baseplate.py
+# when available, otherwise use the configured REDDIT_BASEPLATE_PIP_URL or
+# fall back to PyPI.
+if [ -d "$REDDIT_SRC/baseplate.py" ]; then
+    echo "Installing local baseplate from $REDDIT_SRC/baseplate.py"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install -e "$REDDIT_SRC/baseplate.py"
+elif [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
+    echo "Installing baseplate from $REDDIT_BASEPLATE_PIP_URL"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install "$REDDIT_BASEPLATE_PIP_URL"
+else
+    echo "Installing baseplate from PyPI"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install baseplate
+fi
+
+# If provided, prefer a fork of `formenergy-observability` that supports
+# modern `packaging`, install it early so it cannot force a downgrade of
+# `packaging` during later bulk installs.
+if [ -n "$REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL" ]; then
+    echo "Installing formenergy-observability from $REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install "$REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL" || true
+fi
 
 # Install baseplate and other runtime dependencies
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
-    "baseplate" \
-    "gunicorn" \
-    "PasteScript" \
-    "pyramid-mako" \
-    "Paste" \
-    "PasteDeploy" \
-    "pylibmc" \
-    "simplejson" \
-    "pytz" \
-    "pytest" \
-    "Babel" \
-    "Cython" \
-    "raven" \
-    "Flask" \
-    "GeoIP" \
-    "pika>=1.3.2,<2" \
-    "sentry-sdk"
-
-# Patch installed baseplate sentry observer to ignore removed sentry-sdk options
-# (sentry-sdk 2.x removed the `with_locals` option; older baseplate may pass it).
-for s in "$REDDIT_VENV"/lib/python*/site-packages/baseplate/observers/sentry.py; do
-    if [ -f "$s" ]; then
-        echo "Patching $s to tolerate newer sentry-sdk options"
-        sudo -u $REDDIT_USER python3 - "$s" <<'PYPATCH'
-from pathlib import Path
-import re, sys
-
-p = Path(sys.argv[1])
-src = p.read_text()
-
-# Replace the client instantiation with a try/except that removes
-# the obsolete `with_locals` option when sentry-sdk rejects it.
-pattern = re.compile(r'(?m)^(?P<indent>\s*)client = sentry_sdk.Client\(\*\*kwargs\)')
-
-def _repl(m):
-    indent = m.group('indent')
-    return (
-        f"{indent}try:\n"
-        f"{indent}    client = sentry_sdk.Client(**kwargs)\n"
-        f"{indent}except TypeError as e:\n"
-        f"{indent}    msg = str(e)\n"
-        f"{indent}    if 'Unknown option' in msg and 'with_locals' in msg:\n"
-        f"{indent}        kwargs.pop('with_locals', None)\n"
-        f"{indent}        client = sentry_sdk.Client(**kwargs)\n"
-        f"{indent}    else:\n"
-        f"{indent}        raise"
-    )
-
-new_src, n = pattern.subn(_repl, src)
-if n:
-    p.write_text(new_src)
-    print('patched', p)
-else:
-    print('no change needed', p)
-PYPATCH
-    fi
-done
-
-# After installing baseplate in the venv, ensure the installed package
-# exposes `metrics_client_from_config` for older r2 code. Prefer the
-# implementation in `baseplate.lib.metrics` when available; otherwise
-# append a noop shim to the venv package so runtime imports succeed.
-for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
-    if [ -d "$p" ]; then
-        target="$p/__init__.py"
-        if [ -f "$target" ]; then
-            if ! grep -q "BEGIN r2 compatibility shim" "$target" >/dev/null 2>&1; then
-                cat >> "$target" <<'PYSHIM'
-# BEGIN r2 compatibility shim
-# Prefer the real implementations under baseplate.lib when available,
-# otherwise provide no-op fallbacks for development/testing.
-try:
-	from baseplate.lib.metrics import metrics_client_from_config as _r2_metrics_client_from_config
-except Exception:
-	_r2_metrics_client_from_config = None
-
-if _r2_metrics_client_from_config is not None:
-	metrics_client_from_config = _r2_metrics_client_from_config
-else:
-	class _NoopMetricsClient:
-		def __getattr__(self, name):
-			def _noop(*args, **kwargs):
-				return None
-			return _noop
-
-	def metrics_client_from_config(config=None):
-		return _NoopMetricsClient()
-
-
-try:
-	from baseplate.lib.error import error_reporter_from_config as _r2_error_reporter_from_config
-except Exception:
-	_r2_error_reporter_from_config = None
-
-if _r2_error_reporter_from_config is not None:
-	error_reporter_from_config = _r2_error_reporter_from_config
-else:
-	class _NoopErrorReporter:
-		def report_exception(self, *args, **kwargs):
-			return None
-
-		def report_message(self, *args, **kwargs):
-			return None
-
-    def error_reporter_from_config(config=None, *args, **kwargs):
-        return _NoopErrorReporter()
-
-# END r2 compatibility shim
-PYSHIM
-            fi
-        fi
-    fi
-done
+# Installation order/options:
+# 1. If `REDDIT_BASEPLATE_PIP_URL` is set, install baseplate from that pip
+#    spec (supports git+ URLs, file://, or local editable installs).
+# 2. Else if `REDDIT_BASEPLATE_REPO` is set, install from the given fork
+#    (legacy behavior).
+# 3. Otherwise install `baseplate` from PyPI.
+if [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
+    echo "Installing baseplate from pip spec: $REDDIT_BASEPLATE_PIP_URL"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+        "$REDDIT_BASEPLATE_PIP_URL" \
+        "gunicorn" \
+        "PasteScript" \
+        "pyramid-mako" \
+        "Paste" \
+        "PasteDeploy" \
+        "pylibmc" \
+        "simplejson" \
+        "pytz" \
+        "pytest" \
+        "Babel" \
+        "Cython" \
+        "raven" \
+        "Flask" \
+        "GeoIP" \
+        "pika>=1.3.2,<2" \
+        "sentry-sdk"
+elif [ -n "$REDDIT_BASEPLATE_REPO" ]; then
+    echo "Installing baseplate from fork: $REDDIT_BASEPLATE_REPO"
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+        "git+https://github.com/$REDDIT_BASEPLATE_REPO.git@main#egg=baseplate" \
+        "gunicorn" \
+        "PasteScript" \
+        "pyramid-mako" \
+        "Paste" \
+        "PasteDeploy" \
+        "pylibmc" \
+        "simplejson" \
+        "pytz" \
+        "pytest" \
+        "Babel" \
+        "Cython" \
+        "raven" \
+        "Flask" \
+        "GeoIP" \
+        "pika>=1.3.2,<2" \
+        "sentry-sdk"
+else
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+        "baseplate" \
+        "gunicorn" \
+        "PasteScript" \
+        "pyramid-mako" \
+        "Paste" \
+        "PasteDeploy" \
+        "pylibmc" \
+        "simplejson" \
+        "pytz" \
+        "pytest" \
+        "Babel" \
+        "Cython" \
+        "raven" \
+        "Flask" \
+        "GeoIP" \
+        "pika>=1.3.2,<2" \
+        "sentry-sdk"
+fi
 
 # Create a writable directory for Prometheus multiprocess mode if needed
 # and make it owned by the reddit user so prometheus-client can write there.
@@ -442,6 +558,7 @@ fi
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     bcrypt \
     beautifulsoup4 \
+    boto3 \
     captcha \
     cassandra-driver \
     chardet \
@@ -466,6 +583,11 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 # libpq-dev and python3-dev on the host instead.
 sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install psycopg2-binary || true
 
+# Ensure `packaging` remains at a modern version — some packages may pull
+# older versions during bulk installs. Force-reinstall without deps to keep
+# the build-toolchain compatible for later editable installs.
+sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade --force-reinstall --no-deps 'packaging>=23.1' || true
+
 # Convert legacy Python 2 sources in i18n to Python 3 using lib2to3
 if [ -d "$REDDIT_SRC/i18n" ]; then
     echo "Converting i18n Python files to Python 3 with lib2to3"
@@ -476,6 +598,9 @@ fi
 
 function install_reddit_repo {
     pushd $REDDIT_SRC/$1
+    # Ensure build-toolchain is pinned so metadata generation won't fail
+    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade --force-reinstall --no-deps pip setuptools wheel 'packaging>=23.1' || true
+
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/python setup.py build
     # --no-build-isolation uses the venv's packages (like baseplate) instead of isolated env
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --no-build-isolation -e .
@@ -682,6 +807,7 @@ REDDITFLUSH
 helper-script /usr/local/bin/reddit-serve <<REDDITSERVE
 #!/bin/bash
 cd $REDDIT_SRC/reddit/r2
+export PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC:\$PYTHONPATH"
 exec $REDDIT_VENV/bin/paster serve --reload run.ini
 REDDITSERVE
 
@@ -965,12 +1091,22 @@ After=network-online.target
 [Service]
 Type=simple
 User=$REDDIT_USER
-Group=$REDDIT_GROUP
+# Use the app user as group to avoid permission issues with user-owned venvs
+Group=$REDDIT_USER
 WorkingDirectory=$REDDIT_SRC/websockets
-Environment=PATH=$REDDIT_VENV/bin
-Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
+# Provide the venv bin first, but keep system PATH entries so helpers are found
+# Omit /sbin which can cause the service to fail on some systems
+Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$REDDIT_VENV
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+
+# Ensure prometheus multiproc dir exists and is owned by the service user
+ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
+ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
+
+# Bind to 127.0.0.1 to avoid potential localhost resolution issues
+Environment=HOME=/home/$REDDIT_USER
+ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9001 $REDDIT_SRC/websockets/example.ini
 Restart=on-failure
 TimeoutStartSec=120
 
@@ -1017,9 +1153,14 @@ Type=simple
 User=$REDDIT_USER
 Group=$REDDIT_GROUP
 WorkingDirectory=$REDDIT_SRC/activity
-Environment=PATH=$REDDIT_VENV/bin
-Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/reddit
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+# Provide the venv bin first and common system paths; omit /sbin for compatibility
+Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$REDDIT_VENV
+Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
+Environment=HOME=/home/$REDDIT_USER
+ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
+ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
+ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9002 $REDDIT_SRC/activity/example.ini
 Restart=on-failure
 TimeoutStartSec=120
 

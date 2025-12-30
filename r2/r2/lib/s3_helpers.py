@@ -30,13 +30,18 @@ import sys
 import time
 from collections import namedtuple
 
-import boto
+import boto3
+from botocore.exceptions import ClientError
 import pytz
 from pylons import app_globals as g
 
 HADOOP_FOLDER_SUFFIX = '_$folder$'
 
 SIGNATURE_V4_ALGORITHM = "AWS4-HMAC-SHA256"
+
+# Cache for boto3 clients/resources
+_s3_client = None
+_s3_resource = None
 
 
 def _to_path(bucket, key):
@@ -80,14 +85,38 @@ def format_expires(expires):
     return expires.strftime(EXPIRES_DATE_FORMAT)
 
 
+def get_s3_client():
+    """Get or create a boto3 S3 client."""
+    global _s3_client
+    if _s3_client is None:
+        kwargs = {}
+        if g.S3KEY_ID:
+            kwargs['aws_access_key_id'] = g.S3KEY_ID
+        if g.S3SECRET_KEY:
+            kwargs['aws_secret_access_key'] = g.S3SECRET_KEY
+        _s3_client = boto3.client('s3', **kwargs)
+    return _s3_client
+
+
+def get_s3_resource():
+    """Get or create a boto3 S3 resource."""
+    global _s3_resource
+    if _s3_resource is None:
+        kwargs = {}
+        if g.S3KEY_ID:
+            kwargs['aws_access_key_id'] = g.S3KEY_ID
+        if g.S3SECRET_KEY:
+            kwargs['aws_secret_access_key'] = g.S3SECRET_KEY
+        _s3_resource = boto3.resource('s3', **kwargs)
+    return _s3_resource
+
+
 def get_text_from_s3(s3_connection, path):
     """Read a file from S3 and return it as text."""
     bucket_name, key_name = _from_path(path)
-    bucket = s3_connection.get_bucket(bucket_name)
-    k = boto.s3.Key(bucket)
-    k.key = key_name
-    txt = k.get_contents_as_string()
-    return txt
+    s3 = get_s3_resource()
+    obj = s3.Object(bucket_name, key_name)
+    return obj.get()['Body'].read()
 
 
 def mv_file_s3(s3_connection, src_path, dst_path):
@@ -95,71 +124,73 @@ def mv_file_s3(s3_connection, src_path, dst_path):
     src_bucket_name, src_key_name = _from_path(src_path)
     dst_bucket_name, dst_key_name = _from_path(dst_path)
 
-    src_bucket = s3_connection.get_bucket(src_bucket_name)
-    k = boto.s3.Key(src_bucket)
-    k.key = src_key_name
-    k.copy(dst_bucket_name, dst_key_name)
-    k.delete()
+    s3 = get_s3_resource()
+    copy_source = {'Bucket': src_bucket_name, 'Key': src_key_name}
+    s3.Object(dst_bucket_name, dst_key_name).copy_from(CopySource=copy_source)
+    s3.Object(src_bucket_name, src_key_name).delete()
 
 
 def s3_key_exists(s3_connection, path):
     bucket_name, key_name = _from_path(path)
-    bucket = s3_connection.get_bucket(bucket_name)
-    key = bucket.get_key(key_name)
-    return bool(key)
+    client = get_s3_client()
+    try:
+        client.head_object(Bucket=bucket_name, Key=key_name)
+        return True
+    except ClientError:
+        return False
 
 
 def copy_to_s3(s3_connection, local_path, dst_path, verbose=False):
-    def callback(trans, total):
-        sys.stdout.write('%s/%s' % trans, total)
-        sys.stdout.flush()
-
     dst_bucket_name, dst_key_name = _from_path(dst_path)
-    bucket = s3_connection.get_bucket(dst_bucket_name)
 
     filename = os.path.basename(local_path)
     if not filename:
         return
 
     key_name = os.path.join(dst_key_name, filename)
-    k = boto.s3.Key(bucket)
-    k.key = key_name
 
-    kw = {}
     if verbose:
         print('Uploading {} to {}'.format(local_path, dst_path))
-        kw['cb'] = callback
 
-    k.set_contents_from_filename(logfile, **kw)
+    s3 = get_s3_resource()
+    s3.Object(dst_bucket_name, key_name).upload_file(local_path)
 
 
 def get_connection():
-    return boto.connect_s3(g.S3KEY_ID or None, g.S3SECRET_KEY or None)
+    """Legacy compatibility - returns the S3 resource."""
+    return get_s3_resource()
 
 
 def get_key(bucket_name, key, connection=None):
-    connection = connection or get_connection()
-    bucket = connection.get_bucket(bucket_name)
+    s3 = get_s3_resource()
+    obj = s3.Object(bucket_name, key)
+    try:
+        obj.load()
+        return obj
+    except ClientError:
+        return None
 
-    return bucket.get_key(key)
 
-def get_keys(bucket_name, meta=False, connection=None, **kwargs):
-    connection = connection or get_connection()
-    bucket = connection.get_bucket(bucket_name)
-    keys = bucket.get_all_keys(**kwargs)
+def get_keys(bucket_name, meta=False, connection=None, prefix='', **kwargs):
+    s3 = get_s3_resource()
+    bucket = s3.Bucket(bucket_name)
+    objects = list(bucket.objects.filter(Prefix=prefix))
 
     if not meta:
-        return keys
+        return objects
 
-    return [bucket.get_key(key.name)
-            for key in keys]
+    return [s3.Object(bucket_name, obj.key) for obj in objects]
 
 
 def delete_keys(bucket_name, prefix, connection=None):
-    connection = connection or get_connection()
-
-    keys = get_keys(bucket_name, prefix=prefix, connection=connection)
-    return connection.get_bucket(bucket_name).delete_keys(keys)
+    s3 = get_s3_resource()
+    bucket = s3.Bucket(bucket_name)
+    objects = list(bucket.objects.filter(Prefix=prefix))
+    if objects:
+        bucket.delete_objects(
+            Delete={'Objects': [{'Key': obj.key} for obj in objects]}
+        )
+    return objects
 
 
 def _get_v4_credential(aws_access_key_id, date, service_name, region_name):
@@ -169,6 +200,7 @@ def _get_v4_credential(aws_access_key_id, date, service_name, region_name):
         region_name=region_name,
         service_name=service_name,
     ))
+
 
 def _get_upload_policy(
         bucket, key, credential, date, acl,
@@ -183,7 +215,6 @@ def _get_upload_policy(
         connection=None,
     ):
 
-    connection = connection or get_connection()
     meta = meta or {}
 
     expiration = time.gmtime(int(time.time() + ttl))
@@ -202,7 +233,12 @@ def _get_upload_policy(
     conditions.append({"x-amz-credential": credential})
     conditions.append({"x-amz-algorithm": SIGNATURE_V4_ALGORITHM})
     conditions.append({"x-amz-date": date.strftime("%Y%m%dT%H%M%SZ")})
-    conditions.append({"x-amz-security-token": connection.provider.security_token})
+
+    # Get security token from session if available
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    if credentials and credentials.token:
+        conditions.append({"x-amz-security-token": credentials.token})
 
     if success_action_redirect:
         conditions.append([
@@ -224,10 +260,12 @@ def _get_upload_policy(
     if content_type:
         conditions.append({"content-type": content_type})
 
+    # ISO8601 format for policy expiration
+    iso8601_format = "%Y-%m-%dT%H:%M:%SZ"
     return base64.b64encode(json.dumps({
-        "expiration": time.strftime(boto.utils.ISO8601, expiration),
+        "expiration": time.strftime(iso8601_format, expiration),
         "conditions": conditions,
-    }))
+    }).encode('utf-8'))
 
 
 def _sign(secret, msg):
@@ -248,11 +286,16 @@ def _get_upload_signature(
         connection=None,
     ):
 
-    connection = connection or get_connection()
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    if credentials:
+        secret_key = credentials.secret_key
+    else:
+        secret_key = g.S3SECRET_KEY
 
-    key = connection.provider.secret_key.encode("utf-8")
+    key = secret_key.encode("utf-8") if isinstance(secret_key, str) else secret_key
     v4_key = _derive_v4_signature_key(
-        secret=key, date=date, region_name=region_name, service_name="s3")
+        secret=secret_key, date=date, region_name=region_name, service_name="s3")
 
     return hmac.new(v4_key, policy, hashlib.sha256).hexdigest()
 
@@ -271,11 +314,20 @@ def get_post_args(
     ):
 
     meta = meta or []
-    connection = connection or get_connection()
     algorithm = "AWS4-HMAC-SHA256"
     date = datetime.datetime.now(pytz.utc)
+
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    if credentials:
+        access_key = credentials.access_key
+        security_token = credentials.token
+    else:
+        access_key = g.S3KEY_ID
+        security_token = None
+
     credential = _get_v4_credential(
-        aws_access_key_id=connection.provider.access_key,
+        aws_access_key_id=access_key,
         date=date,
         service_name="s3",
         region_name=region_name,
@@ -349,15 +401,15 @@ def get_post_args(
         "value": storage_class,
     })
 
-    for key, value in meta.items():
+    for k, value in meta.items():
         fields.append({
-            "name": key,
+            "name": k,
             "value": value,
         })
 
     fields.append({
         "name": "policy",
-        "value": policy,
+        "value": policy.decode('utf-8') if isinstance(policy, bytes) else policy,
     })
 
     fields.append({
@@ -365,10 +417,11 @@ def get_post_args(
         "value": signature,
     })
 
-    fields.append({
-        "name": "x-amz-security-token",
-        "value": connection.provider.security_token,
-    })
+    if security_token:
+        fields.append({
+            "name": "x-amz-security-token",
+            "value": security_token,
+        })
 
     return {
         "action": "//{}.{}".format(bucket, g.s3_media_domain),
