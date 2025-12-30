@@ -177,12 +177,12 @@ ${first_defined(kw[1:])}
 
 <%def name="text_with_links(txt, _sr_path = False, nocname=False, **kw)">
 <%
-   from r2.lib.filters import conditional_websafe
-  for key, link_args in kw.items():
-      link_args.setdefault("_sr_path", _sr_path)
-      kw[key]=spaceCompress(capture(plain_link, **link_args))
-   txt = conditional_websafe(txt) % kw
-   txt = txt.replace(" <", "&#32;<").replace("> ", ">&#32;")
+from r2.lib.filters import conditional_websafe
+for key, link_args in kw.items():
+  link_args.setdefault("_sr_path", _sr_path)
+  kw[key] = spaceCompress(capture(plain_link, **link_args))
+txt = conditional_websafe(txt) % kw
+txt = txt.replace(" <", "&#32;<").replace("> ", ">&#32;")
 
 %>
 ${unsafe(txt)}
