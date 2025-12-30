@@ -1184,7 +1184,7 @@ class Rule(object):
 
     _valid_components = {
         "type": RuleComponent(
-            valid_values=set(_valid_type_map.keys() + ["any"]),
+            valid_values=set(list(_valid_type_map.keys()) + ["any"]),
             default="any",
             component_type="check",
         ),
