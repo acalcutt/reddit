@@ -680,6 +680,8 @@ disable_require_admin_otp = true
 
 domain = $REDDIT_DOMAIN
 oauth_domain = $REDDIT_DOMAIN
+https_endpoint = https://$REDDIT_DOMAIN
+payment_domain = https://pay.$REDDIT_DOMAIN/
 
 plugins = $plugin_str
 
@@ -695,6 +697,8 @@ else
     sed -i "s/^plugins = .*$/plugins = $plugin_str/" $REDDIT_SRC/reddit/r2/development.update
     sed -i "s/^domain = .*$/domain = $REDDIT_DOMAIN/" $REDDIT_SRC/reddit/r2/development.update
     sed -i "s/^oauth_domain = .*$/oauth_domain = $REDDIT_DOMAIN/" $REDDIT_SRC/reddit/r2/development.update
+    sed -i "s@^https_endpoint = .*@https_endpoint = https://$REDDIT_DOMAIN@" $REDDIT_SRC/reddit/r2/development.update
+    sed -i "s@^payment_domain = .*@payment_domain = https://pay.$REDDIT_DOMAIN/@" $REDDIT_SRC/reddit/r2/development.update
 fi
 
 sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC" make ini || true
