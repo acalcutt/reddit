@@ -115,6 +115,10 @@ class ColumnFamily:
         self.keyspace = pool.keyspace
         self.table = name
         self.session = pool.session
+        # Compatibility with pycassa - these are used by tdb_cassandra
+        self.column_validators = {}
+        self.default_validation_class = None  # Default column value type
+        self.key_validation_class = None  # Key type
         # ensure table exists
         cql = (
             "CREATE TABLE IF NOT EXISTS %s.%s (\n"
@@ -140,7 +144,9 @@ class ColumnFamily:
             od[str(k)] = val
         return od
 
-    def multiget(self, keys: Iterable[str], columns: Optional[Iterable[str]] = None, column_count: Optional[int] = None):
+    def multiget(self, keys: Iterable[str], columns: Optional[Iterable[str]] = None,
+                 column_count: Optional[int] = None, column_start: Optional[str] = None,
+                 column_finish: Optional[str] = None, column_reversed: bool = False):
         keys = list(keys)
         if not keys:
             return {}
@@ -153,6 +159,27 @@ class ColumnFamily:
             od = self._deserialize_map(raw)
             if columns is not None:
                 od = OrderedDict((k, od[k]) for k in columns if k in od)
+
+            # Handle column_start and column_finish filtering
+            if column_start is not None or column_finish is not None:
+                filtered = OrderedDict()
+                for k, v in od.items():
+                    # Convert to string for comparison
+                    k_str = str(k) if not isinstance(k, str) else k
+                    cs_str = str(column_start) if column_start is not None and not isinstance(column_start, str) else column_start
+                    cf_str = str(column_finish) if column_finish is not None and not isinstance(column_finish, str) else column_finish
+
+                    if column_start is not None and k_str < cs_str:
+                        continue
+                    if column_finish is not None and k_str > cf_str:
+                        continue
+                    filtered[k] = v
+                od = filtered
+
+            # Handle column_reversed
+            if column_reversed:
+                od = OrderedDict(reversed(list(od.items())))
+
             if column_count is not None and len(od) > column_count:
                 # truncate (preserve insertion order)
                 reduced = OrderedDict()
@@ -255,7 +282,7 @@ class ColumnFamily:
         The legacy code expects `with cf.batch() as m:` to be available; provide
         a simple Mutator backed by the driver's session.
         """
-        return Mutator(self.pool)
+        return Mutator(self.pool, default_cf=self)
 
 
 class Mutator:
@@ -263,7 +290,8 @@ class Mutator:
 
     This implements a small subset of the pycassa Mutator API used by r2:
     - context manager usage (`with Mutator(pool) as m:`)
-    - `insert(cf, key, columns, ttl=None)`
+    - `insert(key, columns, ttl=None)` when created with default_cf
+    - `insert(cf, key, columns, ttl=None)` when cf is explicitly passed
     - `remove(cf, key, columns=None, timestamp=None)`
     - `send()` commits the batch
 
@@ -271,13 +299,14 @@ class Mutator:
     and executes them as a single BatchStatement against the session.
     """
 
-    def __init__(self, pool_or_session):
+    def __init__(self, pool_or_session, default_cf=None):
         # accept either a ConnectionPool or a Session
         if hasattr(pool_or_session, 'session'):
             self.session = pool_or_session.session
         else:
             self.session = pool_or_session
         self._ops = []
+        self._default_cf = default_cf
 
     def __enter__(self):
         return self
@@ -289,7 +318,25 @@ class Mutator:
             # don't raise during cleanup
             return False
 
-    def insert(self, cf, key, columns, ttl=None):
+    def insert(self, key_or_cf, columns_or_key, ttl_or_columns=None, ttl=None):
+        # Handle both calling conventions:
+        # 1. insert(key, columns, ttl=None) - when default_cf is set
+        # 2. insert(cf, key, columns, ttl=None) - explicit cf
+        if self._default_cf is not None and not isinstance(key_or_cf, ColumnFamily):
+            # Called as insert(key, columns, ttl=None)
+            cf = self._default_cf
+            key = key_or_cf
+            columns = columns_or_key
+            if ttl is None and ttl_or_columns is not None and not isinstance(ttl_or_columns, dict):
+                ttl = ttl_or_columns
+            elif isinstance(ttl_or_columns, dict):
+                columns = ttl_or_columns
+        else:
+            # Called as insert(cf, key, columns, ttl=None)
+            cf = key_or_cf
+            key = columns_or_key
+            columns = ttl_or_columns if ttl_or_columns is not None else {}
+
         # columns expected to be a dict of name->value (already serialized by callers)
         # We'll serialize here using pickle to match ColumnFamily.insert behaviour
         ser = {k: pickle.dumps(v) for k, v in columns.items()}

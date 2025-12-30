@@ -1752,6 +1752,9 @@ class VThrottledLogin(VRequired):
                 for rl, max_requests in ratelimits.items():
                     try:
                         failed_logins = ratelimit.get_usage(str(rl), time_slice)
+                        # Handle None return from cache (key not found)
+                        if failed_logins is None:
+                            failed_logins = 0
 
                         if failed_logins >= max_requests:
                             self.seconds = time_slice.end - now

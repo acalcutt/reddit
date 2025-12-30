@@ -42,7 +42,25 @@ def convert_uuid_to_time(u):
         return None
 
 class DateType:
-    pass
+    """Serializer for datetime objects - compatible with pycassa's DateType."""
+    def pack(self, date):
+        """Serialize a datetime to milliseconds since epoch."""
+        if date is None:
+            return None
+        if hasattr(date, 'timestamp'):
+            # Python 3 datetime
+            return int(date.timestamp() * 1000)
+        else:
+            # Fallback for older datetime handling
+            import calendar
+            return int(calendar.timegm(date.timetuple()) * 1000)
+
+    def unpack(self, val):
+        """Deserialize milliseconds since epoch to a datetime."""
+        if val is None:
+            return None
+        from datetime import datetime
+        return datetime.utcfromtimestamp(val / 1000.0)
 
 MaximumRetryException = Exception
 from pylons import app_globals as g
@@ -50,18 +68,72 @@ from pylons import app_globals as g
 from r2.lib.sgm import sgm
 from r2.lib.utils import Storage, tup
 
-connection_pools = g.cassandra_pools
-default_connection_pool = g.cassandra_default_pool
+# Defer access to g attributes until runtime to avoid import-time errors
+# These are accessed via functions/properties instead of module-level variables
+def _get_connection_pools():
+    return g.cassandra_pools
+
+def _get_default_connection_pool():
+    return g.cassandra_default_pool
+
+# For backwards compatibility, create module-level names that defer to g
+class _LazyGlobals:
+    @property
+    def connection_pools(self):
+        return g.cassandra_pools
+
+    @property
+    def default_connection_pool(self):
+        return g.cassandra_default_pool
+
+    @property
+    def disallow_db_writes(self):
+        return g.disallow_db_writes
+
+    @property
+    def tz(self):
+        return g.tz
+
+    @property
+    def log(self):
+        return g.log
+
+    @property
+    def read_consistency_level(self):
+        return g.cassandra_rcl
+
+    @property
+    def write_consistency_level(self):
+        return g.cassandra_wcl
+
+    @property
+    def debug(self):
+        return g.debug
+
+    @property
+    def make_lock(self):
+        return g.make_lock
+
+    @property
+    def db_create_tables(self):
+        return g.db_create_tables
+
+_lazy = _LazyGlobals()
 
 keyspace = 'reddit'
-disallow_db_writes = g.disallow_db_writes
-tz = g.tz
-log = g.log
-read_consistency_level = g.cassandra_rcl
-write_consistency_level = g.cassandra_wcl
-debug = g.debug
-make_lock = g.make_lock
-db_create_tables = g.db_create_tables
+
+# These will be accessed via _lazy or directly from g at runtime
+# Keep module-level references for code that expects them
+connection_pools = None  # Use _lazy.connection_pools or g.cassandra_pools
+default_connection_pool = None  # Use _lazy.default_connection_pool
+disallow_db_writes = None
+tz = None
+log = None
+read_consistency_level = None
+write_consistency_level = None
+debug = None
+make_lock = None
+db_create_tables = None
 
 thing_types = {}
 
@@ -109,7 +181,7 @@ def will_write(fn):
     """Decorator to indicate that a given function intends to write
        out to Cassandra"""
     def _fn(*a, **kw):
-        if disallow_db_writes:
+        if g.disallow_db_writes:
             raise CassandraException("Not so fast! DB writes have been disabled")
         return fn(*a, **kw)
     return _fn
@@ -153,12 +225,12 @@ class ThingMeta(type):
             thing_types[cls._type_prefix] = cls
 
             if not getattr(cls, "_read_consistency_level", None):
-                cls._read_consistency_level = read_consistency_level
+                cls._read_consistency_level = g.cassandra_rcl
             if not getattr(cls, "_write_consistency_level", None):
-                cls._write_consistency_level = write_consistency_level
+                cls._write_consistency_level = g.cassandra_wcl
 
-            pool_name = getattr(cls, "_connection_pool", default_connection_pool)
-            connection_pool = connection_pools[pool_name]
+            pool_name = getattr(cls, "_connection_pool", g.cassandra_default_pool)
+            connection_pool = g.cassandra_pools[pool_name]
             cassandra_seeds = connection_pool.server_list
 
             try:
@@ -167,7 +239,7 @@ class ThingMeta(type):
                                        read_consistency_level = cls._read_consistency_level,
                                        write_consistency_level = cls._write_consistency_level)
             except NotFoundException:
-                if not db_create_tables:
+                if not g.db_create_tables:
                     raise
 
                 manager = get_manager(cassandra_seeds)
@@ -178,14 +250,14 @@ class ThingMeta(type):
                     creation_args = getattr(c, "_extra_schema_creation_args", {})
                     extra_creation_arguments.update(creation_args)
 
-                log.warning("Creating Cassandra Column Family {}".format(cf_name))
-                with make_lock("cassandra_schema", 'cassandra_schema'):
+                g.log.warning("Creating Cassandra Column Family {}".format(cf_name))
+                with g.make_lock("cassandra_schema", 'cassandra_schema'):
                     manager.create_column_family(keyspace, cf_name,
                                                  comparator_type = cls._compare_with,
                                                  super=getattr(cls, '_super', False),
                                                  **extra_creation_arguments
                                                  )
-                log.warning("Created Cassandra Column Family {}".format(cf_name))
+                g.log.warning("Created Cassandra Column Family {}".format(cf_name))
 
                 # try again to look it up
                 cls._cf = ColumnFamily(connection_pool,
@@ -564,7 +636,7 @@ class ThingBase(metaclass=ThingMeta):
             raise TdbException("Can't commit {!r} without an ID".format(self))
 
         if self._committed and self._ttl and self._warn_on_partial_ttl:
-            log.warning("Using a full-TTL object %r in a mutable fashion"
+            g.log.warning("Using a full-TTL object %r in a mutable fashion"
                         % (self,))
 
         if not self._committed:
@@ -600,7 +672,7 @@ class ThingBase(metaclass=ThingMeta):
             # that the DB does after writing it out. Note that this is
             # the only property munged this way: other timestamp and
             # floating point properties may lose resolution
-            s_now = self._serialize_date(datetime.now(tz))
+            s_now = self._serialize_date(datetime.now(g.tz))
             now = self._deserialize_date(s_now)
 
             timestamp_is_typed = self._get_column_validator(self._timestamp_prop) == "DateType"
@@ -783,17 +855,21 @@ class ThingBase(metaclass=ThingMeta):
                               id_str,
                               comm_str, part_str)
 
-    if debug:
-        # we only want this with g.debug because overriding __del__ can play
-        # hell with memory leaks
-        def __del__(self):
-            if not self._committed:
-                # normally we'd log this with g.log or something, but we can't
-                # guarantee that the thread destructing us has access to g
-                print("Warning: discarding uncomitted {!r}; this is usually a bug".format(self))
-            elif self._dirty:
-                print("Warning: discarding dirty %r; this is usually a bug (_dirties=%r, _deletes=%r)"
-                       % (self,self._dirties,self._deletes))
+    # Note: __del__ debugging moved to runtime check to avoid import-time g access
+    def __del__(self):
+        # Only log in debug mode - check g.debug at runtime
+        try:
+            if not g.debug:
+                return
+        except Exception:
+            return
+        if not self._committed:
+            # normally we'd log this with g.log or something, but we can't
+            # guarantee that the thread destructing us has access to g
+            print("Warning: discarding uncomitted {!r}; this is usually a bug".format(self))
+        elif self._dirty:
+            print("Warning: discarding dirty %r; this is usually a bug (_dirties=%r, _deletes=%r)"
+                   % (self,self._dirties,self._deletes))
 
 class Thing(ThingBase):
     _timestamp_prop = 'date'
