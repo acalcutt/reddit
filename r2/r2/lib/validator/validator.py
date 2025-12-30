@@ -187,10 +187,17 @@ def build_arg_list(fn, env):
         argspec = (ga[0], ga[1], ga[2], ga[3])
 
     # if there is a **kw argument in the fn definition,
-    # just pass along the environment
+    # start with a copy of the environment but ensure positional
+    # arg names are present (set to None if missing). This preserves
+    # the semantics of passing the environment while avoiding
+    # TypeError for required positional args that weren't provided
+    # by the router/env.
     if argspec[2]:
-        kw = env
-    #else for each entry in the arglist set the value from the environment
+        kw = dict(env) if env is not None else {}
+        # ensure positional arg names exist
+        argnames = argspec[0][1:]
+        for name in argnames:
+            kw.setdefault(name, None)
     else:
         # skip self
         argnames = argspec[0][1:]
@@ -199,10 +206,6 @@ def build_arg_list(fn, env):
                 kw[name] = env[name]
             else:
                 # Ensure missing positional parameters are present as None
-                # so functions with required positional args don't raise
-                # TypeError when validators are used and the router did
-                # not provide the URL parameter. Callers should validate
-                # presence when necessary.
                 kw.setdefault(name, None)
     return kw
 
