@@ -585,6 +585,15 @@ def db2py(val, kind):
     elif kind == 'none':
         val = None
     elif kind == 'pickle':
+        # Handle PostgreSQL bytea hex-escaped format in Python 3
+        # The value may come as a hex-escaped string like '\x800495...'
+        if isinstance(val, str):
+            if val.startswith('\\x'):
+                # PostgreSQL hex format: \x followed by hex digits
+                val = bytes.fromhex(val[2:])
+            else:
+                # Try latin-1 encoding as fallback for raw byte strings
+                val = val.encode('latin-1')
         val = pickle.loads(val)
 
     return val
