@@ -724,6 +724,11 @@ fi
 
 popd
 
+# Ensure generated Mako template cache files are owned by the app user
+if [ -d "$REDDIT_SRC/reddit/r2/data/templates" ]; then
+    chown -R $REDDIT_USER:$REDDIT_GROUP $REDDIT_SRC/reddit/r2/data/templates || true
+fi
+
 ###############################################################################
 # some useful helper scripts
 ###############################################################################
@@ -819,11 +824,42 @@ export PYTHONPATH="$REDDIT_SRC/reddit:$REDDIT_SRC:\$PYTHONPATH"
 exec $REDDIT_VENV/bin/paster serve --reload run.ini
 REDDITSERVE
 
+# Create a systemd unit for reddit-serve that uses the installer helper
+# script so systemd runs paster with the correct PYTHONPATH and venv.
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    cat > /etc/systemd/system/reddit-serve.service <<UNIT
+[Unit]
+Description=Reddit web app (paster serve)
+After=network.target
+
+[Service]
+Type=simple
+User=$REDDIT_USER
+Group=$REDDIT_USER
+WorkingDirectory=$REDDIT_SRC/reddit/r2
+Environment=VIRTUAL_ENV=$REDDIT_VENV
+Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+Environment=MAKO_MODULE_DIRECTORY=/var/opt/reddit/mako
+ExecStart=/usr/local/bin/reddit-serve
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    systemctl daemon-reload || true
+    systemctl enable --now reddit-serve.service || true
+fi
+
 ###############################################################################
 # pixel and click server
 ###############################################################################
 mkdir -p /var/opt/reddit/
 chown $REDDIT_USER:$REDDIT_GROUP /var/opt/reddit/
+
+# Create a mako module cache directory for compiled templates and make it writable
+mkdir -p /var/opt/reddit/mako
+chown $REDDIT_USER:$REDDIT_GROUP /var/opt/reddit/mako
 
 mkdir -p /srv/www/pixel
 chown $REDDIT_USER:$REDDIT_GROUP /srv/www/pixel
