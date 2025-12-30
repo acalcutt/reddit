@@ -78,10 +78,10 @@ class StringTemplate(object):
         # for the nth time, we have to transform the string into
         # unicode.  Otherwise, re.sub will choke on non-ascii
         # characters.
-        try:
-            self.template = unicode(template)
-        except UnicodeDecodeError:
-            self.template = unicode(template, "utf8")
+        if isinstance(template, bytes):
+            self.template = template.decode('utf-8')
+        else:
+            self.template = str(template)
 
     def update(self, d):
         """
@@ -156,7 +156,7 @@ class Templated(object):
         """
         uses context to init __dict__ (making this object a bit like a storage)
         """
-        for k, v in context.iteritems():
+        for k, v in context.items():
             setattr(self, k, v)
         if not hasattr(self, "render_class"):
             self.render_class = self.__class__
@@ -291,7 +291,7 @@ class Templated(object):
 
                 new_updates = {}
                 # render items that didn't make it into the cached list
-                for key, (cache_key, others) in current.iteritems():
+                for key, (cache_key, others) in current.items():
                     # unbundle the remaining args
                     item, (style, kw) = others
                     if cache_key not in cached:
@@ -343,7 +343,7 @@ class Templated(object):
 
             # now we can update the updates to make use of their kw args.
             _updates = {}
-            for k, (foo, (v, kw)) in updates.iteritems():
+            for k, (foo, (v, kw)) in updates.items():
                 _updates[k] = v.finalize(kw)
             updates = _updates
 
@@ -393,31 +393,27 @@ class Templated(object):
 
 class Uncachable(Exception): pass
 
-_easy_cache_cls = set([bool, int, long, float, unicode, str, types.NoneType,
-                      datetime])
+_easy_cache_cls = set([bool, int, float, str, type(None), datetime])
 
 def make_cachable(v, style):
     if v.__class__ in _easy_cache_cls or isinstance(v, type):
         try:
-            return unicode(v)
+            return str(v)
         except UnicodeDecodeError:
-            try:
-                return unicode(v, "utf8")
-            except (TypeError, UnicodeDecodeError):
-                return repr(v)
+            return repr(v)
     elif isinstance(v, (types.MethodType, CachedVariable)):
-       return
+       return ''
     elif isinstance(v, (tuple, list, set)):
         return repr([make_cachable(x, style) for x in v])
     elif isinstance(v, dict):
         ret = {}
-        for k in sorted(v.iterkeys()):
+        for k in sorted(v.keys()):
             ret[k] = make_cachable(v[k], style)
         return repr(ret)
     elif hasattr(v, "cache_key"):
         return v.cache_key(style)
     else:
-        raise Uncachable, "%s, %s" % (v, type(v))
+        raise Uncachable("%s, %s" % (v, type(v)))
 
 class CachedTemplate(Templated):
     cachable = True
