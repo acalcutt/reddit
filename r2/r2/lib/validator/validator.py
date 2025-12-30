@@ -192,11 +192,18 @@ def build_arg_list(fn, env):
         kw = env
     #else for each entry in the arglist set the value from the environment
     else:
-        #skip self
+        # skip self
         argnames = argspec[0][1:]
         for name in argnames:
             if name in env:
                 kw[name] = env[name]
+            else:
+                # Ensure missing positional parameters are present as None
+                # so functions with required positional args don't raise
+                # TypeError when validators are used and the router did
+                # not provide the URL parameter. Callers should validate
+                # presence when necessary.
+                kw.setdefault(name, None)
     return kw
 
 def _make_validated_kw(fn, simple_vals, param_vals, env):
