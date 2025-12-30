@@ -63,7 +63,15 @@ def make_server_span(span_name):
                     def __exit__(self, exc_type, exc, tb):
                         return False
 
+                    def start(self):
+                        return self
+
                     def finish(self):
+                        return None
+
+                    def register(self, observer):
+                        # observers expect to be registered on real spans;
+                        # noop implementation accepts and ignores them
                         return None
 
                 span = _NoopSpan()
