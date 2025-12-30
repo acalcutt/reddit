@@ -143,7 +143,7 @@ After=network.target
 [Service]
 Type=simple
 User=mcrouter
-ExecStart=/usr/local/bin/mcrouter -f /etc/mcrouter/global.conf $MCROUTER_FLAGS
+ExecStart=/usr/local/bin/mcrouter -f /etc/mcrouter/global.conf -p 5050 $MCROUTER_FLAGS
 Restart=on-failure
 
 [Install]
@@ -168,7 +168,7 @@ MCROUTER_BIN=/usr/local/bin/mcrouter
 case "$1" in
   start)
   log_daemon_msg "Starting mcrouter"
-  start-stop-daemon --start --background --exec $MCROUTER_BIN -- $MCROUTER_FLAGS
+  start-stop-daemon --start --background --exec $MCROUTER_BIN -- -p 5050 $MCROUTER_FLAGS
   log_end_msg $?
   ;;
   stop)
