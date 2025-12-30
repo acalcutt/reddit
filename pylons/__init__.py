@@ -29,6 +29,16 @@ class LocalStack:
             raise AttributeError(f"no object pushed to LocalStack (requested {name})")
         return getattr(self._stack[-1], name)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == '_stack':
+            # Allow setting the internal _stack attribute
+            object.__setattr__(self, name, value)
+        elif self._stack:
+            # Forward attribute setting to the top of the stack
+            setattr(self._stack[-1], name, value)
+        else:
+            raise AttributeError(f"no object pushed to LocalStack (cannot set {name})")
+
     def get(self, key, default=None):
         if not self._stack:
             return default
@@ -126,6 +136,9 @@ class _DefaultResponse(SimpleNamespace):
         super().__init__()
         self.headers = {}
         self.status = 200
+        self.content = []
+        self.charset = 'utf-8'
+        self.content_type = 'text/html'
 
 
 class _DefaultTmplContext(SimpleNamespace):
@@ -135,6 +148,11 @@ class _DefaultTmplContext(SimpleNamespace):
         self.have_sent_bucketing_event = False
         self.subdomain = None
         self.user = None
+
+    def __getattr__(self, name):
+        # Pylons tmpl_context returns empty string for missing attributes
+        # This allows code like `c.render_tracker` to work without raising AttributeError
+        return ''
 
 
 # Do not push a default `PylonsConfig` object so that `bool(pylons.config)` is

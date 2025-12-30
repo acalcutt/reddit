@@ -10,6 +10,55 @@ from webob import Request as WebObRequest, Response as WebObResponse
 import pylons
 
 
+class PylonsResponse(WebObResponse):
+    """WebOb Response with Pylons-compatible `content` property.
+
+    Old Pylons Response had a `content` property that was a list of strings.
+    WebOb uses `body` (bytes) or `text` (unicode) instead.
+    This wrapper provides the `content` property for backwards compatibility.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._content_list = []
+
+    @property
+    def content(self):
+        """Get the response content as a list (Pylons compatibility)."""
+        # If we have stored content, return it
+        if self._content_list:
+            return self._content_list
+        # Otherwise, try to get from body
+        if self.body:
+            # Return as a list containing the body
+            try:
+                return [self.body.decode(self.charset or 'utf-8')]
+            except (UnicodeDecodeError, AttributeError):
+                return [self.body]
+        return []
+
+    @content.setter
+    def content(self, value):
+        """Set the response content (Pylons compatibility)."""
+        if isinstance(value, (list, tuple)):
+            self._content_list = list(value)
+            # Also set the body for WebOb compatibility
+            joined = ''.join(str(v) for v in value)
+            if isinstance(joined, str):
+                self.text = joined
+            else:
+                self.body = joined
+        elif isinstance(value, str):
+            self._content_list = [value]
+            self.text = value
+        elif isinstance(value, bytes):
+            self._content_list = [value]
+            self.body = value
+        else:
+            self._content_list = [value]
+            self.text = str(value)
+
+
 class _DefaultTranslator:
     """Minimal translator that returns strings unchanged."""
     def gettext(self, s):
@@ -62,7 +111,7 @@ class PylonsApp:
         # pylons' LocalStack objects so controllers and helpers can use
         # `from pylons import request, response` as expected.
         request_obj = WebObRequest(environ)
-        response_obj = WebObResponse()
+        response_obj = PylonsResponse()
 
         pylons.request._push_object(request_obj)
         pylons.response._push_object(response_obj)
