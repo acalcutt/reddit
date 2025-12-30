@@ -103,7 +103,12 @@ def double_websafe(text=""):
     return unsafe(python_websafe(python_websafe(text)))
 
 def conditional_websafe(text = ''):
-    from wrapped import CacheStub, Templated
+    try:
+        # older setups may expose a top-level `wrapped` module
+        from wrapped import CacheStub, Templated
+    except Exception:
+        # prefer the compiled/packaged one under r2.lib
+        from r2.lib.wrapped import CacheStub, Templated
 
     if text.__class__ == _Unsafe:
         return text
@@ -178,6 +183,17 @@ def scriptsafe_dumps(obj, **kwargs):
     </button>
     ```
     """
+    # Ensure bytes are converted to text when serializing. If the caller
+    # provided a `default` serializer, wrap it so bytes are handled first.
+    user_default = kwargs.get('default')
+    def _default(o):
+        if isinstance(o, bytes):
+            return o.decode('utf-8')
+        if user_default:
+            return user_default(o)
+        raise TypeError(f'Object of type {o.__class__.__name__} is not JSON serializable')
+
+    kwargs['default'] = _default
     text = _force_unicode(json.dumps(obj, **kwargs))
     # wrap the response in _Unsafe so conditional_websafe doesn't touch it
     # TODO: this might be a hot path soon, C-ify it?

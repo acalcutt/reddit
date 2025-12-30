@@ -42,6 +42,30 @@ from paste.recursive import RecursiveMiddleware
 from paste.registry import RegistryManager
 from paste.request import path_info_split
 from paste.urlparser import StaticURLParser
+import types
+
+# Compatibility shim: some versions of Paste have LocalStack._pop_object
+# that only accepts `self`, but Paste's registry.cleanup may call it with
+# an additional `obj` argument. Wrap the original method so it accepts
+# arbitrary extra args and forwards only `self` to the original.
+try:
+    from paste.registry import LocalStack
+
+    _orig_pop = getattr(LocalStack, '_pop_object', None)
+    if _orig_pop is not None:
+        def _wrapped_pop(self, *args, **kwargs):
+            return _orig_pop(self)
+
+        # Preserve function attributes
+        try:
+            _wrapped_pop.__name__ = getattr(_orig_pop, '__name__', '_pop_object')
+            _wrapped_pop.__doc__ = getattr(_orig_pop, '__doc__', None)
+        except Exception:
+            pass
+
+        LocalStack._pop_object = _wrapped_pop
+except Exception:
+    pass
 from pylons.middleware import ErrorHandler
 from pylons.wsgiapp import PylonsApp
 from routes.middleware import RoutesMiddleware
@@ -565,7 +589,27 @@ def make_app(global_conf, full_stack=True, **app_conf):
         app = ErrorDocuments(app, global_conf, error_mapper, **app_conf)
 
     # Establish the Registry for this application
-    app = RegistryManager(app)
+    # Wrap RegistryManager with a safe __call__ that handles incompatibilities
+    # in some Paste versions where LocalStack._pop_object signature mismatches
+    # by catching the TypeError and falling back to the inner app.
+    _orig_registry_manager = RegistryManager(app)
+
+    # Capture the original unbound __call__ to avoid recursion when wrapping
+    _original_call = RegistryManager.__call__
+
+    def _safe_registry_call(self, environ, start_response):
+        try:
+            return _original_call(self, environ, start_response)
+        except TypeError as te:
+            msg = str(te)
+            if 'LocalStack._pop_object' in msg or 'takes 1 positional argument but 2 were given' in msg:
+                return app(environ, start_response)
+            raise
+
+    # Bind the safe wrapper to this instance
+    import types as _types
+    _orig_registry_manager.__call__ = _types.MethodType(_safe_registry_call, _orig_registry_manager)
+    app = _orig_registry_manager
 
     # Add test variables middleware for paste.fixture.TestApp support
     # This must come after RegistryManager so it has access to paste.registry

@@ -487,6 +487,7 @@ if [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
         "$REDDIT_BASEPLATE_PIP_URL" \
         "gunicorn" \
+        "whoosh" \
         "PasteScript" \
         "pyramid-mako" \
         "Paste" \
@@ -507,6 +508,7 @@ elif [ -n "$REDDIT_BASEPLATE_REPO" ]; then
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
         "git+https://github.com/$REDDIT_BASEPLATE_REPO.git@main#egg=baseplate" \
         "gunicorn" \
+        "whoosh" \
         "PasteScript" \
         "pyramid-mako" \
         "Paste" \
@@ -526,6 +528,7 @@ else
     sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
         "baseplate" \
         "gunicorn" \
+        "whoosh" \
         "PasteScript" \
         "pyramid-mako" \
         "Paste" \
@@ -572,6 +575,7 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
     Pillow \
     python-snappy \
     pylibmc \
+    whoosh \
     webtest \
     mock \
     nose \

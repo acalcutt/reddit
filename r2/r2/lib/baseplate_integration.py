@@ -74,6 +74,36 @@ def make_server_span(span_name):
                         # noop implementation accepts and ignores them
                         return None
 
+                    def make_child(self, name=None):
+                        """Return a noop child span for compatibility with
+                        callers that expect `make_child(name)`.
+
+                        The child supports the same minimal interface as the
+                        noop server span: context-manager, `start()`,
+                        `finish()`, and `register()`.
+                        """
+                        return _NoopSpan()
+
+                    # older baseplate variants may use `create_child`
+                    create_child = make_child
+                    
+                    def set_tag(self, key, value):
+                        """Accept and ignore tag setting for noop spans."""
+                        try:
+                            self._tags[key] = value
+                        except AttributeError:
+                            # lazily create tags container
+                            self._tags = {key: value}
+                        return None
+
+                    def set_tags(self, tags):
+                        """Set multiple tags at once; ignore for noop spans."""
+                        try:
+                            self._tags.update(tags)
+                        except AttributeError:
+                            self._tags = dict(tags)
+                        return None
+
                 span = _NoopSpan()
 
     c.trace = span

@@ -1177,9 +1177,12 @@ class Query:
     def _cache_key(self):
         fingerprint = str(self._sort) + str(self._limit) + str(self._offset)
         if self._rules:
-            rules = copy(self._rules)
-            rules.sort()
-            for rule in rules:
+            # rules may be operator objects that are not directly
+            # comparable (Python3 disallows ordering of unrelated types).
+            # Sort them by their string representation to produce a
+            # deterministic fingerprint instead of relying on object
+            # comparison.
+            for rule in sorted(self._rules, key=lambda r: str(r)):
                 fingerprint += str(rule)
 
         cache_key = "query:{kind}.{id}".format(

@@ -832,11 +832,23 @@ def add_sort(sort, t_table, select):
         real_col = translate_sort(table, col)
 
         #TODO a way to avoid overlap?
-        #add column for the sort parameter using the sorted name
-        select.append_column(real_col.label(orig_col))
+        # Add column for the sort parameter using the sorted name. Modern
+        # SQLAlchemy `Select` objects don't have `append_column`; use
+        # `add_columns` when necessary. We keep `select` mutable via a
+        # single-element list so we can replace it when `add_columns`
+        # returns a new Select.
+        if hasattr(select, 'append_column'):
+            select.append_column(real_col.label(orig_col))
+        else:
+            # `add_columns` returns a new Select in SQLAlchemy 1.4+/2.0
+            select_ref[0] = select_ref[0].add_columns(real_col.label(orig_col))
 
-        #avoids overlap temporarily
-        select.use_labels = True
+        # avoid label overlap when projecting extra columns; older code set
+        # `use_labels` — if the attribute exists, preserve behavior.
+        try:
+            select.use_labels = True
+        except Exception:
+            pass
 
         #keep track of which columns we added so we can add joins later
         cols.append((real_col, table))
@@ -845,8 +857,11 @@ def add_sort(sort, t_table, select):
         return (sa.desc(real_col) if isinstance(s, operators.desc)
                 else sa.asc(real_col))
         
+    # wrap select in a mutable reference so make_sa_sort can replace it
+    select_ref = [select]
     sa_sort = [make_sa_sort(s) for s in sort]
 
+    select = select_ref[0]
     s = select.order_by(*sa_sort)
 
     return s, cols

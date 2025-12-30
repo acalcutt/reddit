@@ -136,6 +136,29 @@ class BaseController(WSGIController):
             c.loid = None
         if not hasattr(c, 'location'):
             c.location = ''
+        if not hasattr(c, 'oauth_user'):
+            c.oauth_user = None
+        if not hasattr(c, 'forced_loggedout'):
+            c.forced_loggedout = False
+        if not hasattr(c, 'user_is_admin'):
+            c.user_is_admin = False
+        if not hasattr(c, 'modhash'):
+            # templates may reference `c.modhash`; provide a safe default
+            # so expressions like `c.modhash or False` don't raise.
+            c.modhash = False
+        if not hasattr(c, 'use_write_db'):
+            # controllers and DB layer expect `c.use_write_db` to be a
+            # collection (truthy when specific write-only tables are used).
+            # Provide a safe default as an empty set so membership checks
+            # like `if c.use_write_db and kind in c.use_write_db:` work.
+            c.use_write_db = set()
+        if not hasattr(c, 'used_localized_defaults'):
+            # templates check this flag to decide whether to use
+            # localized default values; ensure it's always present.
+            c.used_localized_defaults = False
+        if not hasattr(c, 'render_tracker'):
+            # used by wrapped/templated rendering to track render state
+            c.render_tracker = {}
 
         self.pre()
 

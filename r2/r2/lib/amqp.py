@@ -186,8 +186,11 @@ def _add_item(routing_key, body, message_id = None,
         exchange = cfg.amqp_exchange
 
     chan = connection_manager.get_channel()
+    # amqp library expects numeric timestamp (seconds since epoch).
+    # Use int(time.time()) to avoid struct.pack errors when serialization
+    # tries to pack non-integer timestamp types.
     msg = amqp_lib.Message(body,
-                           timestamp=datetime.now(),
+                           timestamp=int(time.time()),
                            delivery_mode=delivery_mode)
     if message_id:
         msg.properties['message_id'] = message_id
@@ -204,7 +207,8 @@ def _add_item(routing_key, body, message_id = None,
         if send_stats:
             cfg.stats.event_count(event_name, 'enqueue_failed')
 
-        if e.errno == errno.EPIPE:
+        err_no = getattr(e, 'errno', None)
+        if err_no == errno.EPIPE:
             connection_manager.get_channel(True)
             add_item(routing_key, body, message_id)
         else:

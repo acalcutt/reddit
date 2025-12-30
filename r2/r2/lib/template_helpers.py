@@ -83,7 +83,8 @@ def static(path, absolute=False, mangle_name=True):
     if g.static_domain:
         domain = g.static_domain
     else:
-        path_components.append(c.site.static_path)
+        # ensure site-provided static_path is text, not bytes
+        path_components.append(_force_unicode(c.site.static_path))
 
         if g.uncompressedJS:
             # unminified static files are in type-specific subdirectories
@@ -93,27 +94,25 @@ def static(path, absolute=False, mangle_name=True):
             should_cache_bust = True
             actual_filename = filename
 
-        domain = g.domain if absolute else None
+        domain = _force_unicode(g.domain) if absolute and g.domain is not None else (None if not absolute else _force_unicode(g.domain))
 
-    path_components.append(dirname)
+    # dirname may be bytes on some systems; coerce to text
+    path_components.append(_force_unicode(dirname))
     if not actual_filename:
         actual_filename = g.static_names.get(filename, filename)
-    path_components.append(actual_filename)
+    path_components.append(_force_unicode(actual_filename))
 
-    actual_path = os.path.join(*path_components)
+    actual_path = _force_unicode(os.path.join(*path_components))
 
     query = None
     if path and should_cache_bust:
         file_id = static_mtime(actual_path) or random.randint(0, 1000000)
-        query = 'v=' + str(file_id)
+        query = _force_unicode('v=' + str(file_id))
 
-    return urllib.parse.urlunsplit((
-        scheme,
-        domain,
-        actual_path,
-        query,
-        None
-    ))
+    # Ensure all components are strings (replace None with empty string)
+    components = [scheme, domain, actual_path, query, '']
+    components = [(_force_unicode(c) if c is not None else '') for c in components]
+    return urllib.parse.urlunsplit(tuple(components))
 
 
 def make_url_protocol_relative(url):
@@ -169,7 +168,10 @@ def js_config(extra_config=None):
                 route_name=route_name,
             )
 
-    mac = hmac.new(g.secrets["action_name"], route_name, hashlib.sha1)
+    # Ensure key and message are bytes for HMAC on Python 3
+    key = _force_unicode(g.secrets.get("action_name", "")).encode('utf-8')
+    msg = _force_unicode(route_name).encode('utf-8')
+    mac = hmac.new(key, msg, hashlib.sha1)
     verification = mac.hexdigest()
     cur_subreddit = ""
     cur_sr_fullname = ""

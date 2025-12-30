@@ -1331,9 +1331,34 @@ class Subreddit(Thing, Printable, BaseSite):
     @classmethod
     def get_promote_srid(cls):
         try:
-            return cls._by_name(g.promo_sr_name, stale=True)._id
+            res = cls._by_name(g.promo_sr_name, stale=True)
         except NotFound:
             return None
+
+        # `_by_name` can return a single object, a mapping, or in some
+        # environments a raw dict. Normalize possible return types so
+        # callers always get an integer id or None.
+        if res is None:
+            return None
+
+        # If a mapping was returned (when multiple names were requested),
+        # pick the first value.
+        if isinstance(res, dict):
+            if not res:
+                return None
+            # get first value from mapping
+            res = list(res.values())[0]
+
+        # If the result is an object with `_id`, return it.
+        if hasattr(res, '_id'):
+            return getattr(res, '_id')
+
+        # If it's a dict with an `_id` key, return that.
+        if isinstance(res, dict) and '_id' in res:
+            return res.get('_id')
+
+        # Fallback: cannot determine id
+        return None
 
     def is_subscriber(self, user):
         try:

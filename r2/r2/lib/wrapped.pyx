@@ -468,7 +468,9 @@ class CachedTemplate(Templated):
         auto_keys = [(k,  make_cachable(v, style))
                      for k, v in self.cachable_attrs()]
         keys.append(repr(auto_keys))
-        h = md5(u''.join(keys)).hexdigest()
+        # md5 requires bytes on Python 3. encode the joined unicode
+        # string to UTF-8 before hashing.
+        h = md5(u''.join(keys).encode('utf-8')).hexdigest()
         return "rend:%s:%s" % (self.render_class_name, h)
 
 

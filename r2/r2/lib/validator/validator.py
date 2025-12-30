@@ -131,8 +131,39 @@ class Validator:
                 else:
                     val = self.default
                 a.append(val)
+        # Adapt to validators with different run() signatures.
         try:
-            return self.run(*a)
+            spec = None
+            try:
+                # Python 3: use getfullargspec
+                spec = inspect.getfullargspec(self.run)
+            except Exception:
+                try:
+                    spec = inspect.getargspec(self.run)
+                except Exception:
+                    spec = None
+
+            if spec and spec.varargs:
+                return self.run(*a)
+
+            # determine how many positional args run() expects (excluding self)
+            expected = None
+            if spec and spec.args:
+                # bound method: first arg is 'self'
+                expected = max(0, len(spec.args) - 1)
+
+            if expected is None:
+                return self.run(*a)
+
+            if expected == 0:
+                return self.run()
+
+            # slice or pad the args to match expected arity
+            if len(a) >= expected:
+                return self.run(*a[:expected])
+            else:
+                padded = list(a) + [None] * (expected - len(a))
+                return self.run(*padded)
         except TypeError as e:
             if str(e).startswith('run() takes'):
                 # Prepend our class name so we know *which* run()
@@ -145,7 +176,15 @@ def build_arg_list(fn, env):
     """given a fn and and environment the builds a keyword argument list
     for fn"""
     kw = {}
-    argspec = inspect.getargspec(fn)
+    # Use inspect.getfullargspec when available (py3), fall back to
+    # getargspec for older versions. Normalize to a tuple
+    # (args, varargs, varkw, defaults) to keep existing code working.
+    if hasattr(inspect, 'getfullargspec'):
+        fa = inspect.getfullargspec(fn)
+        argspec = (fa.args, fa.varargs, fa.varkw, fa.defaults)
+    else:
+        ga = inspect.getargspec(fn)
+        argspec = (ga[0], ga[1], ga[2], ga[3])
 
     # if there is a **kw argument in the fn definition,
     # just pass along the environment
@@ -547,7 +586,10 @@ class VLength(Validator):
         self.empty_error = empty_error
 
     def run(self, text, text2 = ''):
-        text = text or text2
+        # Normalize None to empty string so callers that pad args with
+        # None (during Python3 compatibility handling) won't cause
+        # TypeErrors when measuring length.
+        text = text or text2 or ''
         if self.empty_error and (not text or self.only_whitespace.match(text)):
             self.set_error(self.empty_error, code=400)
         elif len(text) > self.max_length:
