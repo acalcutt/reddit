@@ -995,7 +995,8 @@ class MinimalController(BaseController):
         for k, v in c.cookies.items():
             if v.dirty:
                 v_secure = v.secure if v.secure is not None else secure_cookies
-                response.set_cookie(key=k,
+                # WebOb `Response.set_cookie` expects `name`, not `key`.
+                response.set_cookie(name=k,
                                     value=quote(v.value),
                                     domain=v.domain,
                                     expires=v.expires,

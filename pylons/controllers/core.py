@@ -51,8 +51,36 @@ class WSGIController:
             # Call __after__ hook
             self.__after__()
 
-            # Handle the response
-            response = pylons.response._current_obj()
+            # Handle the response. `pylons.response` may be a proxy
+            # exposing `_current_obj()`, or a plain `Response` instance,
+            # or our `LocalStack` wrapper. Normalize to a real
+            # `webob.Response` instance so we can call it as a WSGI app.
+            if hasattr(pylons.response, '_current_obj'):
+                response = pylons.response._current_obj()
+            else:
+                response = pylons.response
+
+            # If we didn't get a callable WSGI response (for example, the
+            # test shim uses a `LocalStack` whose top is a simple namespace),
+            # construct a `webob.Response` from the available attributes.
+            if not callable(response):
+                r = Response()
+                # copy status and headers if present
+                if hasattr(response, 'status'):
+                    try:
+                        r.status = str(response.status)
+                    except Exception:
+                        pass
+                if hasattr(response, 'headers') and isinstance(response.headers, dict):
+                    r.headers.update(response.headers)
+                # prefer explicit body/text attributes if present
+                if hasattr(response, 'body'):
+                    r.body = getattr(response, 'body')
+                elif hasattr(response, 'text'):
+                    r.text = getattr(response, 'text')
+                elif hasattr(response, 'content'):
+                    r.body = getattr(response, 'content')
+                response = r
 
             # If action returned something, use it as body
             if result is not None:

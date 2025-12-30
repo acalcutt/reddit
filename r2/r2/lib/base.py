@@ -146,6 +146,17 @@ class BaseController(WSGIController):
             # templates may reference `c.modhash`; provide a safe default
             # so expressions like `c.modhash or False` don't raise.
             c.modhash = False
+        if not hasattr(c, 'location_info'):
+            # debug templates reference `c.location_info`; default to an
+            # empty dict so templates can iterate or render safely.
+            c.location_info = {}
+        if not hasattr(c, 'ratelimit_headers'):
+            # some post-processing reads ratelimit headers; default to
+            # empty dict to avoid AttributeError in middleware/controllers.
+            c.ratelimit_headers = {}
+        if not hasattr(c, 'cors_checked'):
+            # flag used to avoid repeating CORS checks during request
+            c.cors_checked = False
         if not hasattr(c, 'use_write_db'):
             # controllers and DB layer expect `c.use_write_db` to be a
             # collection (truthy when specific write-only tables are used).
