@@ -411,7 +411,11 @@ def make_cachable(v, style):
             ret[k] = make_cachable(v[k], style)
         return repr(ret)
     elif hasattr(v, "cache_key"):
-        return v.cache_key(style)
+        result = v.cache_key(style)
+        # Ensure cache_key returns a string
+        if result is None:
+            return ''
+        return str(result) if not isinstance(result, str) else result
     else:
         raise Uncachable("%s, %s" % (v, type(v)))
 
@@ -466,7 +470,7 @@ class CachedTemplate(Templated):
         keys.append(repr(auto_keys))
         # md5 requires bytes on Python 3. encode the joined unicode
         # string to UTF-8 before hashing.
-        h = md5(u''.join(keys).encode('utf-8')).hexdigest()
+        h = md5(''.join(keys).encode('utf-8')).hexdigest()
         return "rend:%s:%s" % (self.render_class_name, h)
 
 
