@@ -148,6 +148,10 @@ class BaseController(WSGIController):
             c.forced_loggedout = False
         if not hasattr(c, 'user_is_admin'):
             c.user_is_admin = False
+        if not hasattr(c, 'user_is_sponsor'):
+            # default to False so templates/controllers can safely check
+            # sponsorship status before auth setup runs
+            c.user_is_sponsor = False
         if not hasattr(c, 'modhash'):
             # templates may reference `c.modhash`; provide a safe default
             # so expressions like `c.modhash or False` don't raise.
@@ -263,8 +267,8 @@ class BaseController(WSGIController):
             if preserve_extension and c.extension:
                 u.set_extension(c.extension)
 
-        # unparse and encode it un utf8
-        rv = _force_unicode(u.unparse()).encode('utf8')
+        # unparse and coerce to a text string (avoid returning bytes)
+        rv = _force_unicode(u.unparse())
         if "\n" in rv or "\r" in rv:
             abort(400)
         return rv

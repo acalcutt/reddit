@@ -249,6 +249,31 @@ def validate(*simple_vals, **param_vals):
     def val(fn):
         @wraps(fn)
         def newfn(self, *a, **env):
+            # Some WSGI/Pylons callers pass the route dict as a single
+            # positional argument rather than keywords. Normalize so
+            # validators always receive an `env` dict.
+            if not env and a and isinstance(a[0], dict):
+                env = a[0]
+            # If validators still don't have route params, try the
+            # pylons routes dict from the WSGI environ so validators
+            # can pick up params like `username` regardless of how
+            # Routes forwarded them.
+            try:
+                if (not env or not isinstance(env, dict)):
+                    routes_dict = request.environ.get('pylons.routes_dict')
+                    if routes_dict and isinstance(routes_dict, dict):
+                        env = dict(routes_dict)
+                else:
+                    # merge any missing keys from routes_dict into env
+                    routes_dict = request.environ.get('pylons.routes_dict')
+                    if routes_dict and isinstance(routes_dict, dict):
+                        for k, v in routes_dict.items():
+                            env.setdefault(k, v)
+            except Exception:
+                # be conservative: if request or environ isn't available,
+                # proceed without raising so callers still get validation
+                # errors handled by existing logic.
+                pass
             try:
                 kw = _make_validated_kw(fn, simple_vals, param_vals, env)
             except RedditError as err:

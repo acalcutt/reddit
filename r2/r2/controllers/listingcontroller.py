@@ -46,6 +46,7 @@ from r2.lib.menus import (
     TimeMenu,
     menu,
 )
+from r2.lib.strings import plurals
 from r2.lib.normalized_hot import normalized_hot
 from r2.lib.pages import *
 from r2.lib.pages.things import wrap_links
@@ -262,6 +263,23 @@ class ListingController(RedditController):
                 details_text="mod_subreddit")
         if self.can_send_referrer():
             c.referrer_policy = "always"
+        # If validators didn't populate `vuser`, try to resolve it from the
+        # routing dict so user profile routes still work.
+        try:
+            if env.get('vuser') is None:
+                routes = request.environ.get('pylons.routes_dict') or {}
+                username = routes.get('username') or env.get('username')
+                if username:
+                    try:
+                        uname = username.strip()
+                        acct = Account._by_name(uname)
+                        env['vuser'] = acct
+                        g.log.info("ListingController: resolved vuser=%r from username=%r", getattr(acct, 'name', None), username)
+                    except Exception:
+                        g.log.info("ListingController: could not resolve username %r", username)
+        except Exception:
+            g.log.exception('ListingController fallback vuser resolution failed')
+
         return self.build_listing(**env)
 
 listing_api_doc = partial(
@@ -928,8 +946,53 @@ class UserController(ListingController):
                                        'saved', 'gilded']])
     def GET_listing(self, where, vuser, sort, time, show, **env):
         # the validator will ensure that vuser is a valid account
+        from pylons import app_globals as g
+        try:
+            g.log.info("User listing request: where=%s, username_param=%r, vuser=%r", where, env.get('username'), vuser and getattr(vuser, 'name', None))
+            # Extra diagnostics: log request path and routing dicts so we can
+            # see how Routes forwarded parameters into the controller.
+            try:
+                g.log.info("Request path: %s", request.path)
+            except Exception:
+                pass
+            try:
+                g.log.info("wsgiorg.routing_args: %r", request.environ.get('wsgiorg.routing_args'))
+            except Exception:
+                pass
+            try:
+                g.log.info("pylons.routes_dict: %r", request.environ.get('pylons.routes_dict'))
+            except Exception:
+                pass
+        except Exception:
+            pass
         if not vuser:
-            return self.abort404()
+            # Validator didn't resolve vuser. Try to recover by looking up
+            # the username from the routing dicts in request.environ.
+            try:
+                routes_dict = request.environ.get('pylons.routes_dict') or {}
+            except Exception:
+                routes_dict = {}
+
+            username = env.get('username') if env and env.get('username') else routes_dict.get('username')
+            if username:
+                try:
+                    from r2.lib.validator.validator import chkuser
+                    uname = chkuser(username)
+                    if uname:
+                        try:
+                            acct = Account._by_name(uname)
+                            vuser = acct
+                            g.log.info("User listing: fallback resolved vuser=%r from username=%r", getattr(vuser, 'name', None), username)
+                        except Exception:
+                            g.log.info("User listing: fallback failed to find account for username=%r", username)
+                    else:
+                        g.log.info("User listing: fallback username %r failed chkuser normalization", username)
+                except Exception:
+                    g.log.exception("User listing: exception while attempting fallback vuser resolution")
+
+            if not vuser:
+                g.log.info("User listing: vuser resolved to None, aborting 404 for where=%s username=%r", where, env.get('username'))
+                return self.abort404()
 
         if (vuser.in_timeout and
                 vuser != c.user and
@@ -1019,6 +1082,12 @@ class UserController(ListingController):
             self.savedcategory = category
 
         self.vuser = vuser
+        # Ensure the outer ListingController receives the resolved vuser
+        try:
+            if env is not None and isinstance(env, dict):
+                env['vuser'] = vuser
+        except Exception:
+            pass
 
         c.profilepage = True
         self.suppress_reply_buttons = True

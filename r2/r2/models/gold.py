@@ -301,10 +301,11 @@ def create_gold_code(trans_id, payer_email, paying_id, pennies, days, date):
     while True:
         code = randstr(10, alphabet=valid_chars)
 
-        s = sa.select([gold_table],
-                      sa.and_(gold_table.c.secret == code.lower(),
-                              gold_table.c.status == 'unclaimed'))
-        res = s.execute().fetchall()
+        s = sa.select(gold_table).where(
+            sa.and_(gold_table.c.secret == code.lower(),
+                    gold_table.c.status == 'unclaimed'))
+        with ENGINE.connect() as conn:
+            res = conn.execute(s).fetchall()
         if not res:
             gold_table.insert().execute(
                 trans_id=trans_id,
@@ -319,9 +320,10 @@ def create_gold_code(trans_id, payer_email, paying_id, pennies, days, date):
 
 
 def account_by_payingid(paying_id):
-    s = sa.select([sa.distinct(gold_table.c.account_id)],
-                  gold_table.c.paying_id == paying_id)
-    res = s.execute().fetchall()
+    s = sa.select(sa.distinct(gold_table.c.account_id)).where(
+        gold_table.c.paying_id == paying_id)
+    with ENGINE.connect() as conn:
+        res = conn.execute(s).fetchall()
 
     if len(res) != 1:
         return None
@@ -356,10 +358,10 @@ def claim_gold(secret, account_id):
     else:
         raise ValueError("rowcount == %d?" % rp.rowcount)
 
-    s = sa.select([gold_table.c.days, gold_table.c.subscr_id],
-                  gold_table.c.secret == secret,
-                  limit = 1)
-    rows = s.execute().fetchall()
+    s = sa.select(gold_table.c.days, gold_table.c.subscr_id).where(
+        gold_table.c.secret == secret).limit(1)
+    with ENGINE.connect() as conn:
+        rows = conn.execute(s).fetchall()
 
     if not rows:
         return None
@@ -369,22 +371,26 @@ def claim_gold(secret, account_id):
         return "already claimed"
 
 def check_by_email(email):
-    s = sa.select([gold_table.c.status,
-                           gold_table.c.secret,
-                           gold_table.c.days,
-                           gold_table.c.account_id],
-                          gold_table.c.payer_email == email)
-    return s.execute().fetchall()
+    s = sa.select(
+        gold_table.c.status,
+        gold_table.c.secret,
+        gold_table.c.days,
+        gold_table.c.account_id,
+    ).where(gold_table.c.payer_email == email)
+    with ENGINE.connect() as conn:
+        return conn.execute(s).fetchall()
 
 
 def has_prev_subscr_payments(subscr_id):
-    s = sa.select([gold_table], gold_table.c.subscr_id == subscr_id)
-    return bool(s.execute().fetchall())
+    s = sa.select(gold_table).where(gold_table.c.subscr_id == subscr_id)
+    with ENGINE.connect() as conn:
+        return bool(conn.execute(s).fetchall())
 
 
 def retrieve_gold_transaction(transaction_id):
-    s = sa.select([gold_table], gold_table.c.trans_id == transaction_id)
-    res = s.execute().fetchall()
+    s = sa.select(gold_table).where(gold_table.c.trans_id == transaction_id)
+    with ENGINE.connect() as conn:
+        res = conn.execute(s).fetchall()
     if res:
         return res[0]   # single row per transaction_id
 
@@ -395,8 +401,9 @@ def update_gold_transaction(transaction_id, status):
 
 
 def transactions_by_user(user):
-    s = sa.select([gold_table], gold_table.c.account_id == str(user._id))
-    res = s.execute().fetchall()
+    s = sa.select(gold_table).where(gold_table.c.account_id == str(user._id))
+    with ENGINE.connect() as conn:
+        res = conn.execute(s).fetchall()
     return res
 
 

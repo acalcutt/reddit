@@ -17,6 +17,7 @@ refactor.
 from __future__ import annotations
 
 import pickle
+import time
 from collections import OrderedDict
 from typing import Dict, Iterable, Optional
 
@@ -146,7 +147,8 @@ class ColumnFamily:
 
     def multiget(self, keys: Iterable[str], columns: Optional[Iterable[str]] = None,
                  column_count: Optional[int] = None, column_start: Optional[str] = None,
-                 column_finish: Optional[str] = None, column_reversed: bool = False):
+                 column_finish: Optional[str] = None, column_reversed: bool = False,
+                 include_timestamp: bool = False):
         keys = list(keys)
         if not keys:
             return {}
@@ -188,7 +190,21 @@ class ColumnFamily:
                         break
                     reduced[k] = v
                 od = reduced
-            ret[str(row.key)] = od
+            if include_timestamp:
+                # Legacy pycassa returned (value, timestamp) pairs per column
+                # when include_timestamp=True. If we stored timestamps at
+                # write-time, the deserialized value will be a tuple
+                # (value, timestamp[, ttl]). Otherwise return None for
+                # timestamp to preserve the API shape.
+                od_ts = OrderedDict()
+                for k, v in od.items():
+                    if isinstance(v, tuple) and len(v) >= 2 and isinstance(v[1], (int, float)):
+                        od_ts[k] = (v[0], v[1])
+                    else:
+                        od_ts[k] = (v, None)
+                ret[str(row.key)] = od_ts
+            else:
+                ret[str(row.key)] = od
         return ret
 
     def get_range(self, start: Optional[str] = None, row_count: Optional[int] = None):
@@ -229,8 +245,9 @@ class ColumnFamily:
         return od
 
     def insert(self, key: str, columns: Dict[str, object], ttl: Optional[int] = None):
-        # serialize values
-        ser = {k: pickle.dumps(v) for k, v in columns.items()}
+        # serialize values and attach a write timestamp (microseconds)
+        now_us = int(time.time() * 1e6)
+        ser = {k: pickle.dumps((v, now_us)) for k, v in columns.items()}
         if ttl:
             cql = "UPDATE %s.%s USING TTL %d SET columns = columns + %%s WHERE key = %%s" % (self.keyspace, self.table, ttl)
             self.session.execute(cql, (ser, key))
@@ -339,7 +356,10 @@ class Mutator:
 
         # columns expected to be a dict of name->value (already serialized by callers)
         # We'll serialize here using pickle to match ColumnFamily.insert behaviour
-        ser = {k: pickle.dumps(v) for k, v in columns.items()}
+        # and attach a write timestamp (microseconds) so include_timestamp
+        # consumers can see it.
+        now_us = int(time.time() * 1e6)
+        ser = {k: pickle.dumps((v, now_us)) for k, v in columns.items()}
         if ttl:
             cql = "UPDATE %s.%s USING TTL %d SET columns = columns + %%s WHERE key = %%s" % (cf.keyspace, cf.table, int(ttl))
             params = (ser, key)

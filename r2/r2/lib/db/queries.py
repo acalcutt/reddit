@@ -70,6 +70,7 @@ from r2.models.query_cache import (
     filter_thing,
     merged_cached_query,
 )
+from functools import cmp_to_key
 from r2.models.vote import Vote
 
 precompute_limit = 1000
@@ -310,7 +311,7 @@ class MergedCachedResults:
         all_items = []
         for cr in results:
             all_items.extend(cr.data)
-        all_items.sort(cmp=comparator)
+        all_items.sort(key=cmp_to_key(comparator))
         self.data = all_items
 
 

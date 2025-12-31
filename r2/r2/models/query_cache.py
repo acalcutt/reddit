@@ -44,6 +44,7 @@ from pylons import app_globals as g
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.operators import BooleanOp, asc
 from r2.lib.db.sorts import epoch_seconds
+from functools import cmp_to_key
 from r2.lib.utils import flatten, to36
 from r2.models import Thing
 
@@ -71,7 +72,21 @@ class ThingTupleComparator:
             # can get the value to compare right out of the tuple
             v1, v2 = t1[i + 1], t2[i + 1]
             if v1 != v2:
-                return cmp(v1, v2) if isinstance(s, asc) else cmp(v2, v1)
+                if isinstance(s, asc):
+                    if v1 < v2:
+                        return -1
+                    elif v1 > v2:
+                        return 1
+                    else:
+                        continue
+                else:
+                    # descending
+                    if v2 < v1:
+                        return -1
+                    elif v2 > v1:
+                        return 1
+                    else:
+                        continue
         #they're equal
         return 0
 
@@ -102,7 +117,7 @@ class _CachedQueryBase:
 
     def _sort_data(self):
         comparator = ThingTupleComparator(self.sort_cols)
-        self.data.sort(cmp=comparator)
+        self.data.sort(key=cmp_to_key(comparator))
 
     def __iter__(self):
         self.fetch()
