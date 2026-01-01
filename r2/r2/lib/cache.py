@@ -102,7 +102,12 @@ class CMemcache(CacheUtils):
     def get_multi(self, keys, prefix = ''):
         str_keys = [str(key) for key in keys]
         with self.clients.reserve() as mc:
-            return mc.get_multi(str_keys, key_prefix=prefix)
+            result = mc.get_multi(str_keys, key_prefix=prefix)
+            # Debug logging for cache investigation
+            if str_keys and str_keys[0].startswith('rend:'):
+                g.log.warning("CMemcache.get_multi: %d keys requested, %d hits. Sample key: %s",
+                              len(str_keys), len(result), str_keys[0][:80])
+            return result
 
     # simple_get_multi exists so that a cache chain can
     # single-instance the handling of prefixes for performance, but
@@ -126,6 +131,12 @@ class CMemcache(CacheUtils):
             raise ValueError("Rejecting negative TTL for key %s" % key)
 
         str_keys = {str(k): v for k, v in keys.items()}
+        # Debug logging for cache investigation
+        if str_keys:
+            sample_key = list(str_keys.keys())[0]
+            if sample_key.startswith('rend:'):
+                g.log.warning("CMemcache.set_multi: %d keys, time=%d. Sample key: %s, value type: %s",
+                              len(str_keys), time, sample_key[:80], type(list(str_keys.values())[0]).__name__)
         with self.clients.reserve() as mc:
             return mc.set_multi(str_keys, key_prefix=prefix, time=time,
                                 min_compress_len=self.min_compress_len)
