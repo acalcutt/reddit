@@ -105,8 +105,11 @@ class CMemcache(CacheUtils):
             result = mc.get_multi(str_keys, key_prefix=prefix)
             # Debug logging for cache investigation
             if str_keys and str_keys[0].startswith('rend:'):
-                g.log.warning("CMemcache.get_multi: %d keys requested, %d hits. Sample key: %s",
-                              len(str_keys), len(result), str_keys[0][:80])
+                try:
+                    g.log.warning("CMemcache.get_multi: %d keys requested, %d hits. Sample key: %s",
+                                  len(str_keys), len(result), str_keys[0][:80])
+                except Exception:
+                    pass  # Ignore logging errors during reload
             return result
 
     # simple_get_multi exists so that a cache chain can
@@ -135,8 +138,11 @@ class CMemcache(CacheUtils):
         if str_keys:
             sample_key = list(str_keys.keys())[0]
             if sample_key.startswith('rend:'):
-                g.log.warning("CMemcache.set_multi: %d keys, time=%d. Sample key: %s, value type: %s",
-                              len(str_keys), time, sample_key[:80], type(list(str_keys.values())[0]).__name__)
+                try:
+                    g.log.warning("CMemcache.set_multi: %d keys, time=%d. Sample key: %s, value type: %s",
+                                  len(str_keys), time, sample_key[:80], type(list(str_keys.values())[0]).__name__)
+                except Exception:
+                    pass  # Ignore logging errors during reload
         with self.clients.reserve() as mc:
             return mc.set_multi(str_keys, key_prefix=prefix, time=time,
                                 min_compress_len=self.min_compress_len)
