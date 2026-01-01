@@ -374,15 +374,19 @@ class Templated(object):
             return
 
         try:
+            g.log.debug("rendercache write: %d keys: %s", len(keys), list(keys.keys())[:3])
             g.rendercache.set_multi(keys, time=3600)
         except MemcachedError as e:
-            g.log.warning("rendercache error: %s", e)
+            g.log.warning("rendercache write error: %s", e)
             return
 
     def _read_cache(self, keys):
         from pylons import app_globals as g
 
+        cache_keys = list(keys.keys()) if isinstance(keys, dict) else list(keys)
+        g.log.debug("rendercache read: %d keys: %s", len(cache_keys), cache_keys[:3])
         ret = g.rendercache.get_multi(keys)
+        g.log.debug("rendercache read result: %d hits: %s", len(ret), list(ret.keys())[:3])
         return ret
 
     def render(self, style = None, **kw):
@@ -420,9 +424,8 @@ def make_cachable(v, style):
         raise Uncachable("%s, %s" % (v, type(v)))
 
 class CachedTemplate(Templated):
-    # Temporarily disable template caching to debug placeholder issues.
-    # Set to True to re-enable fragment caching once memcached is working.
-    cachable = False
+    # Template caching for fragment rendering.
+    cachable = True
 
     def template_hash(self, style):
         template = self.template(style)
@@ -502,10 +505,9 @@ class Wrapped(CachedTemplate):
         # this shouldn't be too surprising
         self.cache_ignore = self.cache_ignore.union(
             set(['cachable', 'render', 'cache_ignore', 'lookups']))
-        # Temporarily disable dynamic cachable detection for debugging
-        # if (not self._any_hasattr(lookups, 'cachable') and
-        #     self._any_hasattr(lookups, 'wrapped_cache_key')):
-        #     self.cachable = True
+        if (not self._any_hasattr(lookups, 'cachable') and
+            self._any_hasattr(lookups, 'wrapped_cache_key')):
+            self.cachable = True
         if self.cachable:
             for l in lookups:
                 if hasattr(l, "cache_ignore"):
