@@ -40,8 +40,8 @@
 <h1>${_wsf("submit to %(sr)s", sr=sr)}</h1>
 
 <%utils:submit_form onsubmit="return post_form(this, 'submit', linkstatus, null, true)"
-                    action=${add_sr("/submit")},
-                    _class="submit content warn-on-unload",
+                    action="${add_sr('/submit')}"
+                    _class="submit content warn-on-unload"
                     _id="newlink">
 
 %if thing.show_link and thing.show_self:
@@ -89,7 +89,7 @@ ${thing.formtabs_menu}
 
 %if thing.show_self:
 <div class="spacer">
-  <%utils:round_field title="${_('text')}", description="${_('(optional)')}" id="text-field">
+  <%utils:round_field title="${_('text')}" description="${_('(optional)')}" id="text-field">
     <input name="kind" value="self" type="hidden"/>
 
     ${UserText(None, text = thing.text, have_form = False, creating = True)}

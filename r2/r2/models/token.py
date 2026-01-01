@@ -37,7 +37,9 @@ from r2.models.account import Account
 
 
 def generate_token(size):
-    return urlsafe_b64encode(urandom(size)).rstrip("=")
+    # `urlsafe_b64encode` returns bytes on Python 3. Strip the padding
+    # as bytes and return a native `str` for use as token IDs.
+    return urlsafe_b64encode(urandom(size)).rstrip(b"=").decode("ascii")
 
 
 class Token(tdb_cassandra.Thing):

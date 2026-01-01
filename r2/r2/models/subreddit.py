@@ -1805,7 +1805,9 @@ class _DefaultSR(FakeSubreddit):
     header = g.default_header_url
 
     def _get_sr_ids(self):
-        if not c.defaultsr_cached_sr_ids:
+        # `c` may not have `defaultsr_cached_sr_ids` set yet; use getattr
+        # to avoid AttributeError and lazily initialize it per-request.
+        if not getattr(c, 'defaultsr_cached_sr_ids', None):
             user = c.user if c.user_is_loggedin else None
             c.defaultsr_cached_sr_ids = Subreddit.user_subreddits(user)
         return c.defaultsr_cached_sr_ids
