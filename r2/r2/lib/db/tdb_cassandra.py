@@ -594,13 +594,43 @@ class ThingBase(metaclass=ThingMeta):
 
     @classmethod
     def _deserialize_date(cls, val):
+        # Accept multiple representations returned by various drivers:
+        # - datetime instance
+        # - UUID (timeuuid)
+        # - 8-byte serialized integer (bytes)
+        # - integer (likely milliseconds since epoch)
+        # - stringified seconds since epoch
         if isinstance(val, datetime):
             date = val
         elif isinstance(val, UUID):
             return convert_uuid_to_time(val)
-        elif len(val) == 8: # cassandra uses 8-byte integer format for this
-            date = date_serializer.unpack(val)
-        else: # it's probably the old-style stringified seconds since epoch
+        elif isinstance(val, (bytes, bytearray)):
+            # cassandra 8-byte integer format or string bytes
+            if len(val) == 8:
+                date = date_serializer.unpack(val)
+            else:
+                try:
+                    as_float = float(val.decode('utf-8'))
+                except Exception:
+                    # fallback: treat raw bytes as milliseconds integer
+                    try:
+                        as_int = int.from_bytes(val, byteorder='big', signed=False)
+                        if as_int > 1e11:
+                            date = datetime.utcfromtimestamp(as_int / 1000.0)
+                        else:
+                            date = datetime.utcfromtimestamp(as_int)
+                    except Exception:
+                        raise
+                else:
+                    date = datetime.utcfromtimestamp(as_float)
+        elif isinstance(val, int):
+            # Heuristic: large ints are milliseconds since epoch
+            if val > 1e11:
+                date = datetime.utcfromtimestamp(val / 1000.0)
+            else:
+                date = datetime.utcfromtimestamp(val)
+        else:
+            # it's probably the old-style stringified seconds since epoch
             as_float = float(val)
             date = datetime.utcfromtimestamp(as_float)
 

@@ -1649,7 +1649,7 @@ class RedditsController(ListingController):
                          '/subreddits/gold',
                          '/subreddits/default',
                      ])
-    def GET_listing(self, where, **env):
+    def GET_listing(self, where='popular', **env):
         """Get all subreddits.
 
         The `where` parameter chooses the order in which the subreddits are

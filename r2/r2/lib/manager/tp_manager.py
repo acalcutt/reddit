@@ -71,6 +71,29 @@ class tp_manager:
         except TemplateLookupException:
             return
 
+        # Wrap the template so we can inject certain globals (like
+        # `feature`) into the rendering context when templates rely on
+        # them being present. This prevents Mako `Undefined` errors in
+        # templates that expect `feature` to be available.
+        class TemplateWrapper:
+            def __init__(self, tpl):
+                self._tpl = tpl
+                self.filename = getattr(tpl, 'filename', None)
+
+            def render(self, *args, **kwargs):
+                if 'feature' not in kwargs:
+                    try:
+                        from r2.config import feature
+                        kwargs['feature'] = feature
+                    except Exception:
+                        pass
+                return self._tpl.render(*args, **kwargs)
+
+            def __getattr__(self, name):
+                return getattr(self._tpl, name)
+
+        template = TemplateWrapper(template)
+
         self.cache_template(cls, style, template)
 
         return template

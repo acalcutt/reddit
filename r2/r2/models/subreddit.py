@@ -1140,9 +1140,9 @@ class Subreddit(Thing, Printable, BaseSite):
     @classmethod
     def random_reddit(cls, over18=False, user=None):
         if over18:
-            sr_ids = NamedGlobals.get("popular_over_18_sr_ids")
+            sr_ids = NamedGlobals.get("popular_over_18_sr_ids", default=[])
         else:
-            sr_ids = NamedGlobals.get("popular_sr_ids")
+            sr_ids = NamedGlobals.get("popular_sr_ids", default=[])
 
         if user:
             excludes = set(cls.user_subreddits(user, limit=None))
