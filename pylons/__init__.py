@@ -151,10 +151,16 @@ class _DefaultTmplContext(SimpleNamespace):
         self.have_messages = False
         self.have_mod_messages = False
         self.show_signing_body = False
-        self.render_tracker = ''
+        self.render_tracker = None  # Must be None or dict, not '' for wrapped.pyx
+        self.render_style = 'html'
         self.site = None
         self.firsttime = None
         self.cookies = {}
+        self.user_is_loggedin = False
+        self.user_is_admin = False
+        self.domain_prefix = ''
+        self.secure = False
+        self.lang = 'en'
 
     def __getattr__(self, name):
         # Pylons tmpl_context returns empty string for missing attributes

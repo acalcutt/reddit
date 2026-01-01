@@ -420,7 +420,9 @@ def make_cachable(v, style):
         raise Uncachable("%s, %s" % (v, type(v)))
 
 class CachedTemplate(Templated):
-    cachable = True
+    # Temporarily disable template caching to debug placeholder issues.
+    # Set to True to re-enable fragment caching once memcached is working.
+    cachable = False
 
     def template_hash(self, style):
         template = self.template(style)
@@ -500,9 +502,10 @@ class Wrapped(CachedTemplate):
         # this shouldn't be too surprising
         self.cache_ignore = self.cache_ignore.union(
             set(['cachable', 'render', 'cache_ignore', 'lookups']))
-        if (not self._any_hasattr(lookups, 'cachable') and 
-            self._any_hasattr(lookups, 'wrapped_cache_key')):
-            self.cachable = True
+        # Temporarily disable dynamic cachable detection for debugging
+        # if (not self._any_hasattr(lookups, 'cachable') and
+        #     self._any_hasattr(lookups, 'wrapped_cache_key')):
+        #     self.cachable = True
         if self.cachable:
             for l in lookups:
                 if hasattr(l, "cache_ignore"):
