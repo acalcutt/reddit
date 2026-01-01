@@ -215,6 +215,29 @@ def _make_validated_kw(fn, simple_vals, param_vals, env):
     kw = build_arg_list(fn, env)
     for var, validator in param_vals.items():
         kw[var] = validator(env)
+    # If the target function declares `form` as its second positional
+    # argument, it will be supplied positionally by the `validatedForm`
+    # machinery (which calls self_method(self, form, responder, ...)).
+    # In that case, remove `form` (and the next positional arg, e.g.
+    # `jquery`/`responder`) from `kw` to avoid "multiple values for
+    # argument" TypeErrors when a request contains parameters with the
+    # same names.
+    try:
+        if hasattr(inspect, 'getfullargspec'):
+            fa = inspect.getfullargspec(fn)
+            fn_args = fa.args
+        else:
+            ga = inspect.getargspec(fn)
+            fn_args = ga[0]
+        # fn_args includes 'self' at index 0 for bound methods
+        if len(fn_args) >= 2 and fn_args[1] == 'form':
+            # remove 'form' and the next positional argument if present
+            for argname in fn_args[1:3]:
+                kw.pop(argname, None)
+    except Exception:
+        # Be conservative: if inspection fails, just remove 'form'
+        kw.pop('form', None)
+
     return kw
 
 def set_api_docs(fn, simple_vals, param_vals, extra_vals=None):

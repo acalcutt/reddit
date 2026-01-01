@@ -233,15 +233,64 @@ class ColumnFamily:
             out.append((str(row.key), od))
         return out
 
-    def get(self, key: str, columns: Optional[Iterable[str]] = None):
+    def get(self, key: str, columns: Optional[Iterable[str]] = None,
+            column_start: Optional[str] = None, column_finish: Optional[str] = None,
+            column_reversed: bool = False, column_count: Optional[int] = None,
+            include_timestamp: bool = False):
+        """Fetch a single row and optionally filter/slice its columns.
+
+        This mirrors the behaviour implemented in `multiget` so callers
+        using pycassa-style kwargs like `column_reversed` or
+        `include_timestamp` behave as expected.
+        """
         cql = "SELECT columns FROM %s.%s WHERE key = %%s" % (self.keyspace, self.table)
         row = self.session.execute(cql, (key,)).one()
         if not row:
             raise NotFoundException()
         raw = row.columns if hasattr(row, 'columns') else row[0]
         od = self._deserialize_map(raw)
+
+        # If a specific column list was requested, restrict to those keys
         if columns is not None:
             od = OrderedDict((k, od[k]) for k in columns if k in od)
+
+        # Handle start/finish slicing
+        if column_start is not None or column_finish is not None:
+            filtered = OrderedDict()
+            for k, v in od.items():
+                k_str = str(k) if not isinstance(k, str) else k
+                cs_str = str(column_start) if column_start is not None and not isinstance(column_start, str) else column_start
+                cf_str = str(column_finish) if column_finish is not None and not isinstance(column_finish, str) else column_finish
+
+                if column_start is not None and k_str < cs_str:
+                    continue
+                if column_finish is not None and k_str > cf_str:
+                    continue
+                filtered[k] = v
+            od = filtered
+
+        # Handle reversed ordering
+        if column_reversed:
+            od = OrderedDict(reversed(list(od.items())))
+
+        # Truncate to column_count if requested
+        if column_count is not None and len(od) > column_count:
+            reduced = OrderedDict()
+            for i, (k, v) in enumerate(od.items()):
+                if i >= column_count:
+                    break
+                reduced[k] = v
+            od = reduced
+
+        if include_timestamp:
+            od_ts = OrderedDict()
+            for k, v in od.items():
+                if isinstance(v, tuple) and len(v) >= 2 and isinstance(v[1], (int, float)):
+                    od_ts[k] = (v[0], v[1])
+                else:
+                    od_ts[k] = (v, None)
+            return od_ts
+
         return od
 
     def insert(self, key: str, columns: Dict[str, object], ttl: Optional[int] = None):

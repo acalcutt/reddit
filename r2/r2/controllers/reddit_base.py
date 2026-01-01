@@ -148,7 +148,10 @@ class UnloggedUser(FakeAccount):
 
     @property
     def name(self):
-        raise NotImplementedError
+        # Unlogged users don't have a username; return empty string
+        # so callers using hasattr/getattr or simple comparisons work
+        # without raising exceptions.
+        return ""
 
     def _decode_json(self, json_blob):
         data = json.loads(json_blob)
