@@ -179,7 +179,8 @@ class BaseController(WSGIController):
             c.used_localized_defaults = False
         if not hasattr(c, 'render_tracker'):
             # used by wrapped/templated rendering to track render state
-            c.render_tracker = {}
+            # Must be None (not {}) so that _render() can detect the primary template
+            c.render_tracker = None
 
         self.pre()
 
