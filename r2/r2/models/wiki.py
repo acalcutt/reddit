@@ -237,10 +237,18 @@ class WikiPage(tdb_cassandra.Thing):
     
     @classmethod
     def id_for(cls, sr, name):
-        id = getattr(sr, '_id36', None)
-        if not id:
-            raise tdb_cassandra.NotFound
-        return wiki_id(id, name)
+        # Prefer the canonical _id36 for real subreddits. Some special site
+        # objects (e.g. `Frontpage` / `DefaultSR`) are not real subreddits and
+        # won't have `_id36` set — fall back to using their `name` so global
+        # wiki pages (site-level policies, etc.) can be resolved.
+        id_val = getattr(sr, '_id36', None)
+        if not id_val:
+            name_val = getattr(sr, 'name', None)
+            if not name_val:
+                raise tdb_cassandra.NotFound
+            id_val = name_val.strip()
+
+        return wiki_id(id_val, name)
     
     @classmethod
     def get_multiple(cls, pages):
