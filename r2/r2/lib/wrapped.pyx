@@ -243,7 +243,7 @@ class Templated(object):
 
         style = style or c.render_style or 'html'
 
-        # prepare (and store) the list of cachable items. 
+        # prepare (and store) the list of cachable items.
         primary = False
         if not isinstance(c.render_tracker, dict):
             primary = True
@@ -374,19 +374,15 @@ class Templated(object):
             return
 
         try:
-            g.log.debug("rendercache write: %d keys: %s", len(keys), list(keys.keys())[:3])
             g.rendercache.set_multi(keys, time=3600)
         except MemcachedError as e:
-            g.log.warning("rendercache write error: %s", e)
+            g.log.warning("rendercache error: %s", e)
             return
 
     def _read_cache(self, keys):
         from pylons import app_globals as g
 
-        cache_keys = list(keys.keys()) if isinstance(keys, dict) else list(keys)
-        g.log.debug("rendercache read: %d keys: %s", len(cache_keys), cache_keys[:3])
         ret = g.rendercache.get_multi(keys)
-        g.log.debug("rendercache read result: %d hits: %s", len(ret), list(ret.keys())[:3])
         return ret
 
     def render(self, style = None, **kw):
