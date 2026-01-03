@@ -32,7 +32,7 @@ RUNDIR=$(dirname $0)
 SCRIPTDIR="$RUNDIR/install"
 
 # the canonical source of all installers
-GITREPO="https://raw.github.com/acalcutt/tippr/master/install"
+GITREPO="https://raw.github.com/TechIdiots-LLC/tippr/master/install"
 NEEDED=(
     "done.sh"
     "install_apt.sh"

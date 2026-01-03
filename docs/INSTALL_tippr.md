@@ -29,10 +29,10 @@ You can override these variables by exporting them on the command line when invo
 - `TIPPR_PLUGINS` — space-separated plugins to install (default: `about gold`).
 - `APTITUDE_OPTIONS` — flags passed to `apt`/`apt-get` (default: `-y`).
 - `PYTHON_VERSION` — Python version to install/use (default: `3.12`).
-- `TIPPR_BASEPLATE_PIP_URL` — pip URL or requirement spec for `baseplate` installation (default: git+https://github.com/acalcutt/baseplate.py.git@develop#egg=baseplate).
-- `TIPPR_FORMENERGY_OBSERVABILITY_PIP_URL` — pip URL for formenergy-observability fork (default: git+https://github.com/acalcutt/formenergy-observability.git@main#egg=formenergy-observability).
-- `TIPPR_WEBSOCKETS_REPO` — owner/repo for the websockets service (default: `acalcutt/tippr-service-websockets`).
-- `TIPPR_ACTIVITY_REPO` — owner/repo for the activity service (default: `acalcutt/tippr-service-activity`).
+- `TIPPR_BASEPLATE_PIP_URL` — pip URL or requirement spec for `baseplate` installation (default: git+https://github.com/TechIdiots-LLC/tippr-baseplate.py.git@develop#egg=baseplate).
+- `TIPPR_FORMENERGY_OBSERVABILITY_PIP_URL` — pip URL for formenergy-observability fork (default: git+https://github.com/TechIdiots-LLC/tippr-formenergy-observability.git@main#egg=formenergy-observability).
+- `TIPPR_WEBSOCKETS_REPO` — owner/repo for the websockets service (default: `TechIdiots-LLC/tippr-service-websockets`).
+- `TIPPR_ACTIVITY_REPO` — owner/repo for the activity service (default: `TechIdiots-LLC/tippr-service-activity`).
 - `CASSANDRA_SOURCES_LIST` — path for a custom datastax APT sources list (default: `/etc/apt/sources.list.d/cassandra.sources.list`).
 - `DEBIAN_FRONTEND` — installer sets this to `noninteractive` by default to avoid interactive prompts.
 

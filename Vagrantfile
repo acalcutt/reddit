@@ -41,9 +41,9 @@ vagrant_user = "vagrant"
 
 # code directories
 this_path = File.absolute_path(__FILE__)
-reddit_dir = File.expand_path("..", this_path)
-code_share_host_path = File.expand_path("..", reddit_dir)
-code_share_guest_path = "/media/reddit_code"
+tippr_dir = File.expand_path("..", this_path)
+code_share_host_path = File.expand_path("..", tippr_dir)
+code_share_guest_path = "/media/tippr_code"
 plugins = [
   "about",
   "gold",
@@ -113,11 +113,11 @@ Vagrant.configure(2) do |config|
       travis.vm.hostname = "travis"
       # run install script
       travis.vm.provision "shell", inline: <<-SCRIPT
-        if [ ! -f /var/local/reddit_installed ]; then
+        if [ ! -f /var/local/tippr_installed ]; then
           echo "running install script"
           cd /home/#{vagrant_user}/src/tippr
           ./install/travis.sh vagrant
-          touch /var/local/reddit_installed
+          touch /var/local/tippr_installed
         else
           echo "install script already run"
         fi
@@ -139,19 +139,19 @@ Vagrant.configure(2) do |config|
 
       # run install script
       plugin_string = plugins.join(" ")
-      redditlocal.vm.provision "shell", inline: <<-SCRIPT
-        if [ ! -f /var/local/reddit_installed ]; then
+      tipprlocal.vm.provision "shell", inline: <<-SCRIPT
+        if [ ! -f /var/local/tippr_installed ]; then
           echo "running install script"
           cd /home/#{vagrant_user}/src/tippr
           TIPPR_PLUGINS="#{plugin_string}" TIPPR_DOMAIN="#{hostname}" ./install/tippr.sh
-          touch /var/local/reddit_installed
+          touch /var/local/tippr_installed
         else
           echo "install script already run"
         fi
       SCRIPT
 
       # inject test data
-      redditlocal.vm.provision "shell", inline: <<-SCRIPT
+      tipprlocal.vm.provision "shell", inline: <<-SCRIPT
         if [ ! -f /var/local/test_data_injected ]; then
           cd /home/#{vagrant_user}/src/tippr
           sudo -u #{vagrant_user} tippr-run scripts/inject_test_data.py -c 'inject_test_data()'
@@ -178,7 +178,7 @@ Vagrant.configure(2) do |config|
 
       # DONE: let this run whenever provision is run so that the user can see
       # how to proceed.
-      redditlocal.vm.provision "shell", inline: <<-SCRIPT
+      tipprlocal.vm.provision "shell", inline: <<-SCRIPT
         cd /home/#{vagrant_user}/src/tippr
         TIPPR_DOMAIN="#{hostname}" ./install/done.sh
       SCRIPT

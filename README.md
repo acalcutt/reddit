@@ -26,7 +26,7 @@ useradd -m -s /bin/bash tippr
 2. Clone the repository:
 
 ```bash
-git clone https://github.com/acalcutt/tippr.git /opt/tippr
+git clone https://github.com/TechIdiots-LLC/tippr.git /opt/tippr
 cd /opt/tippr
 ```
 

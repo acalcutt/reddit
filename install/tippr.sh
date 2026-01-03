@@ -32,8 +32,8 @@ RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
 # Allow overriding service repo locations (format: owner/repo)
-: ${TIPPR_WEBSOCKETS_REPO:=acalcutt/tippr-service-websockets}
-: ${TIPPR_ACTIVITY_REPO:=acalcutt/tippr-service-activity}
+: ${TIPPR_WEBSOCKETS_REPO:=TechIdiots-LLC/tippr-service-websockets}
+: ${TIPPR_ACTIVITY_REPO:=TechIdiots-LLC/tippr-service-activity}
 
 
 ###############################################################################
@@ -378,7 +378,7 @@ function copy_upstart {
     fi
 }
 
-function clone_reddit_repo {
+function clone_tippr_repo {
     local destination=$TIPPR_SRC/${1}
     local repository_url=https://github.com/${2}.git
 
@@ -389,16 +389,16 @@ function clone_reddit_repo {
     copy_upstart $destination
 }
 
-function clone_reddit_service_repo {
+function clone_tippr_service_repo {
     local name=$1
     local repo=${2:-tippr/tippr-service-$1}
-    clone_reddit_repo $name "$repo"
+    clone_tippr_repo $name "$repo"
 }
 
-clone_reddit_repo tippr acalcutt/tippr
-clone_reddit_repo i18n tippr/tippr-i18n
-clone_reddit_service_repo websockets "$TIPPR_WEBSOCKETS_REPO"
-clone_reddit_service_repo activity "$TIPPR_ACTIVITY_REPO"
+clone_tippr_repo tippr TechIdiots-LLC/tippr
+clone_tippr_repo i18n tippr/tippr-i18n
+clone_tippr_service_repo websockets "$TIPPR_WEBSOCKETS_REPO"
+clone_tippr_service_repo activity "$TIPPR_ACTIVITY_REPO"
 
 # Patch activity and websockets setup.py to use new baseplate module path
 # (baseplate.integration was renamed to baseplate.frameworks in baseplate 1.0)
@@ -453,12 +453,12 @@ sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade pip setuptools wheel
 sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade 'packaging>=23.1'
 
 # Install `baseplate` early so packages that inspect/import it at build time
-# (e.g., r2) can detect it. Prefer a local checkout at $TIPPR_SRC/baseplate.py
+# (e.g., r2) can detect it. Prefer a local checkout at $TIPPR_SRC/tippr-baseplate.py
 # when available, otherwise use the configured TIPPR_BASEPLATE_PIP_URL or
 # fall back to PyPI.
-if [ -d "$TIPPR_SRC/baseplate.py" ]; then
-    echo "Installing local baseplate from $TIPPR_SRC/baseplate.py"
-    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install -e "$TIPPR_SRC/baseplate.py"
+if [ -d "$TIPPR_SRC/tippr-baseplate.py" ]; then
+    echo "Installing local baseplate from $TIPPR_SRC/tippr-baseplate.py"
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install -e "$TIPPR_SRC/tippr-baseplate.py"
 elif [ -n "$TIPPR_BASEPLATE_PIP_URL" ]; then
     echo "Installing baseplate from $TIPPR_BASEPLATE_PIP_URL"
     sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install "$TIPPR_BASEPLATE_PIP_URL"
@@ -600,7 +600,7 @@ if [ -d "$TIPPR_SRC/i18n" ]; then
     done
 fi
 
-function install_reddit_repo {
+function install_tippr_repo {
     pushd $TIPPR_SRC/$1
     # Ensure build-toolchain is pinned so metadata generation won't fail
     sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade --force-reinstall --no-deps pip setuptools wheel 'packaging>=23.1' || true
@@ -611,7 +611,7 @@ function install_reddit_repo {
     popd
 }
 
-install_reddit_repo tippr/r2
+install_tippr_repo tippr/r2
 # Only install the external `i18n` package if its setup.py contains a
 # valid version string. Some historical `i18n` checkouts have an empty
 # version which breaks modern packaging tools; in that case skip the
@@ -634,17 +634,17 @@ setup(
 )
 PYSETUP
     fi
-    install_reddit_repo i18n
+    install_tippr_repo i18n
 else
     echo "i18n checkout not present; skipping i18n install"
     SKIP_I18N=1
 fi
 for plugin in $TIPPR_AVAILABLE_PLUGINS; do
     copy_upstart $TIPPR_SRC/$plugin
-    install_reddit_repo $plugin
+    install_tippr_repo $plugin
 done
-install_reddit_repo websockets
-install_reddit_repo activity
+install_tippr_repo websockets
+install_tippr_repo activity
 
 # generate binary translation files from source
 if [ "${SKIP_I18N}" != "1" ]; then
@@ -746,9 +746,9 @@ import os
 
 # Add tippr repo root to Python path for local shims (e.g., pylons)
 # This must come before site-packages so local shims take precedence
-reddit_root = '$TIPPR_SRC/tippr'
-r2_dir = reddit_root + '/r2'
-sys.path.insert(0, reddit_root)
+tippr_root = '$TIPPR_SRC/tippr'
+r2_dir = tippr_root + '/r2'
+sys.path.insert(0, tippr_root)
 sys.path.insert(0, r2_dir)
 os.chdir(r2_dir)
 
@@ -759,21 +759,21 @@ cmd.run(sys.argv[1:])
 PYCMD
 chmod +x $TIPPR_VENV/bin/tippr-run-cmd
 
-helper-script /usr/local/bin/tippr-run <<REDDITRUN
+helper-script /usr/local/bin/tippr-run <<TIPPRRUN
 #!/bin/bash
 # Direct invocation of r2 RunCommand
 cd $TIPPR_SRC/tippr/r2
 exec $TIPPR_VENV/bin/python $TIPPR_VENV/bin/tippr-run-cmd run.ini "\$@"
-REDDITRUN
+TIPPRRUN
 
-helper-script /usr/local/bin/tippr-shell <<REDDITSHELL
+helper-script /usr/local/bin/tippr-shell <<TIPPRSHELL
 #!/bin/bash
 # Use paster shell command
 cd $TIPPR_SRC/tippr/r2
 exec $TIPPR_VENV/bin/paster shell run.ini
-REDDITSHELL
+TIPPRSHELL
 
-helper-script /usr/local/bin/tippr-start <<REDDITSTART
+helper-script /usr/local/bin/tippr-start <<TIPPRSTART
 #!/bin/bash
 if command -v initctl >/dev/null 2>&1; then
     initctl emit tippr-start
@@ -783,9 +783,9 @@ elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
 else
     echo "No initctl or systemctl found; cannot start services"
 fi
-REDDITSTART
+TIPPRSTART
 
-helper-script /usr/local/bin/tippr-stop <<REDDITSTOP
+helper-script /usr/local/bin/tippr-stop <<TIPPRSTOP
 #!/bin/bash
 if command -v initctl >/dev/null 2>&1; then
     initctl emit tippr-stop
@@ -794,9 +794,9 @@ elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
 else
     echo "No initctl or systemctl found; cannot stop services"
 fi
-REDDITSTOP
+TIPPRSTOP
 
-helper-script /usr/local/bin/tippr-restart <<REDDITRESTART
+helper-script /usr/local/bin/tippr-restart <<TIPPRRESTART
 #!/bin/bash
 if command -v initctl >/dev/null 2>&1; then
     initctl emit tippr-restart TARGET=${1:-all}
@@ -810,19 +810,19 @@ elif command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
 else
     echo "No initctl or systemctl found; cannot restart services"
 fi
-REDDITRESTART
+TIPPRRESTART
 
 helper-script /usr/local/bin/tippr-flush <<REDDITFLUSH
 #!/bin/bash
 echo flush_all | nc localhost 11211
-REDDITFLUSH
+TIPPRFLUSH
 
 helper-script /usr/local/bin/tippr-serve <<REDDITSERVE
 #!/bin/bash
 cd $TIPPR_SRC/tippr/r2
 export PYTHONPATH="$TIPPR_SRC/tippr:$TIPPR_SRC:\$PYTHONPATH"
 exec $TIPPR_VENV/bin/paster serve --reload run.ini
-REDDITSERVE
+TIPPRSERVE
 
 # Create a systemd unit for tippr-serve that uses the installer helper
 # script so systemd runs paster with the correct PYTHONPATH and venv.
