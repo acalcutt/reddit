@@ -367,10 +367,12 @@ function copy_upstart {
         # place the files in /etc/init.d so they are available on systemd
         # hosts for later conversion or wrapper usage.
         if [ -d /etc/init ]; then
-            cp ${1}/upstart/* /etc/init/
+            # Copy any tippr- or legacy reddit- upstart jobs; fall back to
+            # copying all upstart files. Ignore errors if patterns don't match.
+            cp ${1}/upstart/tippr-* ${1}/upstart/reddit-* ${1}/upstart/* /etc/init/ 2>/dev/null || true
         else
             mkdir -p /etc/init.d
-            cp ${1}/upstart/* /etc/init.d/
+            cp ${1}/upstart/tippr-* ${1}/upstart/reddit-* ${1}/upstart/* /etc/init.d/ 2>/dev/null || true
             # Make copied files executable so they can be used as simple
             # wrappers or inspected by administrators.
             chmod +x /etc/init.d/* || true
@@ -396,7 +398,9 @@ function clone_tippr_service_repo {
 }
 
 clone_tippr_repo tippr TechIdiots-LLC/tippr
-clone_tippr_repo i18n tippr/tippr-i18n
+# i18n repo lives under the organization owner – ensure we clone the
+# TechIdiots-LLC owner (not the old `tippr/` owner).
+clone_tippr_repo i18n TechIdiots-LLC/tippr-i18n
 clone_tippr_service_repo websockets "$TIPPR_WEBSOCKETS_REPO"
 clone_tippr_service_repo activity "$TIPPR_ACTIVITY_REPO"
 

@@ -53,7 +53,7 @@ done
 if [ "$IS_DATABASE_CREATED" != "1" ]; then
     # Try creating the DB specifying LC_COLLATE/LC_CTYPE if we detected a usable locale.
     if [ -n "$LOCALE_NAME" ]; then
-        if sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='${LOCALE_NAME}' LC_CTYPE='${LOCALE_NAME}';" 2>/tmp/createdb.err; then
+        if sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE tippr WITH ENCODING = 'UTF8' TEMPLATE template0 LC_COLLATE='${LOCALE_NAME}' LC_CTYPE='${LOCALE_NAME}';" 2>/tmp/createdb.err; then
             echo "Database created with locale ${LOCALE_NAME}"
         else
             echo "Failed to create database with locale ${LOCALE_NAME}, retrying without explicit locale..."
@@ -73,7 +73,7 @@ else
      sudo -u postgres env LC_ALL=C psql -c "ALTER USER tippr WITH PASSWORD 'password';" || true
 fi
 
-# Ensure the reddit user owns the reddit database so it can create tables
+# Ensure the tippr user owns the tippr database so it can create tables
 sudo -u postgres env LC_ALL=C psql -c "ALTER DATABASE tippr OWNER TO tippr;" || true
 
 # Grant privileges on the public schema to the reddit user (needed when the
