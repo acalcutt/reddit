@@ -472,14 +472,33 @@ if sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV; then
 else
     echo "python3 -m venv failed; attempting fallback (installing prerequisites)"
     apt-get update || true
-    apt-get install -y python3-venv python3-distutils python3-pip || true
+
+    # Detect Python major.minor (e.g. 3.12) and prefer distro-specific packages
+    PYVER=$(python3 -c 'import sys; print(f"${sys.version_info.major}.${sys.version_info.minor}")' 2>/dev/null || echo "")
+    PKGS="python3-venv python3-pip"
+    if [ -n "$PYVER" ]; then
+        PKGS="$PKGS python${PYVER}-venv python${PYVER}-distutils libpython${PYVER}-stdlib python${PYVER}"
+    else
+        PKGS="$PKGS python3-distutils"
+    fi
+
+    # Try installing a set of candidate packages; tolerate failure and continue
+    apt-get install -y $PKGS || apt-get install -y python3-venv python3-pip || true
 
     # Try creating venv without pip, then bootstrap pip using get-pip.py
     if sudo -u $TIPPR_USER python3 -m venv --without-pip $TIPPR_VENV; then
         echo "Bootstrapping pip into venv using get-pip.py"
         curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py || true
         if [ -f /tmp/get-pip.py ]; then
-            sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py || true
+            if ! sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py; then
+                # If bootstrapping failed, attempt to install missing stdlib/runtime
+                if [ -n "$PYVER" ]; then
+                    apt-get update || true
+                    apt-get install -y libpython${PYVER}-stdlib python${PYVER} || true
+                fi
+                # Retry bootstrap once more
+                sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py || true
+            fi
             rm -f /tmp/get-pip.py || true
         else
             echo "Failed to download get-pip.py; attempting system pip to install pip into venv"
