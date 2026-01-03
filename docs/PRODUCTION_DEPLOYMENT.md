@@ -2,11 +2,11 @@
 
 ## About This Guide
 
-This deployment guide is for **Tippr**, a modern fork of the tippr codebase updated for Python 3 and current infrastructure. While the core architecture remains similar to the original tippr design, this guide has been updated for modern cloud platforms and self-hosting scenarios.
+This deployment guide is for **Tippr**, a modern fork of the Reddit codebase updated for Python 3 and current infrastructure. While the core architecture remains similar to the original Reddit design, this guide has been updated for modern cloud platforms and self-hosting scenarios.
 
-**Attribution**: Based on tippr's open-source architecture and deployment patterns. Original tippr code © 2006-2015 tippr Inc.
+**Attribution**: Based on Reddit's open-source architecture and deployment patterns. Original Reddit code © 2006-2015 Reddit, Inc.
 
-For the original tippr codebase and historical context, see: https://github.com/reddit-archive/reddit
+For the original Reddit codebase and historical context, see: https://github.com/reddit-archive/reddit
 
 ---
 
@@ -42,7 +42,7 @@ This document provides guidance for deploying the Tippr codebase in a production
 17. [Backup & Disaster Recovery](#backup--disaster-recovery)
 18. [Monitoring & Observability](#monitoring--observability)
 19. [Security Considerations](#security-considerations)
-20. [Scaling Lessons from Tippr's History](#scaling-lessons-from-reddits-history)
+20. [Scaling Lessons from Reddit's History](#scaling-lessons-from-reddits-history)
 21. [Deployment Checklists](#deployment-checklist)
 22. [Additional Resources](#additional-resources)
 
@@ -1888,11 +1888,11 @@ make ini  # Creates production.ini from example.ini + production.update
 
 ---
 
-## Scaling Lessons from Tippr's History
+## Scaling Lessons from Reddit's History
 
-> **Note**: These lessons come from Tippr's engineering team's experience scaling the original codebase from 1 million to 1 billion pageviews. While Tippr is a fork with modernizations, these architectural principles remain relevant.
+> **Note**: These lessons come from Reddit's engineering team's experience scaling the original codebase from 1 million to 1 billion pageviews. While Tippr is a fork with modernizations, these architectural principles remain relevant.
 >
-> **Source**: [Tippr's scaling talk by Jeremy Edberg](https://www.youtube.com/watch?v=nUcO7n4hek4)
+> **Source**: [Reddit's scaling talk by Jeremy Edberg](https://www.youtube.com/watch?v=nUcO7n4hek4)
 
 ### 1. Plan for Scale, But Don't Over-Engineer Early
 
@@ -2300,10 +2300,10 @@ You could also consider:
 - [Astra DB + BigQuery Integration](https://docs.datastax.com/en/astra/docs/integrations/google-bigquery.html)
 - [Astra Vector Search](https://docs.datastax.com/en/astra/docs/vector-search-overview.html)
 
-### Tippr Scaling Resources
-- [Original Tippr Scaling Talk](https://www.youtube.com/watch?v=nUcO7n4hek4) - Jeremy Edberg at RAMP Conference
-- [High Scalability - Tippr Lessons](http://highscalability.com/blog/2013/8/26/reddit-lessons-learned-from-mistakes-made-scaling-to-1-billi.html)
-- [Tippr Engineering Blog](https://www.tippr.net/r/RedditEng/)
+### Reddit Scaling Resources
+- [Original Reddit Scaling Talk](https://www.youtube.com/watch?v=nUcO7n4hek4) - Jeremy Edberg at RAMP Conference
+- [High Scalability - Reddit Lessons](http://highscalability.com/blog/2013/8/26/reddit-lessons-learned-from-mistakes-made-scaling-to-1-billi.html)
+- [Reddit Engineering (RedditEng subreddit)](https://www.reddit.com/r/RedditEng/)
 
 ---
 
