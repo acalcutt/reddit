@@ -47,17 +47,17 @@
             _("Use of this site constitutes acceptance of our "
               "%(user_agreement)s and %(privacy_policy)s"),
             user_agreement=dict(
-                link_text=_("User Agreement {Genitive}"),
+                link_text=_("User Agreement"),
                 path="/help/useragreement",
             ),
             privacy_policy=dict(
-                link_text=_("Privacy Policy (updated)"),
+                link_text=_("Privacy Policy"),
                 path="/help/privacypolicy",
-                _class="updated",
             ),
     )}.
-    &copy; ${_("%(year)d reddit inc. All rights reserved.") % \
-    dict(year=datetime.datetime.now().timetuple()[0])}
   </p>
-  <p class="bottommenu">REDDIT and the ALIEN Logo are registered trademarks of reddit inc.</p>
+  <p class="bottommenu">
+    &copy; 2026 TechIdiots LLC. All rights reserved.
+  </p>
+  <p class="bottommenu">Based on reddit open source code.</p>
 </div>
