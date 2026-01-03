@@ -4,5 +4,5 @@
   <Description>Search for content on tippr!</Description>
   <Url type="text/html"
     method="get"
-    template="https://www.tippr.com/search?q={searchTerms}&amp;utm_source=opensearch"/>
+    template="https://www.tippr.net/search?q={searchTerms}&amp;utm_source=opensearch"/>
 </OpenSearchDescription>

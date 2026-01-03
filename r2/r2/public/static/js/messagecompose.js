@@ -199,16 +199,16 @@
           mc.dom.$rule.val(mc.dom.$subject.val());
         } else if (/\S/.test(mc.dom.$subject.val())
             || _(mc.dom.$subject).contains(document.activeElement)
-            || rulesJson['sr_name'] !== 'tippr.com') {
+            || rulesJson['sr_name'] !== 'tippr.net') {
           // Select Other if the user has entered anything in the custom
           // subject OR if the keyboard focus is already on the subject OR if
-          // the subreddit is not tippr.com.
+          // the subreddit is not tippr.net.
           //
           // This call happens after a network round trip to load the rules, so
           // there's plenty of time for the user to have started typing.
           mc.dom.$other.prop('selected', true);
         } else {
-          // To tippr.com. Select Blank by default to encourage consistent subjects.
+          // To tippr.net. Select Blank by default to encourage consistent subjects.
           mc.dom.$blank.show();
           mc.dom.$blank.prop('selected', true);
         }

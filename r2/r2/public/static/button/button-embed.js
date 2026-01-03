@@ -1,6 +1,6 @@
 var buttonEmbed = (function() {
-  var baseUrl = "//www.tippr.com"
-  var apiUrl = "//buttons.tippr.com"
+  var baseUrl = "//www.tippr.net"
+  var apiUrl = "//buttons.tippr.net"
   var logo = $q('a.logo')
   var up = $q('a.up')
   var down = $q('a.down')

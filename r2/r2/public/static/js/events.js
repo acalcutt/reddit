@@ -28,7 +28,7 @@
           r.config.events_collector_secret,
           postData,
           r.config.events_collector_url,
-          'tippr.com',
+          'tippr.net',
           calculateHash
         );
       }

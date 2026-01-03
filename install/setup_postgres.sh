@@ -28,7 +28,7 @@ source $RUNDIR/install.cfg
 ###############################################################################
 # Configure PostgreSQL
 ###############################################################################
-SQL="SELECT COUNT(1) FROM pg_catalog.pg_database WHERE datname = 'reddit';"
+SQL="SELECT COUNT(1) FROM pg_catalog.pg_database WHERE datname = 'tippr';"
 IS_DATABASE_CREATED=$(sudo -u postgres env LC_ALL=C psql -t -c "$SQL" | tr -d '[:space:]')
 
 # Ensure the proper locale is generated and available. Prefer en_US.UTF-8 but
@@ -58,29 +58,29 @@ if [ "$IS_DATABASE_CREATED" != "1" ]; then
         else
             echo "Failed to create database with locale ${LOCALE_NAME}, retrying without explicit locale..."
             cat /tmp/createdb.err || true
-            sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
+                sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE tippr WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
         fi
     else
-        sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE reddit WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
+          sudo -u postgres env LC_ALL=C psql -c "CREATE DATABASE tippr WITH ENCODING = 'UTF8' TEMPLATE template0;" || true
     fi
 fi
 
 # Create role if it doesn't exist
-ROLE_EXISTS=$(sudo -u postgres env LC_ALL=C psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='reddit';" | tr -d '[:space:]')
+ROLE_EXISTS=$(sudo -u postgres env LC_ALL=C psql -t -c "SELECT 1 FROM pg_roles WHERE rolname='tippr';" | tr -d '[:space:]')
 if [ "$ROLE_EXISTS" != "1" ]; then
-    sudo -u postgres env LC_ALL=C psql -c "CREATE USER reddit WITH PASSWORD 'password';" || true
+     sudo -u postgres env LC_ALL=C psql -c "CREATE USER tippr WITH PASSWORD 'password';" || true
 else
-    sudo -u postgres env LC_ALL=C psql -c "ALTER USER reddit WITH PASSWORD 'password';" || true
+     sudo -u postgres env LC_ALL=C psql -c "ALTER USER tippr WITH PASSWORD 'password';" || true
 fi
 
 # Ensure the reddit user owns the reddit database so it can create tables
-sudo -u postgres env LC_ALL=C psql -c "ALTER DATABASE reddit OWNER TO reddit;" || true
+sudo -u postgres env LC_ALL=C psql -c "ALTER DATABASE tippr OWNER TO tippr;" || true
 
 # Grant privileges on the public schema to the reddit user (needed when the
 # database owner is different or defaults are restrictive)
-sudo -u postgres env LC_ALL=C psql reddit -c "GRANT ALL PRIVILEGES ON SCHEMA public TO reddit;" || true
+sudo -u postgres env LC_ALL=C psql tippr -c "GRANT ALL PRIVILEGES ON SCHEMA public TO tippr;" || true
 
-sudo -u postgres env LC_ALL=C psql reddit <<FUNCTIONSQL
+sudo -u postgres env LC_ALL=C psql tippr <<FUNCTIONSQL
 create or replace function hot(ups integer, downs integer, date timestamp with time zone) returns numeric as \$\$
     select round(cast(log(greatest(abs(\$1 - \$2), 1)) * sign(\$1 - \$2) + (date_part('epoch', \$3) - 1134028003) / 45000.0 as numeric), 7)
 \$\$ language sql immutable;
