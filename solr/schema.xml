@@ -434,7 +434,7 @@
    <field name="activity" type="int" indexed="true" stored="true"/>
    <field name="num_comments" type="int" indexed="true" stored="true"/>
    <field name="fullname" type="string" indexed="true" stored="true"/>
-   <field name="subreddit" type="string" indexed="true" stored="true"/>
+   <field name="vault" type="string" indexed="true" stored="true"/>
    <field name="tippr" type="string" indexed="true" stored="true"/>
    <field name="title" type="string" indexed="true" stored="true"/>
    <field name="sr_id" type="int" indexed="true" stored="true"/>
@@ -539,7 +539,7 @@
 
    <copyField source="name" dest="text"/>
    <copyField source="fullname" dest="text"/>
-   <copyField source="subreddit" dest="text"/>
+   <copyField source="vault" dest="text"/>
    <copyField source="tippr" dest="text"/>
    <copyField source="author" dest="text"/>
    <copyField source="author_fullname" dest="text"/>

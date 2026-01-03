@@ -27,12 +27,12 @@ from httpagentparser import detect as de
 
 
 def register_detector(cls):
-    """Collector of all the reddit detectors."""
+    """Collector of all the tippr detectors."""
     detectorshub.register(cls())
     return cls
 
 
-class RedditDetectorBase(DetectorBase):
+class TipprDetectorBase(DetectorBase):
     agent_string = None
     version_string = r'(\.?\d+)*'
 
@@ -81,36 +81,36 @@ class RedditDetectorBase(DetectorBase):
         return True
 
 
-class RedditBrowser(RedditDetectorBase, Browser):
-    """Base class for all reddit specific browsers."""
+class TipprBrowser(TipprDetectorBase, Browser):
+    """Base class for all tippr specific browsers."""
     # is_app denotes a client that is a native mobile application, but not a
     # browser.
     is_app = False
 
 
 @register_detector
-class RedditIsFunDetector(RedditBrowser):
+class TipprIsFunDetector(TipprBrowser):
     is_app = True
-    look_for = 'reddit is fun'
-    name = 'reddit is fun'
+    look_for = 'tippr is fun'
+    name = 'tippr is fun'
     agent_string = (r'^{look_for} \((?P<platform>.*?)\) '
                     '(?P<version>{version_string})$')
     override = [AndroidBrowser]
 
 
 @register_detector
-class RedditAndroidDetector(RedditBrowser):
+class TipprAndroidDetector(TipprBrowser):
     is_app = True
     look_for = 'RedditAndroid'
-    name = 'Reddit: The Official App'
+    name = 'Tippr: The Official App'
     agent_string = '{look_for} (?P<version>{version_string})$'
 
 
 @register_detector
-class RedditIOSDetector(RedditBrowser):
+class RedditIOSDetector(TipprBrowser):
     is_app = True
-    look_for = 'Reddit'
-    name = 'reddit iOS'
+    look_for = 'Tippr'
+    name = 'tippr iOS'
     skip_if_found = ['Android']
     agent_string = (
         r'{look_for}\/Version (?P<version>{version_string})\/Build '
@@ -119,7 +119,7 @@ class RedditIOSDetector(RedditBrowser):
 
 
 @register_detector
-class AlienBlueDetector(RedditBrowser):
+class AlienBlueDetector(TipprBrowser):
     is_app = True
     look_for = 'AlienBlue'
     name = 'Alien Blue'
@@ -129,48 +129,48 @@ class AlienBlueDetector(RedditBrowser):
 
 
 @register_detector
-class RelayForRedditDetector(RedditBrowser):
+class RelayForRedditDetector(TipprBrowser):
     is_app = True
     look_for = 'Relay by /u/DBrady'
-    name = 'relay for reddit'
+    name = 'relay for tippr'
     agent_string = '{look_for} v(?P<version>{version_string})'
 
 
 @register_detector
-class RedditSyncDetector(RedditBrowser):
+class RedditSyncDetector(TipprBrowser):
     is_app = True
     look_for = 'reddit_sync'
-    name = 'Sync for reddit'
+    name = 'Sync for tippr'
     agent_string = (
         r'android:com\.laurencedawson\.{look_for}'
         r':v(?P<version>{version_string}) \(by /u/ljdawson\)')
 
 
 @register_detector
-class NarwhalForRedditDetector(RedditBrowser):
+class NarwhalForRedditDetector(TipprBrowser):
     is_app = True
     look_for = 'narwhal'
-    name = 'narwhal for reddit'
+    name = 'narwhal for tippr'
     agent_string = r'{look_for}-(?P<platform>.*?)\/\d+ by det0ur'
 
 
 @register_detector
-class McRedditDetector(RedditBrowser):
+class McRedditDetector(TipprBrowser):
     is_app = True
     look_for = 'McReddit'
     name = 'McReddit'
-    agent_string = '{look_for} - Reddit Client for (?P<platform>.*?)$'
+    agent_string = '{look_for} - Tippr Client for (?P<platform>.*?)$'
 
 
 @register_detector
-class ReaditDetector(RedditBrowser):
+class ReaditDetector(TipprBrowser):
     look_for = 'Readit'
     name = 'Readit'
     agent_string = r'(\({look_for} for WP /u/MessageAcrossStudios\) ?){{1,2}}'
 
 
 @register_detector
-class BaconReaderDetector(RedditBrowser):
+class BaconReaderDetector(TipprBrowser):
     is_app = True
     look_for = 'BaconReader'
     name = 'Bacon Reader'

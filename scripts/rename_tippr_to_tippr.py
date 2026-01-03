@@ -66,16 +66,16 @@ for p in ROOT.rglob('*'):
             p.write_text(new_text, encoding='utf-8')
             changed_files.append(str(p.relative_to(ROOT)))
 
-# 2) Rename files and directories containing 'reddit' or 'snoo' (case-insensitive)
+# 2) Rename files and directories containing 'tippr' or 'snoo' (case-insensitive)
 renamed = []
 # Walk bottom-up to rename files before directories
 for dirpath, dirnames, filenames in os.walk(ROOT, topdown=False):
     dirp = Path(dirpath)
     # files
     for name in filenames:
-        if re.search(r'reddit', name, re.IGNORECASE) or re.search(r'snoo', name, re.IGNORECASE):
+        if re.search(r'tippr', name, re.IGNORECASE) or re.search(r'snoo', name, re.IGNORECASE):
             src = dirp / name
-            newname = re.sub(r'reddit', 'tippr', name, flags=re.IGNORECASE)
+            newname = re.sub(r'tippr', 'tippr', name, flags=re.IGNORECASE)
             newname = re.sub(r'snoo', 'tippr', newname, flags=re.IGNORECASE)
             dst = dirp / newname
             if dst.exists():
@@ -88,9 +88,9 @@ for dirpath, dirnames, filenames in os.walk(ROOT, topdown=False):
                 print(f"Failed to rename {src}: {e}", file=sys.stderr)
     # directories
     for name in dirnames:
-        if re.search(r'reddit', name, re.IGNORECASE) or re.search(r'snoo', name, re.IGNORECASE):
+        if re.search(r'tippr', name, re.IGNORECASE) or re.search(r'snoo', name, re.IGNORECASE):
             src = dirp / name
-            newname = re.sub(r'reddit', 'tippr', name, flags=re.IGNORECASE)
+            newname = re.sub(r'tippr', 'tippr', name, flags=re.IGNORECASE)
             newname = re.sub(r'snoo', 'tippr', newname, flags=re.IGNORECASE)
             dst = dirp / newname
             if dst.exists():

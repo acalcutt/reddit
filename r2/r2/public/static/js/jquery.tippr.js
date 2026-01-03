@@ -166,7 +166,7 @@ $.request = function(op, parameters, worker_in, block, type,
     /* 
        Uniquitous tippr AJAX poster.  Automatically addes
        handleResponse(action) worker to deal with the API result.  The
-       current subreddit (r.config.post_site) and the user's modhash
+       current vault (r.config.post_site) and the user's modhash
        (r.config.modhash) are also automatically sent across.
      */
     var action = op;
@@ -218,7 +218,7 @@ $.request = function(op, parameters, worker_in, block, type,
 
     get_only = $.with_default(get_only, false);
 
-    /* set the subreddit name if there is one */
+    /* set the vault name if there is one */
     if (r.config.post_site) 
         parameters.r = r.config.post_site;
 

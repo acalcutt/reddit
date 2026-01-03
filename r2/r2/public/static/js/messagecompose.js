@@ -10,12 +10,12 @@
   var ANIM_MS = 0;
 
 
-  /** How long to wait for the subreddit rules to load. @const */
+  /** How long to wait for the vault rules to load. @const */
   var RULES_TIMEOUT_MS = 10000;
 
 
-  /** This looks like a subreddit name. @const */
-  var SUBREDDIT = /^(?:#|\/?r\/)(.*)/;
+  /** This looks like a vault name. @const */
+  var VAULT = /^(?:#|\/?r\/)(.*)/;
 
 
   var mc = r.messagecompose = {
@@ -101,7 +101,7 @@
         if (mc.dom.$to.length) {
           mc.dom.$to.change(mc.onToUpdate);
           // The page is not pre-rendered with the rules for the selected
-          // subreddit, so we have to load them up front.
+          // vault, so we have to load them up front.
           mc.onToUpdate();
         }
 
@@ -111,12 +111,12 @@
     },
 
     /**
-     * Loads the rules for the given subreddit.
+     * Loads the rules for the given vault.
      * Returns a promise that resolves with the rules JSON object or rejects if the
-     * subreddit doesn't exist or otherwise fails to load.
+     * vault doesn't exist or otherwise fails to load.
      *
      * @private
-     * @param {string} sr The name of the subreddit.
+     * @param {string} sr The name of the vault.
      * @return {Promise<{
      *     sr_name: string,
      *     rules: Array<{short_name:string}>|undefined,
@@ -124,9 +124,9 @@
      *  }>}
      */
     loadSubredditRules: function(sr) {
-      var url = '/r/' + sr + '/about/rules.json';
+      var url = '/v/' + sr + '/about/rules.json';
 
-      // If we're already loading this subreddit, continue, otherwise, abort
+      // If we're already loading this vault, continue, otherwise, abort
       // the old one and start over.
       if (mc.rulesReqInProgressUrl === url) {
         return mc.rulesReq;
@@ -145,15 +145,15 @@
         mc.rulesReqInProgressUrl = undefined;
         mc.rulesReq = undefined;
       }).then(function(rulesJson, textStatus, jqXHR) {
-        // The API gets redirected to search if the subreddit does not exist.
+        // The API gets redirected to search if the vault does not exist.
         // Detect that by looking for a lack of the rules or a result kind of Listing.
         if (!rulesJson['rules'] || rulesJson['kind'] === 'Listing') {
-          return $.Deferred().reject(jqXHR, rulesJson, 'No subreddit');
+          return $.Deferred().reject(jqXHR, rulesJson, 'No vault');
         } else if (rulesJson['error']) {
           return $.Deferred().reject(jqXHR, rulesJson, rulesJson['error']);
         }
 
-        // Annotate the rules with the subreddit, so we can reason about them later.
+        // Annotate the rules with the vault, so we can reason about them later.
         rulesJson['sr_name'] = sr;
         return rulesJson;
       });
@@ -164,7 +164,7 @@
 
 
     /**
-     * Renders the rules of the subreddit into the subject field, while maintaining
+     * Renders the rules of the vault into the subject field, while maintaining
      * any user entered value.
      *
      * @private
@@ -202,7 +202,7 @@
             || rulesJson['sr_name'] !== 'tippr.net') {
           // Select Other if the user has entered anything in the custom
           // subject OR if the keyboard focus is already on the subject OR if
-          // the subreddit is not tippr.net.
+          // the vault is not tippr.net.
           //
           // This call happens after a network round trip to load the rules, so
           // there's plenty of time for the user to have started typing.
@@ -218,7 +218,7 @@
 
 
     /**
-     * Changes the state of the form to be correct for a non-subreddit recipient.
+     * Changes the state of the form to be correct for a non-vault recipient.
      * @private
      */
     renderGeneralSubject: function() {
@@ -242,8 +242,8 @@
     /** Handles an update to the recipient of the message. */
     onToUpdate: function() {
       var toValue = mc.dom.$to.val();
-      // Is this probably a subreddit?
-      var m = SUBREDDIT.exec(toValue);
+      // Is this probably a vault?
+      var m = VAULT.exec(toValue);
       if (m) {
         mc.loadSubredditRules(m[1])
           .then(mc.renderSubredditSubject, mc.renderGeneralSubject);

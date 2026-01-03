@@ -964,7 +964,7 @@ $(function() {
 
         var query = $('#search input[name="q"]').val();
         $('.search-result-listing')
-          .find('.search-title, .search-link, .search-subreddit-link, .search-result-body')
+          .find('.search-title, .search-link, .search-vault-link, .search-result-body')
           .highlight(query);
         
         // add new search page links to the 'recently viewed' links...

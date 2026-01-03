@@ -26,7 +26,7 @@
 %>
 <%namespace name="utils" file="utils.xml"/>
 <%
-    domain = get_domain(subreddit=False)
+    domain = get_domain(vault=False)
     url = g.default_scheme+"://"+domain+thing.path
 %>
 <entry>

@@ -7,7 +7,7 @@ from r2.lib.utils import fetch_things2
 from r2.models import (
     Comment,
     Link,
-    Subreddit,
+    Vault,
     calculate_server_seconds,
 )
 
@@ -37,6 +37,6 @@ for q in queries:
             seconds_by_srid[thing.sr_id] += int(thing.gildings * seconds_per_gilding)
 
 for sr_id, seconds in seconds_by_srid:
-    sr = Subreddit._byID(sr_id, data=True)
+    sr = Vault._byID(sr_id, data=True)
     print("{}: {} seconds".format(sr.name, seconds))
     sr._incr("gilding_server_seconds", seconds)

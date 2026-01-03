@@ -520,7 +520,7 @@ r.analytics = {
 };
 
 r.analytics.breadcrumbs = {
-  selector: '.thing, .side, .sr-list, .srdrop, .tagline, .md, .organic-listing, .gadget, .sr-interest-bar, .trending-subreddits, a, button, input',
+  selector: '.thing, .side, .sr-list, .srdrop, .tagline, .md, .organic-listing, .gadget, .sr-interest-bar, .trending-vaults, a, button, input',
   maxLength: 3,
   sendLength: 2,
 

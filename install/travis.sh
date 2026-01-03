@@ -68,7 +68,7 @@ END
 fi
 
 # seriously! these checks are here for a reason. the packages from the
-# reddit ppa aren't built for anything but trusty (14.04) right now, so
+# tippr ppa aren't built for anything but trusty (14.04) right now, so
 # if you try and use this install script on another release you're gonna
 # have a bad time.
 source /etc/lsb-release
@@ -86,7 +86,7 @@ $RUNDIR/install_cassandra.sh
 $RUNDIR/install_zookeeper.sh
 
 ###############################################################################
-# Install and configure the reddit code
+# Install and configure the tippr code
 ###############################################################################
 
 [ -x "$(which pip)" ] || easy_install pip

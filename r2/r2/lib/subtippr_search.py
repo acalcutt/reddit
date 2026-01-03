@@ -25,7 +25,7 @@ from r2.lib.cache import CL_ONE
 from r2.lib.db import tdb_cassandra
 from r2.lib.db.operators import desc
 from r2.lib.memoize import memoize
-from r2.models import Subreddit
+from r2.models import Vault
 
 
 class SubredditsByPartialName(tdb_cassandra.View):
@@ -37,9 +37,9 @@ class SubredditsByPartialName(tdb_cassandra.View):
 def load_all_reddits():
     query_cache = {}
 
-    q = Subreddit._query(Subreddit.c.type == 'public',
-                         Subreddit.c._spam == False,
-                         Subreddit.c._downs > 1,
+    q = Vault._query(Vault.c.type == 'public',
+                         Vault.c._spam == False,
+                         Vault.c._downs > 1,
                          sort = (desc('_downs'), desc('_ups')),
                          data = True)
     for sr in utils.fetch_things2(q):
@@ -52,8 +52,8 @@ def load_all_reddits():
             if len(names) < 10:
                 names.append((sr.name, sr.over_18))
 
-    for name_prefix, subreddits in query_cache.items():
-        SubredditsByPartialName._set_values(name_prefix, {'tups': subreddits})
+    for name_prefix, vaults in query_cache.items():
+        SubredditsByPartialName._set_values(name_prefix, {'tups': vaults})
 
 def search_reddits(query, include_over_18=True):
     query = str(query.lower())
@@ -67,7 +67,7 @@ def search_reddits(query, include_over_18=True):
 
 @memoize('popular_searches', stale=True, time=3600)
 def popular_searches(include_over_18=True):
-    top_reddits = Subreddit._query(Subreddit.c.type == 'public',
+    top_reddits = Vault._query(Vault.c.type == 'public',
                                    sort = desc('_downs'),
                                    limit = 100,
                                    data = True)

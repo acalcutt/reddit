@@ -26,11 +26,11 @@
 
 %if thing.facets and len(thing.facets) > 1:
 <div class="searchfacets">
-  <h4 class="title">${_("too many results? narrow it down to a subreddit!")}</h4>
+  <h4 class="title">${_("too many results? narrow it down to a vault!")}</h4>
   <ol class="list">
-  %for subreddit, count in thing.facets:
-    <li class="searchfacet reddit">
-      <a class="facet title word" href="${search_url(thing.prev_search, subreddit.name, restrict_sr='on', sort=thing.sort, recent=thing.recent, ref='search_facets')}">/r/${subreddit.name}</a>&nbsp;
+  %for vault, count in thing.facets:
+    <li class="searchfacet tippr">
+      <a class="facet title word" href="${search_url(thing.prev_search, vault.name, restrict_sr='on', sort=thing.sort, recent=thing.recent, ref='search_facets')}">/r/${vault.name}</a>&nbsp;
       <span class="facet count number">(${count})</span>
     </li>&nbsp;
   %endfor

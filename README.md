@@ -16,9 +16,9 @@ This fork is intended for local development, experimentation, and educational pu
 
 ## License
 
-This project is licensed under the Common Public Attribution License Version 1.0 (CPAL), the same license as the original reddit code. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Common Public Attribution License Version 1.0 (CPAL), the same license as the original tippr code. See the [LICENSE](LICENSE) file for details.
 
-**Attribution:** Based on reddit open-source code. Original code © 2006-2015 reddit Inc.
+**Attribution:** Based on tippr open-source code. Original code © 2006-2015 tippr Inc.
 
 ---
 
@@ -117,9 +117,9 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Credits
 
-- **Original Code:** reddit Inc. (2006-2015)
+- **Original Code:** tippr Inc. (2006-2015)
 - **Python 3 Migration & Modernization:** TechIdiots LLC (2024-2026)
 
 ---
 
-**Note:** This is a development/experimental fork. For the original reddit codebase and historical documentation, see https://github.com/reddit-archive/reddit
+**Note:** This is a development/experimental fork. For the original tippr codebase and historical documentation, see https://github.com/reddit-archive/reddit

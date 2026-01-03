@@ -15,17 +15,17 @@ requires r.ui.TextCounter
     EDITING_STATE: 'editing',
 
     events: {
-      'click .subreddit-rule-delete-button': function onDelete(e) {
+      'click .vault-rule-delete-button': function onDelete(e) {
         e.preventDefault();
         this.delete();
       },
 
-      'click .subreddit-rule-edit-button': function onEdit(e) {
+      'click .vault-rule-edit-button': function onEdit(e) {
         e.preventDefault();
         this.edit();
       },
 
-      'click .subreddit-rule-cancel-button': function onCancel(e) {
+      'click .vault-rule-cancel-button': function onCancel(e) {
         e.preventDefault();
         this.cancel();
       },
@@ -179,8 +179,8 @@ requires r.ui.TextCounter
 
       if (this.state === this.DELETING_STATE) {
         this.$el.addClass('mod-action-deleting');
-        this.$el.find('.subreddit-rule-delete-confirmation').removeAttr('hidden');
-        this.$el.find('.subreddit-rule-buttons button').attr('disabled', true);
+        this.$el.find('.vault-rule-delete-confirmation').removeAttr('hidden');
+        this.$el.find('.vault-rule-buttons button').attr('disabled', true);
       }
       if (this.state === this.EDITING_STATE) {
         this.$el.find('.form-group-kind input[value=' + this.model.get('kind') + ']').prop('checked', true);
@@ -209,8 +209,8 @@ requires r.ui.TextCounter
       AddSubredditRuleView.__super__.initialize.apply(this, arguments);
       this.collection = options.collection;
       this.initializeNewModel();
-      this.$collapsedDisplay = this.$el.find('.subreddit-rule-add-form-buttons');
-      this.$maxRulesNotice = this.$collapsedDisplay.find('.subreddit-rule-too-many-notice');
+      this.$collapsedDisplay = this.$el.find('.vault-rule-add-form-buttons');
+      this.$maxRulesNotice = this.$collapsedDisplay.find('.vault-rule-too-many-notice');
 
       this.$el.removeAttr('hidden');
 
@@ -302,7 +302,7 @@ requires r.ui.TextCounter
       });
 
       // initialize views for the rules prerendered on the page
-      var ruleItems = this.$el.find('.subreddit-rule-item').toArray();
+      var ruleItems = this.$el.find('.vault-rule-item').toArray();
       ruleItems.forEach(function(el) {
         var model = this.createSubredditRuleModel(el);
         this.createSubredditRuleView(el, model);
@@ -336,9 +336,9 @@ requires r.ui.TextCounter
 
       return new r.models.SubredditRule({
         priority: parseInt($el.data('priority'), 10),
-        short_name: $el.find('.subreddit-rule-title').text(),
+        short_name: $el.find('.vault-rule-title').text(),
         description: $el.data('description'),
-        description_html: $el.find('.subreddit-rule-description').html(),
+        description_html: $el.find('.vault-rule-description').html(),
         kind: $el.data('kind'),
       });
     },
@@ -355,7 +355,7 @@ requires r.ui.TextCounter
     },
 
     addNewRule: function(model) {
-      var el = $.parseHTML('<div class="subreddit-rule-item"></div>')[0];
+      var el = $.parseHTML('<div class="vault-rule-item"></div>')[0];
       var view = this.createSubredditRuleView(el, model);
       view.render();
       this.$el.append(el);
@@ -377,19 +377,19 @@ requires r.ui.TextCounter
 
 
   $(function() {
-    var $page = $('.subreddit-rules-page');
+    var $page = $('.vault-rules-page');
 
     if (!$page.hasClass('editable')) {
       return;
     }
 
-    var ruleTemplate = document.getElementById('subreddit-rule-template');
-    var formTemplate = document.getElementById('subreddit-rule-form-template');
-    var addForm = document.getElementById('subreddit-rule-add-form');
-    var ruleList = document.getElementById('subreddit-rule-list');
+    var ruleTemplate = document.getElementById('vault-rule-template');
+    var formTemplate = document.getElementById('vault-rule-form-template');
+    var addForm = document.getElementById('vault-rule-add-form');
+    var ruleList = document.getElementById('vault-rule-list');
 
     if (!ruleTemplate || !formTemplate) {
-      throw 'Subreddit rule templates not found!';
+      throw 'Vault rule templates not found!';
     }
 
     new SubredditRulesPage({

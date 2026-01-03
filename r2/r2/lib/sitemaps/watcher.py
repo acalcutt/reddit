@@ -79,8 +79,8 @@ def _process_message():
 
     g.log.info("Got import job %r", js)
 
-    subreddits = find_all_subreddits(s3path)
-    store_sitemaps_in_s3(subreddits)
+    vaults = find_all_subreddits(s3path)
+    store_sitemaps_in_s3(vaults)
 
     message.delete()
 

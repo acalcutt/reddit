@@ -1,4 +1,4 @@
-.subreddit-rule-item {
+.vault-rule-item {
     margin-bottom: 10px;
     margin-left: -10px;
     margin-top: 10px;
@@ -8,23 +8,23 @@
         background: #F7F7F7;
     }
 
-    .subreddit-rule-delete-confirmation {
+    .vault-rule-delete-confirmation {
         text-align: right;
     }
 }
 
-.subreddit-rule-item .editable .subreddit-rule-contents,
-.subreddit-rule-form {
+.vault-rule-item .editable .vault-rule-contents,
+.vault-rule-form {
     .display-flex();
 }
 
-.subreddit-rule-item .editable .subreddit-rule-contents-display,
-.subreddit-rule-form .form-inputs {
+.vault-rule-item .editable .vault-rule-contents-display,
+.vault-rule-form .form-inputs {
     .flex(1 1);
 }
 
-.subreddit-rule-item .editable .subreddit-rule-buttons,
-.subreddit-rule-form .form-buttons {
+.vault-rule-item .editable .vault-rule-buttons,
+.vault-rule-form .form-buttons {
     .flex(0 0 41px);
 
     > button {
@@ -37,13 +37,13 @@
     }
 }
 
-.subreddit-rule-form .form-buttons {
+.vault-rule-form .form-buttons {
     .display-flex();
     .flex-direction(column);
     .justify-content(flex-end);
 }
 
-.subreddit-rule-form {
+.vault-rule-form {
     .c-form-group {
         position: relative;
         margin-bottom: unit(@margin-medium, px);
@@ -75,7 +75,7 @@
     }
 }
 
-.subreddit-rule-add-form-buttons .subreddit-rule-edit-button {
+.vault-rule-add-form-buttons .vault-rule-edit-button {
     color: @color-light-blue;
     font-size: 12px;
     font-weight: bold;
@@ -102,12 +102,12 @@
     }
 }
 
-.subreddit-rule-too-many-notice {
+.vault-rule-too-many-notice {
     color: @color-dark-teal;
     margin-top: unit(@margin-x-small, px);
 }
 
-.subreddit-rule-delete-confirmation {
+.vault-rule-delete-confirmation {
     color: @color-warning-red;
 
     button {
@@ -123,7 +123,7 @@
     }
 }
 
-.subreddit-rules-page {
+.vault-rules-page {
     @icon-size: 52px;
 
     max-width: 700px;
@@ -145,8 +145,8 @@
         width: @icon-size;
     }
 
-    .subreddit-rule-buttons,
-    .subreddit-rule-add-form-buttons,
+    .vault-rule-buttons,
+    .vault-rule-add-form-buttons,
     .form-buttons {
         button {
             background: transparent;
@@ -187,21 +187,21 @@
             font-weight: 300;
         }
 
-        .subreddit-rule-title {
+        .vault-rule-title {
             .md-font-size(@font-base, @font-medium, @line-medium);
             margin-top: 0;
             margin-bottom: unit(@margin-x-small, px);
             font-weight: 500;
         }
 
-        .subreddit-rule-kind {
+        .vault-rule-kind {
             .md-font-size(@font-base, @font-x-small, @line-medium);
             margin-bottom: unit(@margin-x-small, px);
             font-weight: 500;
             color: @color-dark-grey;
         }
 
-        .subreddit-rule-description {
+        .vault-rule-description {
             color: @color-text-grey;
         }
     }

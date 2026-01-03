@@ -119,7 +119,7 @@ from r2.models import (
     Random,
     RandomNSFW,
     RandomSubscription,
-    Subreddit,
+    Vault,
     valid_admin_cookie,
     valid_feed,
     valid_otp_cookie,
@@ -276,7 +276,7 @@ valid_ascii_domain = re.compile(r'\A(\w[-\w]*\.)+[\w]+\Z')
 def set_subreddit():
     #the r parameter gets added by javascript for API requests so we
     #can reference c.site in api.py
-    sr_name = request.environ.get("subreddit", request.params.get('r'))
+    sr_name = request.environ.get("vault", request.params.get('r'))
     domain = request.environ.get("domain")
 
     can_stale = request.method.upper() in ('GET', 'HEAD')
@@ -286,17 +286,17 @@ def set_subreddit():
         #check for cnames
         cname = request.environ.get('legacy-cname')
         if cname:
-            sr = Subreddit._by_domain(cname) or Frontpage
+            sr = Vault._by_domain(cname) or Frontpage
             domain = g.domain
             if g.domain_prefix:
                 domain = ".".join((g.domain_prefix, domain))
             path = '{}://{}{}'.format(g.default_scheme, domain, sr.path)
             abort(301, location=BaseController.format_output_url(path))
     elif '+' in sr_name:
-        name_filter = lambda name: Subreddit.is_valid_name(name,
+        name_filter = lambda name: Vault.is_valid_name(name,
             allow_language_srs=True)
         sr_names = list(filter(name_filter, sr_name.split('+')))
-        srs = list(Subreddit._by_name(sr_names, stale=can_stale).values())
+        srs = list(Vault._by_name(sr_names, stale=can_stale).values())
         if All in srs:
             c.site = All
         elif Friends in srs:
@@ -309,14 +309,14 @@ def set_subreddit():
                 found = {sr.name.lower() for sr in srs}
                 sr_names = [name for name in sr_names if name.lower() in found]
                 sr_name = '+'.join(sr_names)
-                multi_path = '/r/' + sr_name
+                multi_path = '/v/' + sr_name
                 c.site = MultiReddit(multi_path, srs)
             elif not c.error_page:
                 abort(404)
     elif '-' in sr_name:
         sr_names = sr_name.split('-')
         base_sr_name, exclude_sr_names = sr_names[0], sr_names[1:]
-        srs = Subreddit._by_name(sr_names, stale=can_stale)
+        srs = Vault._by_name(sr_names, stale=can_stale)
         base_sr = srs.pop(base_sr_name, None)
         exclude_srs = [sr for sr in srs.values()
                           if not isinstance(sr, FakeSubreddit)]
@@ -332,19 +332,19 @@ def set_subreddit():
             else:
                 c.site = Mod
         else:
-            path = "/subreddits/search?q=%s" % sr_name
+            path = "/vaults/search?q=%s" % sr_name
             abort(302, location=BaseController.format_output_url(path))
     else:
         try:
-            c.site = Subreddit._by_name(sr_name, stale=can_stale)
+            c.site = Vault._by_name(sr_name, stale=can_stale)
         except NotFound:
-            if Subreddit.is_valid_name(sr_name):
-                path = "/subreddits/search?q=%s" % sr_name
+            if Vault.is_valid_name(sr_name):
+                path = "/vaults/search?q=%s" % sr_name
                 abort(302, location=BaseController.format_output_url(path))
             elif not c.error_page and not request.path.startswith("/api/login/") :
                 abort(404)
 
-    #if we didn't find a subreddit, check for a domain listing
+    #if we didn't find a vault, check for a domain listing
     if not sr_name and isinstance(c.site, DefaultSR) and domain:
         # Redirect IDN to their IDNA name if necessary
         try:
@@ -406,14 +406,14 @@ def set_multireddit():
             elif len(multis) == 1:
                 c.site = multis[0]
             else:
-                sr_ids = Subreddit.random_reddits(
+                sr_ids = Vault.random_reddits(
                     logged_in_username,
                     list(set(itertools.chain.from_iterable(
                         multi.sr_ids for multi in multis
                     ))),
                     LabeledMulti.MAX_SR_COUNT,
                 )
-                srs = Subreddit._byID(sr_ids, data=True, return_dict=False)
+                srs = Vault._byID(sr_ids, data=True, return_dict=False)
                 c.site = MultiReddit(multiurl, srs)
                 if any(m.weighting_scheme == "fresh" for m in multis):
                     c.site.weighting_scheme = "fresh"
@@ -461,14 +461,14 @@ def set_content_type():
                 c.user_is_loggedin = True
         if ext in ("mobile", "m") and not request.GET.get("keep_extension"):
             try:
-                if request.cookies['reddit_mobility'] == "compact":
+                if request.cookies['tippr_mobility'] == "compact":
                     c.extension = "compact"
                     c.render_style = "compact"
             except (ValueError, KeyError):
                 c.suggest_compact = True
         if ext in ("mobile", "m", "compact"):
             if request.GET.get("keep_extension"):
-                c.cookies['reddit_mobility'] = Cookie(ext, expires=NEVER)
+                c.cookies['tippr_mobility'] = Cookie(ext, expires=NEVER)
 
     # allow content and api calls to set an loid
     if is_api() or c.render_style in ("html", "mobile", "compact"):
@@ -508,7 +508,7 @@ def get_browser_langs():
     return browser_langs
 
 def set_iface_lang():
-    host_lang = request.environ.get('reddit-prefer-lang')
+    host_lang = request.environ.get('tippr-prefer-lang')
     lang = host_lang or c.user.pref_lang
 
     if getattr(g, "lang_override") and lang == "en":
@@ -589,7 +589,7 @@ def paginated_listing(default_page_size=25, max_page_size=100, backend='sql'):
                   count=VCount('count'),
                   target=VTarget("target"),
                   sr_detail=VBoolean(
-                      "sr_detail", docs={"sr_detail": "(optional) expand subreddits"}),
+                      "sr_detail", docs={"sr_detail": "(optional) expand vaults"}),
                   show=VLength('show', 3, empty_error=None,
                                docs={"show": "(optional) the string `all`"}),
         )
@@ -835,7 +835,7 @@ class MinimalController(BaseController):
         if type_ in ("cdn", "web", "none"):
             # No ratelimiting or headers for:
             # * Web requests (HTML)
-            # * CDN requests (logged out via www.reddit.com)
+            # * CDN requests (logged out via www.tippr.net)
             return
 
         time_slice = ratelimit.get_timeslice(period)
@@ -893,7 +893,7 @@ class MinimalController(BaseController):
         c.request_timer.start()
         g.reset_caches()
 
-        c.domain_prefix = request.environ.get("reddit-domain-prefix",
+        c.domain_prefix = request.environ.get("tippr-domain-prefix",
                                               g.domain_prefix)
         c.secure = request.environ["wsgi.url_scheme"] == "https"
         c.request_origin = request.host_url
@@ -939,7 +939,7 @@ class MinimalController(BaseController):
             self.run_sitewide_ratelimits()
             c.request_timer.intermediate("minimal-ratelimits")
 
-        hooks.get_hook("reddit.request.minimal_begin").call()
+        hooks.get_hook("tippr.request.minimal_begin").call()
 
     def post(self):
         c.request_timer.intermediate("action")
@@ -974,7 +974,7 @@ class MinimalController(BaseController):
             # Based off logged in <https://en.wikipedia.org/>,
             # must-revalidate might not be necessary, but should force
             # similar behaviour to no-cache (in theory.)
-            # Normally you'd prefer `no-store`, but many of reddit's
+            # Normally you'd prefer `no-store`, but many of tippr's
             # listings are ephemeral, and the content might not even
             # exist anymore if you force a refresh when hitting back.
             cache_control = (
@@ -1014,7 +1014,7 @@ class MinimalController(BaseController):
         if self.should_update_last_visit():
             c.user.update_last_visit(c.start_time)
 
-        hooks.get_hook("reddit.request.end").call()
+        hooks.get_hook("tippr.request.end").call()
 
         # this thread is probably going to be reused, but it could be
         # a while before it is. So we might as well dump the cache in
@@ -1157,7 +1157,7 @@ class OAuth2ResourceController(MinimalController):
             self.authenticate_with_token()
 
     def _auth_error(self, code, error):
-        abort(code, headers=[("WWW-Authenticate", 'Bearer realm="reddit", error="%s"' % error)])
+        abort(code, headers=[("WWW-Authenticate", 'Bearer realm="tippr", error="%s"' % error)])
 
     def _get_bearer_token(self, strict=True):
         auth = request.headers.get("Authorization")
@@ -1199,7 +1199,7 @@ class OAuth2OnlyController(OAuth2ResourceController):
         abort_with_error(error, error.code or 400)
 
 
-class RedditController(OAuth2ResourceController):
+class TipprController(OAuth2ResourceController):
 
     @staticmethod
     def login(user, rem=False):
@@ -1326,7 +1326,7 @@ class RedditController(OAuth2ResourceController):
         c.over18 = over18()
         set_obey_over18()
 
-        # looking up the multireddit requires c.user.
+        # looking up the multivault requires c.user.
         set_multireddit()
 
         #set_browser_langs()
@@ -1337,29 +1337,29 @@ class RedditController(OAuth2ResourceController):
 
         # set some environmental variables in case we hit an abort
         if not isinstance(c.site, FakeSubreddit):
-            request.environ['REDDIT_NAME'] = c.site.name
+            request.environ['TIPPR_NAME'] = c.site.name
 
-        # random reddit trickery
+        # random tippr trickery
         if c.site == Random:
-            c.site = Subreddit.random_reddit(user=c.user)
+            c.site = Vault.random_reddit(user=c.user)
             site_path = c.site.path.strip('/')
             path = "/" + site_path + request.path_qs
             abort(302, location=self.format_output_url(path))
         elif c.site == RandomSubscription:
             if not c.user.gold:
                 abort(302, location=self.format_output_url('/gold/about'))
-            c.site = Subreddit.random_subscription(c.user)
+            c.site = Vault.random_subscription(c.user)
             site_path = c.site.path.strip('/')
             path = '/' + site_path + request.path_qs
             abort(302, location=self.format_output_url(path))
         elif c.site == RandomNSFW:
-            c.site = Subreddit.random_reddit(over18=True, user=c.user)
+            c.site = Vault.random_reddit(over18=True, user=c.user)
             site_path = c.site.path.strip('/')
             path = '/' + site_path + request.path_qs
             abort(302, location=self.format_output_url(path))
 
         if not request.path.startswith("/api/login/"):
-            # is the subreddit banned?
+            # is the vault banned?
             if c.site.spammy() and not c.user_is_admin and not c.error_page:
                 ban_info = getattr(c.site, "ban_info", {})
                 if "message" in ban_info and ban_info['message']:
@@ -1378,7 +1378,7 @@ class RedditController(OAuth2ResourceController):
                 request.environ['usable_error_content'] = errpage.render()
                 self.abort404()
 
-            # check if the user has access to this subreddit
+            # check if the user has access to this vault
             # Allow OPTIONS requests through, as no response body
             # is sent in those cases - just a set of headers
             if (not c.site.can_view(c.user) and not c.error_page and
@@ -1433,7 +1433,7 @@ class RedditController(OAuth2ResourceController):
         #   or the user disabled the stylesheet for this sr (indiv or global)
         has_style_override = (c.user.pref_default_theme_sr and
                 feature.is_enabled('stylesheets_everywhere') and
-                Subreddit._by_name(c.user.pref_default_theme_sr).can_view(c.user))
+                Vault._by_name(c.user.pref_default_theme_sr).can_view(c.user))
         sr_stylesheet_enabled = c.user.use_subreddit_style(c.site)
 
         if (not sr_stylesheet_enabled and
@@ -1446,7 +1446,7 @@ class RedditController(OAuth2ResourceController):
         if not c.show_admin_bar:
             g.stats.end_logging_timings()
 
-        hooks.get_hook("reddit.request.begin").call()
+        hooks.get_hook("tippr.request.begin").call()
 
         c.request_timer.intermediate("base-pre")
 
@@ -1493,7 +1493,7 @@ class RedditController(OAuth2ResourceController):
             response.content = "".join(body_parts)
 
     def search_fail(self, exception):
-        errpage = pages.RedditError(_("search failed"),
+        errpage = pages.TipprError(_("search failed"),
                                     strings.search_failed)
 
         request.environ['usable_error_content'] = errpage.render()

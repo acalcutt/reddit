@@ -31,7 +31,7 @@
 %>
 
 <%def name="search_result_css_class()">
-  ${parent.search_result_css_class()} search-result-subreddit
+  ${parent.search_result_css_class()} search-result-vault
 </%def>
 
 <%def name="search_result_header()">
@@ -56,7 +56,7 @@
         thing.path.rstrip('/'),
         thing.search_path,
         _sr_path=False,
-        _class='search-subreddit-link may-blank',
+        _class='search-vault-link may-blank',
       )}&#32;
     %if not thing.score_hidden:
       <span class="search-subscribers">${format_number(thing._ups)} ${ungettext('subscriber', 'subscribers', thing._ups)},</span>&#32;
@@ -78,11 +78,11 @@
     <% pretty_name = thing.path.rstrip('/') %>
     ${self.search_result_icon('filter')}
     ${plain_link(
-        _("search within %(subreddit)s") % dict(subreddit=pretty_name),
+        _("search within %(vault)s") % dict(vault=pretty_name),
         search_url(thing.prev_search, thing.name, restrict_sr='on', sort=thing.sort, recent=thing.recent),
         _sr_path=False,
         _class='search-link',
-        title=_('search in %(subreddit)s' % dict(subreddit=pretty_name)),
+        title=_('search in %(vault)s' % dict(vault=pretty_name)),
       )}
   </%parent:search_result_footer>
 </%def>

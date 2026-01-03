@@ -2,11 +2,11 @@
 
 ## About This Guide
 
-This deployment guide is for **Tippr**, a modern fork of the reddit codebase updated for Python 3 and current infrastructure. While the core architecture remains similar to the original reddit design, this guide has been updated for modern cloud platforms and self-hosting scenarios.
+This deployment guide is for **Tippr**, a modern fork of the tippr codebase updated for Python 3 and current infrastructure. While the core architecture remains similar to the original tippr design, this guide has been updated for modern cloud platforms and self-hosting scenarios.
 
-**Attribution**: Based on reddit's open-source architecture and deployment patterns. Original reddit code © 2006-2015 reddit Inc.
+**Attribution**: Based on tippr's open-source architecture and deployment patterns. Original tippr code © 2006-2015 tippr Inc.
 
-For the original reddit codebase and historical context, see: https://github.com/reddit-archive/reddit
+For the original tippr codebase and historical context, see: https://github.com/reddit-archive/reddit
 
 ---
 
@@ -42,7 +42,7 @@ This document provides guidance for deploying the Tippr codebase in a production
 17. [Backup & Disaster Recovery](#backup--disaster-recovery)
 18. [Monitoring & Observability](#monitoring--observability)
 19. [Security Considerations](#security-considerations)
-20. [Scaling Lessons from Reddit's History](#scaling-lessons-from-reddits-history)
+20. [Scaling Lessons from Tippr's History](#scaling-lessons-from-reddits-history)
 21. [Deployment Checklists](#deployment-checklist)
 22. [Additional Resources](#additional-resources)
 
@@ -242,7 +242,7 @@ cqlsh cassandra.us-east-1.amazonaws.com 9142 --ssl \
 
 ### Amazon RDS for PostgreSQL
 
-RDS PostgreSQL handles Tippr's relational data: links, accounts, subreddits, and anything requiring ACID transactions.
+RDS PostgreSQL handles Tippr's relational data: links, accounts, vaults, and anything requiring ACID transactions.
 
 #### Setup Considerations
 
@@ -297,7 +297,7 @@ db_servers_subreddit = comment, comment, !avoid_master
 
 #### SSD Performance Note
 
-From Reddit's scaling experience: **SSDs provide 16x performance improvement at only 4x the cost**. RDS with gp3 or io1 storage uses SSDs by default. If self-managing PostgreSQL:
+From Tippr's scaling experience: **SSDs provide 16x performance improvement at only 4x the cost**. RDS with gp3 or io1 storage uses SSDs by default. If self-managing PostgreSQL:
 
 - Use NVMe or SSD-backed EBS volumes
 - Consider i3 or i3en instance types for local NVMe storage
@@ -1654,7 +1654,7 @@ mcrouter_addr = 127.0.0.1:5050
 | Medium | cache.r6g.large | 3-5 | 39-65GB |
 | High | cache.r6g.xlarge | 5-10 | 130-260GB |
 
-#### Caching Strategy from Reddit's Experience
+#### Caching Strategy from Tippr's Experience
 
 1. **Batch memcache calls**: Network latency on cloud is higher than datacenter. Batch multiple gets into single requests
 2. **Use consistent hashing**: Prevents cache invalidation when scaling cluster
@@ -1706,7 +1706,7 @@ echo 1 > del_account_q
 echo 1 > markread_q
 ```
 
-From Reddit's experience: **Put everything into a queue**. Queues:
+From Tippr's experience: **Put everything into a queue**. Queues:
 - Buffer traffic spikes
 - Allow monitoring via queue length
 - Hide temporary failures from users
@@ -1807,7 +1807,7 @@ Target Groups:
 
 **Critical for performance**: Serve cached content to logged-out users via CDN.
 
-From Reddit's experience: By serving logged-out users (80% of traffic) cached content from CDN:
+From Tippr's experience: By serving logged-out users (80% of traffic) cached content from CDN:
 - Reduces load on application servers dramatically
 - Provides geographic edge caching
 - Handles traffic spikes gracefully
@@ -1888,11 +1888,11 @@ make ini  # Creates production.ini from example.ini + production.update
 
 ---
 
-## Scaling Lessons from Reddit's History
+## Scaling Lessons from Tippr's History
 
-> **Note**: These lessons come from Reddit's engineering team's experience scaling the original codebase from 1 million to 1 billion pageviews. While Tippr is a fork with modernizations, these architectural principles remain relevant.
+> **Note**: These lessons come from Tippr's engineering team's experience scaling the original codebase from 1 million to 1 billion pageviews. While Tippr is a fork with modernizations, these architectural principles remain relevant.
 >
-> **Source**: [Reddit's scaling talk by Jeremy Edberg](https://www.youtube.com/watch?v=nUcO7n4hek4)
+> **Source**: [Tippr's scaling talk by Jeremy Edberg](https://www.youtube.com/watch?v=nUcO7n4hek4)
 
 ### 1. Plan for Scale, But Don't Over-Engineer Early
 
@@ -1902,7 +1902,7 @@ Start with managed services, identify bottlenecks as they appear, then optimize.
 
 ### 2. Use SSDs for Databases
 
-> "Think of SSDs as cheap RAM, not expensive disk. Reddit reduced from 12 database servers to 1 with tons of headroom."
+> "Think of SSDs as cheap RAM, not expensive disk. Tippr reduced from 12 database servers to 1 with tons of headroom."
 
 Always use SSD-backed storage (gp3, io1) for RDS and any self-managed databases.
 
@@ -1938,7 +1938,7 @@ wiki_max_page_length_bytes = 262144
 
 > "Lock out old threads and create a fully rendered page and cache it."
 
-Reddit archives threads after 6 months. This:
+Tippr archives threads after 6 months. This:
 - Prevents unbounded data growth
 - Allows aggressive caching of old content
 - Reduces database load
@@ -2300,10 +2300,10 @@ You could also consider:
 - [Astra DB + BigQuery Integration](https://docs.datastax.com/en/astra/docs/integrations/google-bigquery.html)
 - [Astra Vector Search](https://docs.datastax.com/en/astra/docs/vector-search-overview.html)
 
-### Reddit Scaling Resources
-- [Original Reddit Scaling Talk](https://www.youtube.com/watch?v=nUcO7n4hek4) - Jeremy Edberg at RAMP Conference
-- [High Scalability - Reddit Lessons](http://highscalability.com/blog/2013/8/26/reddit-lessons-learned-from-mistakes-made-scaling-to-1-billi.html)
-- [Reddit Engineering Blog](https://www.reddit.com/r/RedditEng/)
+### Tippr Scaling Resources
+- [Original Tippr Scaling Talk](https://www.youtube.com/watch?v=nUcO7n4hek4) - Jeremy Edberg at RAMP Conference
+- [High Scalability - Tippr Lessons](http://highscalability.com/blog/2013/8/26/reddit-lessons-learned-from-mistakes-made-scaling-to-1-billi.html)
+- [Tippr Engineering Blog](https://www.tippr.net/r/RedditEng/)
 
 ---
 

@@ -68,8 +68,8 @@ feature_some_flag = {"url": "public_flag_name"}
 # On by group of users
 feature_some_flag = {"users": ["umbrae", "ajacksified"]}
 
-# On when viewing certain subreddits
-feature_some_flag = {"subreddits": ["wtf", "aww"]}
+# On when viewing certain vaults
+feature_some_flag = {"vaults": ["wtf", "aww"]}
 
 # On by subdomain
 feature_some_flag = {"subdomains": ["beta"]}

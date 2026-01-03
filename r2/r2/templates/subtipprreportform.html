@@ -23,7 +23,7 @@
 
 <%def name="report_form_base(fullname, rules_page_link)">
     <form id="report-action-form"
-            class="subreddit-report-form rounded">
+            class="vault-report-form rounded">
         <input type="hidden"
                 name="thing_id"
                 value="${fullname}">
@@ -52,7 +52,7 @@
 
 <%def name="subreddit_report_form(fullname, system_rules, rules, sr_name)">
     <%
-        rules_page_link = "/r/%s/about/rules" % sr_name
+        rules_page_link = "/v/%s/about/rules" % sr_name
     %>
     <%self:report_form_base
             fullname="${fullname}"
@@ -64,7 +64,7 @@
                     ${self.report_form_reason(rule.get("short_name"))}
                 %endfor
             %endif
-            <li class="report-reason-item report-reason-reddit" 
+            <li class="report-reason-item report-reason-tippr" 
                 <label>
                     <input type="radio"
                             class="site-reason-radio"
@@ -74,7 +74,7 @@
                         <select name="site_reason">
                             %for rule in system_rules:
                                 <option value="${rule}">
-                                    ${_("Reddit rule: %(rule_name)s" % dict(rule_name=rule))}
+                                    ${_("Tippr rule: %(rule_name)s" % dict(rule_name=rule))}
                                 </option>
                             %endfor
                         </select>
@@ -104,7 +104,7 @@
             %if sr_name:
                 ${_("Reports go to community moderators anonymously")}
             %else:
-                ${_("Reports go to Reddit admins")}
+                ${_("Reports go to Tippr admins")}
             %endif
         </div>
     </%self:report_form_base>

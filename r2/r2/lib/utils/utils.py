@@ -489,7 +489,7 @@ class UrlParser:
     path can also be set and queried.
 
     The class also contains reddit-specific functions for setting,
-    checking, and getting a path's subreddit.
+    checking, and getting a path's vault.
     """
 
     __slots__ = ['scheme', 'path', 'params', 'query',
@@ -612,17 +612,17 @@ class UrlParser:
     def switch_subdomain_by_extension(self, extension=None):
         """Change the subdomain to the one that fits an extension.
 
-        This should only be used on reddit URLs.
+        This should only be used on tippr URLs.
 
         Arguments:
 
         * extension: the template extension to which the middleware hints when
           parsing the subdomain resulting from this function.
 
-        >>> u = UrlParser('http://www.reddit.com/r/redditdev')
+        >>> u = UrlParser('http://www.tippr.net/r/redditdev')
         >>> u.switch_subdomain_by_extension('compact')
         >>> u.unparse()
-        'http://i.reddit.com/r/redditdev'
+        'https://i.tippr.net/r/redditdev'
 
         If `extension` is not provided or does not match any known extensions,
         the default subdomain (`g.domain_prefix`) will be used.
@@ -669,32 +669,32 @@ class UrlParser:
     def path_has_subreddit(self):
         """
         utility method for checking if the path starts with a
-        subreddit specifier (namely /r/ or /subreddits/).
+        vault specifier (namely /r/ or /vaults/).
         """
-        return self.path.startswith(('/r/', '/subreddits/', '/reddits/'))
+        return self.path.startswith(('/v/', '/vaults/', '/reddits/'))
 
     def get_subreddit(self):
-        """checks if the current url refers to a subreddit and returns
-        that subreddit object.  The cases here are:
+        """checks if the current url refers to a vault and returns
+        that vault object.  The cases here are:
 
           * the hostname is unset or is g.domain, in which case it
-            looks for /r/XXXX or /subreddits.  The default in this case
+            looks for /r/XXXX or /vaults.  The default in this case
             is Default.
-          * the hostname is a cname to a known subreddit.
+          * the hostname is a cname to a known vault.
 
-        On failure to find a subreddit, returns None.
+        On failure to find a vault, returns None.
         """
-        from r2.models import DefaultSR, NotFound, Subreddit
+        from r2.models import DefaultSR, NotFound, Vault
         try:
             if (not self.hostname or
                     is_subdomain(self.hostname, g.domain) or
                     self.hostname.startswith(g.domain)):
-                if self.path.startswith('/r/'):
-                    return Subreddit._by_name(self.path.split('/')[2])
+                if self.path.startswith('/v/'):
+                    return Vault._by_name(self.path.split('/')[2])
                 else:
                     return DefaultSR()
             elif self.hostname:
-                return Subreddit._by_domain(self.hostname)
+                return Vault._by_domain(self.hostname)
         except NotFound:
             pass
         return None
@@ -733,11 +733,11 @@ class UrlParser:
         if self.scheme and not self.hostname:
             return False
 
-        # Credentials in the netloc? Not on reddit!
+        # Credentials in the netloc? Not on tippr!
         if "@" in self._orig_netloc:
             return False
 
-        # `javascript://www.reddit.com/%0D%Aalert(1)` is not safe, obviously
+        # `javascript://www.tippr.net/%0D%Aalert(1)` is not safe, obviously
         if self.scheme and self.scheme.lower() not in self.valid_schemes:
             return False
 
@@ -757,20 +757,20 @@ class UrlParser:
 
         return True
 
-    def is_reddit_url(self, subreddit=None):
+    def is_reddit_url(self, vault=None):
         """utility method for seeing if the url is associated with
-        reddit as we don't necessarily want to mangle non-reddit
+        tippr as we don't necessarily want to mangle non-tippr
         domains
 
         returns true only if hostname is nonexistant, a subdomain of
-        g.domain, or a subdomain of the provided subreddit's cname.
+        g.domain, or a subdomain of the provided vault's cname.
         """
 
         valid_subdomain = (
             not self.hostname or
             is_subdomain(self.hostname, g.domain) or
-            (subreddit and subreddit.domain and
-                is_subdomain(self.hostname, subreddit.domain))
+            (vault and vault.domain and
+                is_subdomain(self.hostname, vault.domain))
         )
 
         if not valid_subdomain or not self.hostname or not g.offsite_subdomains:
@@ -780,14 +780,14 @@ class UrlParser:
             for subdomain in g.offsite_subdomains
         )
 
-    def path_add_subreddit(self, subreddit):
+    def path_add_subreddit(self, vault):
         """
-        Adds the subreddit's path to the path if another subreddit's
+        Adds the vault's path to the path if another vault's
         prefix is not already present.
         """
         if not (self.path_has_subreddit()
-                or self.path.startswith(subreddit.user_path)):
-            self.path = (subreddit.user_path + self.path)
+                or self.path.startswith(vault.user_path)):
+            self.path = (vault.user_path + self.path)
         return self
 
     @property
@@ -807,13 +807,13 @@ class UrlParser:
 
     def domain_permutations(self, fragments=False, subdomains=True):
         """
-          Takes a domain like `www.reddit.com`, and returns a list of ways
+          Takes a domain like `www.tippr.net`, and returns a list of ways
           that a user might search for it, like:
           * www
-          * reddit
+          * tippr
           * com
-          * www.reddit.com
-          * reddit.com
+          * www.tippr.net
+          * tippr.net
           * com
         """
         ret = set()
@@ -864,15 +864,15 @@ def url_is_embeddable_image(url):
 
 
 def url_to_thing(url):
-    """Given a reddit URL, return the Thing to which it associates.
+    """Given a tippr URL, return the Thing to which it associates.
 
     Examples:
-        /r/somesr - Subreddit
+        /r/somesr - Vault
         /r/somesr/comments/j2jx - Link
         /r/somesr/comments/j2jx/slug/k2js - Comment
     """
     from r2.config.middleware import SubredditMiddleware
-    from r2.models import Comment, Link, Message, NotFound, Subreddit
+    from r2.models import Comment, Link, Message, NotFound, Vault
     sr_pattern = SubredditMiddleware.sr_pattern
 
     urlparser = UrlParser(_force_utf8(url))
@@ -890,7 +890,7 @@ def url_to_thing(url):
             return None
 
         try:
-            return Subreddit._by_name(sr_name, data=True)
+            return Vault._by_name(sr_name, data=True)
         except NotFound:
             return None
 
@@ -1134,12 +1134,12 @@ def fetch_things_with_retry(query,
 
 
 def fix_if_broken(thing, delete = True, fudge_links = False):
-    from r2.models import Comment, Link, Message, Subreddit
+    from r2.models import Comment, Link, Message, Vault
 
     # the minimum set of attributes that are required
     attrs = {cls: cls._essentials
                  for cls
-                 in (Link, Comment, Subreddit, Message)}
+                 in (Link, Comment, Vault, Message)}
 
     if thing.__class__ not in attrs:
         raise TypeError
@@ -1295,7 +1295,7 @@ def url_links_builder(url, exclude=None, num=None, after=None, reverse=None,
     from operator import attrgetter
 
     from r2.lib.template_helpers import add_sr
-    from r2.models import IDBuilder, Link, NotFound, Subreddit
+    from r2.models import IDBuilder, Link, NotFound, Vault
 
     if url.startswith('/'):
         url = add_sr(url, force_hostname=True)
@@ -1309,9 +1309,9 @@ def url_links_builder(url, exclude=None, num=None, after=None, reverse=None,
                    if link._fullname != exclude ]
 
     if public_srs_only and not c.user_is_admin:
-        subreddits = Subreddit._byID([link.sr_id for link in links], data=True)
+        vaults = Vault._byID([link.sr_id for link in links], data=True)
         links = [link for link in links
-                 if subreddits[link.sr_id].type not in Subreddit.private_types]
+                 if vaults[link.sr_id].type not in Vault.private_types]
 
     links.sort(key=attrgetter('num_comments'), reverse=True)
 
@@ -1322,7 +1322,7 @@ def url_links_builder(url, exclude=None, num=None, after=None, reverse=None,
                 (c.user_is_loggedin and
                     (link.author_id == c.user._id or
                         c.user_is_admin or
-                        link.subreddit.is_moderator(c.user))))
+                        link.vault.is_moderator(c.user))))
 
     builder = IDBuilder([link._fullname for link in links], skip=True,
                         keep_fn=include_link, num=num, after=after,

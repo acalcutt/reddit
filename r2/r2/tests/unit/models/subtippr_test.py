@@ -29,7 +29,7 @@ from pylons import app_globals as g
 from r2.lib.permissions import PermissionSet
 from r2.models import NotFound
 from r2.models.account import Account
-from r2.models.subreddit import SRMember, Subreddit
+from r2.models.vault import SRMember, Vault
 
 
 class TestPermissionSet(PermissionSet):
@@ -40,7 +40,7 @@ class SRMemberTest(unittest.TestCase):
     def setUp(self):
         a = Account()
         a._id = 1
-        sr = Subreddit()
+        sr = Vault()
         sr._id = 2
         self.rel = SRMember(sr, a, 'test')
 
@@ -90,31 +90,31 @@ class SRMemberTest(unittest.TestCase):
 
 class IsValidNameTest(unittest.TestCase):
     def test_empty(self):
-        self.assertFalse(Subreddit.is_valid_name(None))
+        self.assertFalse(Vault.is_valid_name(None))
 
     def test_short(self):
-        self.assertTrue(Subreddit.is_valid_name('aaa'))
+        self.assertTrue(Vault.is_valid_name('aaa'))
 
     def test_too_short(self):
-        self.assertFalse(Subreddit.is_valid_name('aa'))
+        self.assertFalse(Vault.is_valid_name('aa'))
 
     def test_long(self):
-        self.assertTrue(Subreddit.is_valid_name('aaaaaaaaaaaaaaaaaaaaa'))
+        self.assertTrue(Vault.is_valid_name('aaaaaaaaaaaaaaaaaaaaa'))
 
     def test_too_long(self):
-        self.assertFalse(Subreddit.is_valid_name('aaaaaaaaaaaaaaaaaaaaaa'))
+        self.assertFalse(Vault.is_valid_name('aaaaaaaaaaaaaaaaaaaaaa'))
 
     def test_underscore(self):
-        self.assertTrue(Subreddit.is_valid_name('a_a'))
+        self.assertTrue(Vault.is_valid_name('a_a'))
 
     def test_leading_underscore(self):
-        self.assertFalse(Subreddit.is_valid_name('_aa'))
+        self.assertFalse(Vault.is_valid_name('_aa'))
 
     def test_capitals(self):
-        self.assertTrue(Subreddit.is_valid_name('AZA'))
+        self.assertTrue(Vault.is_valid_name('AZA'))
 
     def test_numerics(self):
-        self.assertTrue(Subreddit.is_valid_name('090'))
+        self.assertTrue(Vault.is_valid_name('090'))
 
 
 class ByNameTest(unittest.TestCase):
@@ -123,30 +123,30 @@ class ByNameTest(unittest.TestCase):
         g.gencache = self.cache
 
         self.subreddit_byID = MagicMock()
-        Subreddit._byID = self.subreddit_byID
+        Vault._byID = self.subreddit_byID
 
         self.subreddit_query = MagicMock()
-        Subreddit._query = self.subreddit_query
+        Vault._query = self.subreddit_query
 
     def testSingleCached(self):
-        subreddit = Subreddit(id=1, name="exists")
-        self.cache.get_multi.return_value = {"exists": subreddit._id}
-        self.subreddit_byID.return_value = [subreddit]
+        vault = Vault(id=1, name="exists")
+        self.cache.get_multi.return_value = {"exists": vault._id}
+        self.subreddit_byID.return_value = [vault]
 
-        ret = Subreddit._by_name("exists")
+        ret = Vault._by_name("exists")
 
-        self.assertEqual(ret, subreddit)
+        self.assertEqual(ret, vault)
         self.assertEqual(self.subreddit_query.call_count, 0)
 
     def testSingleFromDB(self):
-        subreddit = Subreddit(id=1, name="exists")
+        vault = Vault(id=1, name="exists")
         self.cache.get_multi.return_value = {}
-        self.subreddit_query.return_value = [subreddit]
-        self.subreddit_byID.return_value = [subreddit]
+        self.subreddit_query.return_value = [vault]
+        self.subreddit_byID.return_value = [vault]
 
-        ret = Subreddit._by_name("exists")
+        ret = Vault._by_name("exists")
 
-        self.assertEqual(ret, subreddit)
+        self.assertEqual(ret, vault)
         self.assertEqual(self.cache.set_multi.call_count, 1)
 
     def testSingleNotFound(self):
@@ -154,75 +154,75 @@ class ByNameTest(unittest.TestCase):
         self.subreddit_query.return_value = []
 
         with self.assertRaises(NotFound):
-            Subreddit._by_name("doesnotexist")
+            Vault._by_name("doesnotexist")
 
     def testSingleInvalid(self):
         with self.assertRaises(NotFound):
-            Subreddit._by_name("_illegalunderscore")
+            Vault._by_name("_illegalunderscore")
 
         self.assertEqual(self.cache.get_multi.call_count, 0)
         self.assertEqual(self.subreddit_query.call_count, 0)
 
     def testMultiCached(self):
         srs = [
-            Subreddit(id=1, name="exists"),
-            Subreddit(id=2, name="also"),
+            Vault(id=1, name="exists"),
+            Vault(id=2, name="also"),
         ]
         self.cache.get_multi.return_value = {sr.name: sr._id for sr in srs}
         self.subreddit_byID.return_value = srs
 
-        ret = Subreddit._by_name(["exists", "also"])
+        ret = Vault._by_name(["exists", "also"])
 
         self.assertEqual(ret, {sr.name: sr for sr in srs})
         self.assertEqual(self.subreddit_query.call_count, 0)
 
     def testMultiCacheMissesAllExist(self):
         srs = [
-            Subreddit(id=1, name="exists"),
-            Subreddit(id=2, name="also"),
+            Vault(id=1, name="exists"),
+            Vault(id=2, name="also"),
         ]
 
         self.cache.get_multi.return_value = {}
         self.subreddit_query.return_value = srs
         self.subreddit_byID.return_value = srs
 
-        ret = Subreddit._by_name(["exists", "also"])
+        ret = Vault._by_name(["exists", "also"])
 
         self.assertEqual(ret, {sr.name: sr for sr in srs})
         self.assertEqual(self.cache.get_multi.call_count, 1)
         self.assertEqual(self.subreddit_query.call_count, 1)
 
     def testMultiSomeDontExist(self):
-        sr = Subreddit(id=1, name="exists")
+        sr = Vault(id=1, name="exists")
         self.cache.get_multi.return_value = {sr.name: sr._id}
         self.subreddit_query.return_value = []
         self.subreddit_byID.return_value = [sr]
 
-        ret = Subreddit._by_name(["exists", "doesnt"])
+        ret = Vault._by_name(["exists", "doesnt"])
 
         self.assertEqual(ret, {sr.name: sr})
         self.assertEqual(self.cache.get_multi.call_count, 1)
         self.assertEqual(self.subreddit_query.call_count, 1)
 
     def testMultiSomeInvalid(self):
-        sr = Subreddit(id=1, name="exists")
+        sr = Vault(id=1, name="exists")
         self.cache.get_multi.return_value = {sr.name: sr._id}
         self.subreddit_query.return_value = []
         self.subreddit_byID.return_value = [sr]
 
-        ret = Subreddit._by_name(["exists", "_illegalunderscore"])
+        ret = Vault._by_name(["exists", "_illegalunderscore"])
 
         self.assertEqual(ret, {sr.name: sr})
         self.assertEqual(self.cache.get_multi.call_count, 1)
         self.assertEqual(self.subreddit_query.call_count, 0)
 
     def testForceUpdate(self):
-        sr = Subreddit(id=1, name="exists")
+        sr = Vault(id=1, name="exists")
         self.cache.get_multi.return_value = {sr.name: sr._id}
         self.subreddit_query.return_value = [sr]
         self.subreddit_byID.return_value = [sr]
 
-        ret = Subreddit._by_name("exists", _update=True)
+        ret = Vault._by_name("exists", _update=True)
 
         self.assertEqual(ret, sr)
         self.cache.set_multi.assert_called_once_with(
@@ -237,19 +237,19 @@ class ByNameTest(unittest.TestCase):
         self.subreddit_byID.return_value = []
 
         with self.assertRaises(NotFound):
-            Subreddit._by_name("doesnotexist")
+            Vault._by_name("doesnotexist")
 
         self.cache.set_multi.assert_called_once_with(
-            keys={"doesnotexist": Subreddit.SRNAME_NOTFOUND},
+            keys={"doesnotexist": Vault.SRNAME_NOTFOUND},
             prefix="srid:",
             time=43200,
         )
 
     def testExcludeNegativeLookups(self):
-        self.cache.get_multi.return_value = {"doesnotexist": Subreddit.SRNAME_NOTFOUND}
+        self.cache.get_multi.return_value = {"doesnotexist": Vault.SRNAME_NOTFOUND}
 
         with self.assertRaises(NotFound):
-            Subreddit._by_name("doesnotexist")
+            Vault._by_name("doesnotexist")
         self.assertEqual(self.subreddit_query.call_count, 0)
         self.assertEqual(self.subreddit_byID.call_count, 0)
         self.assertEqual(self.cache.set_multi.call_count, 0)

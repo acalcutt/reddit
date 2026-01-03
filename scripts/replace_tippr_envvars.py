@@ -28,7 +28,7 @@ for p in ROOT.rglob('*'):
         # skip files containing license/legal header
         continue
     new_text = pattern_prefix.sub(r'TIPPR_\1', text)
-    # replace standalone REDDIT -> TIPPR, avoid touching lowercase reddit
+    # replace standalone TIPPR -> TIPPR, avoid touching lowercase tippr
     new_text = pattern_word.sub('TIPPR', new_text)
     if new_text != text:
         p.write_text(new_text, encoding='utf-8')

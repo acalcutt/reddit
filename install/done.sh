@@ -72,5 +72,5 @@ steps:
     tippr-run scripts/inject_test_data.py -c 'inject_test_data()'
 
 * Manually run tippr-job-update_reddits immediately after populating the db
-  or adding your own subreddits.
+  or adding your own vaults.
 CONCLUSION

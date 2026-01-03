@@ -28,9 +28,9 @@ from r2.lib.utils.reddit_agent_parser import (
     McRedditDetector,
     NarwhalForRedditDetector,
     ReaditDetector,
-    RedditAndroidDetector,
+    TipprAndroidDetector,
     RedditIOSDetector,
-    RedditIsFunDetector,
+    TipprIsFunDetector,
     RedditSyncDetector,
     RelayForRedditDetector,
     detect,
@@ -40,11 +40,11 @@ from r2.tests import RedditTestCase
 
 class AgentDetectorTest(RedditTestCase):
     def test_reddit_is_fun_detector(self):
-        user_agent = 'reddit is fun (Android) 4.1.15'
+        user_agent = 'tippr is fun (Android) 4.1.15'
         agent_parsed = {}
-        result = RedditIsFunDetector().detect(user_agent, agent_parsed)
+        result = TipprIsFunDetector().detect(user_agent, agent_parsed)
         self.assertTrue(result)
-        self.assertEqual(agent_parsed['browser']['name'], 'reddit is fun')
+        self.assertEqual(agent_parsed['browser']['name'], 'tippr is fun')
         self.assertEqual(agent_parsed['browser']['version'], '4.1.15')
         self.assertEqual(agent_parsed['platform']['name'], 'Android')
         self.assertEqual(agent_parsed['app_name'],
@@ -53,10 +53,10 @@ class AgentDetectorTest(RedditTestCase):
     def test_reddit_android_detector(self):
         user_agent = 'RedditAndroid 1.1.5'
         agent_parsed = {}
-        result = RedditAndroidDetector().detect(user_agent, agent_parsed)
+        result = TipprAndroidDetector().detect(user_agent, agent_parsed)
         self.assertTrue(result)
         self.assertEqual(agent_parsed['browser']['name'],
-                         RedditAndroidDetector.name)
+                         TipprAndroidDetector.name)
         self.assertEqual(agent_parsed['browser']['version'], '1.1.5')
         self.assertTrue(agent_parsed['app_name'],
                         agent_parsed['browser']['name'])
@@ -120,7 +120,7 @@ class AgentDetectorTest(RedditTestCase):
                          agent_parsed['browser']['name'])
 
     def test_mcreddit_detector(self):
-        user_agent = 'McReddit - Reddit Client for iOS'
+        user_agent = 'McReddit - Tippr Client for iOS'
         agent_parsed = {}
         result = McRedditDetector().detect(user_agent, agent_parsed)
         self.assertTrue(result)
@@ -156,18 +156,18 @@ class AgentDetectorTest(RedditTestCase):
 
 class HAPIntegrationTests(RedditTestCase):
     """Tests to ensure that parsers don't confilct with existing onex."""
-    # TODO (katie.atkinson): Add tests to ensure reddit parsers don't conflict
+    # TODO (katie.atkinson): Add tests to ensure tippr parsers don't conflict
     # with httpagentparser detectors.
     def test_reddit_is_fun_integration(self):
-        user_agent = 'reddit is fun (Android) 4.1.15'
+        user_agent = 'tippr is fun (Android) 4.1.15'
         outs = detect(user_agent)
-        self.assertEqual(outs['browser']['name'], 'reddit is fun')
+        self.assertEqual(outs['browser']['name'], 'tippr is fun')
         self.assertEqual(outs['dist']['name'], 'Android')
 
     def test_reddit_android_integration(self):
         user_agent = 'RedditAndroid 1.1.5'
         outs = detect(user_agent)
-        self.assertEqual(outs['browser']['name'], 'Reddit: The Official App')
+        self.assertEqual(outs['browser']['name'], 'Tippr: The Official App')
         self.assertEqual(outs['dist']['name'], 'Android')
 
     def test_reddit_ios_integration(self):
@@ -199,7 +199,7 @@ class HAPIntegrationTests(RedditTestCase):
                          NarwhalForRedditDetector.name)
 
     def test_mcreddit_detector(self):
-        user_agent = 'McReddit - Reddit Client for iOS'
+        user_agent = 'McReddit - Tippr Client for iOS'
         outs = detect(user_agent)
         self.assertEqual(outs['browser']['name'], McRedditDetector.name)
 

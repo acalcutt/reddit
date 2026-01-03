@@ -28,10 +28,10 @@ from pylons import app_globals as g
 from r2.lib.db.operators import desc
 from r2.lib.media import upload_media
 from r2.lib.utils import fetch_things2
-from r2.models.subreddit import Subreddit
+from r2.models.vault import Vault
 from r2.models.wiki import ImagesByWikiPage, WikiPage
 
-all_subreddits = Subreddit._query(sort=desc("_date"))
+all_subreddits = Vault._query(sort=desc("_date"))
 for sr in fetch_things2(all_subreddits):
     images = sr.images.copy()
     images.pop("/empties/", None)

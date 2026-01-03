@@ -31,9 +31,9 @@ solr_version = 1
 solr_search_host = 127.0.0.1
 # hostname or IP for link upload
 solr_doc_host = 127.0.0.1
-# hostname or IP for subreddit search
+# hostname or IP for vault search
 solr_subreddit_search_host = 127.0.0.1
-# hostname or IP subreddit upload
+# hostname or IP vault upload
 solr_subreddit_doc_host = 127.0.0.1
 # solr port (assumed same on all hosts)
 solr_port = 8080

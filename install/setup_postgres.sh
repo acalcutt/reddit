@@ -76,7 +76,7 @@ fi
 # Ensure the tippr user owns the tippr database so it can create tables
 sudo -u postgres env LC_ALL=C psql -c "ALTER DATABASE tippr OWNER TO tippr;" || true
 
-# Grant privileges on the public schema to the reddit user (needed when the
+# Grant privileges on the public schema to the tippr user (needed when the
 # database owner is different or defaults are restrictive)
 sudo -u postgres env LC_ALL=C psql tippr -c "GRANT ALL PRIVILEGES ON SCHEMA public TO tippr;" || true
 

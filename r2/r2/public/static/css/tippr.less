@@ -867,7 +867,7 @@ body > .content .link.compressed .midcol {
 }
 
 a.author { margin-right: 0.5em; }
-.tagline .subreddit {
+.tagline .vault {
     .userattrs { margin-left: 0.5em; }
     .admin-distinguish { color: @admin-color; }
     .moderator-distinguish { color: @moderator-color; }
@@ -2096,7 +2096,7 @@ a.star { text-decoration: none; color: #ff8b60 }
 .link.compressed .title { margin: -2px 0 3px }
 .link.compressed .score { color: #888888 }
 .link.compressed .score-placeholder { height: 3px }
-.link.compressed .subreddit { font-weight: bold }
+.link.compressed .vault { font-weight: bold }
 .link.compressed .tagline { display: inline; margin-right: 12px }
 .link.compressed .expando-button { display: none; }
 
@@ -2389,7 +2389,7 @@ textarea.gray { color: gray; }
 }
 
 .message {
-    .recipient a.author, .sender a.author, .subreddit {
+    .recipient a.author, .sender a.author, .vault {
         font-weight: bold;
     }
 }
@@ -2646,12 +2646,12 @@ textarea.gray { color: gray; }
     margin-top: 0.5em;
 }
 
-.subreddit { margin-bottom: 10px; }
-.subreddit p { margin-top: 0px; margin-bottom: 1px; }
-.subreddit .description {font-size: small; max-width: 60em;}
-.subreddit .key {display: block;}
-.subreddit .title { font-size: medium; margin-right: 5px; }
-.subreddit .midcol { margin-right: 5px; margin-top: 5px; text-align: right; width: 12em !important; }
+.vault { margin-bottom: 10px; }
+.vault p { margin-top: 0px; margin-bottom: 1px; }
+.vault .description {font-size: small; max-width: 60em;}
+.vault .key {display: block;}
+.vault .title { font-size: medium; margin-right: 5px; }
+.vault .midcol { margin-right: 5px; margin-top: 5px; text-align: right; width: 12em !important; }
 
 .fancy-toggle-button {
     display: block;
@@ -4294,7 +4294,7 @@ form input[type=radio] {margin: 2px .5em 0 0; }
 .opt-form { font-size: larger }
 .opt-form form { display: inline; }
 
-/* pref table - used for preferences and edit subreddit pages */
+/* pref table - used for preferences and edit vault pages */
 .preftable th {
     padding: 10px; 
     font-weight: bold; 
@@ -5219,7 +5219,7 @@ ul.tabmenu.formtab {
 
 
 /******** self text stuff ****/
-.subreddit .usertext .md {
+.vault .usertext .md {
     padding: 2px 5px;
     background-color: #fafafa;
     border: 1px solid #CCC;
@@ -5684,7 +5684,7 @@ ul.colors {
     margin-bottom: 5px;
 }
 
-.campaign .subreddit-targeting input{
+.campaign .vault-targeting input{
     width: 95%;
     border-radius: 7px;
 }
@@ -5835,7 +5835,7 @@ ul.colors {
     }
 }
 
-.collection-subreddit-list {
+.collection-vault-list {
     font-size: 13px;
     .label {
         margin: 5px 0;
@@ -6540,7 +6540,7 @@ div #campaign-field {
     .form-group,
     .select-group,
     .collection-targeting,
-    .subreddit-targeting {
+    .vault-targeting {
         margin-bottom: 10px;
         > .label:first-child {
             width: 110px;
@@ -8828,7 +8828,7 @@ form#banned textarea {
     margin: 0 5px;
 }
 
-.modactionlisting td.timestamp, .modactionlisting td.subreddit {
+.modactionlisting td.timestamp, .modactionlisting td.vault {
     white-space: nowrap;
 }
 
@@ -9326,7 +9326,7 @@ form#banned textarea {
     margin: .75em 0;
 }
 
-#private-subreddit-message-link {
+#private-vault-message-link {
   border-top: 1px solid black;
   margin-top: 1em;
   padding-top: 2em;
@@ -10337,7 +10337,7 @@ body.with-listing-chooser {
     }
 }
 
-.trending-subreddits {
+.trending-vaults {
     margin-top: -2px;
     margin-bottom: 8px;
     line-height: 1.75em;
@@ -10352,15 +10352,15 @@ body.with-listing-chooser {
         }
     }
 
-    // hax to align trending subreddits list with links/thumbnails
+    // hax to align trending vaults list with links/thumbnails
     // this uses the overflow:hidden trick to create a block formatting context
-    // to shift the left edge of the trending subreddits list over
+    // to shift the left edge of the trending vaults list over
     .rank-spacer, .midcol-spacer {
         float: left;
         height: 1px;
     }
 
-    .trending-subreddits-content {
+    .trending-vaults-content {
         overflow: hidden;
     }
 
@@ -10998,7 +10998,7 @@ body.with-listing-chooser {
   }
 }
 
-/* Gold only subreddits */
+/* Gold only vaults */
 
 .gold-only {
   @gold: #9a7d2e;
@@ -11067,7 +11067,7 @@ body.with-listing-chooser {
   }
 }
 
-/* Quarantined subreddits */
+/* Quarantined vaults */
 
 .quarantine {
   #header-img.default-header {
@@ -11102,7 +11102,7 @@ body.with-listing-chooser {
     max-width: 300px;
 }
 
-.subreddit-report-form,
+.vault-report-form,
 .action-form {
     display: none;
     background-color: #f6e69f;
@@ -11132,7 +11132,7 @@ body.with-listing-chooser {
     }
 }
 
-.subreddit-report-form {
+.vault-report-form {
     @bg-color: #FBFBFB;
     @text-color: @color-semi-black;
 
@@ -11469,7 +11469,7 @@ body:not(.loggedin) .report-button {
     margin-right: 3px;
 }
 
-.subreddit .midcol .sr-type-icon {
+.vault .midcol .sr-type-icon {
     margin-left: 3px;
 }
 

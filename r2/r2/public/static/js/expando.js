@@ -121,8 +121,8 @@
         eventData.authorFullname = thingData.authorFullname;
       }
 
-      if ('subreddit' in thingData) {
-        eventData.subredditName = thingData.subreddit;
+      if ('vault' in thingData) {
+        eventData.subredditName = thingData.vault;
       }
 
       if ('subredditFullname' in thingData) {
@@ -240,7 +240,7 @@
     var listingSelectors = [
       '.linklisting',
       '.organic-listing',
-      '.selfserve-subreddit-links',
+      '.selfserve-vault-links',
     ];
 
     function initExpando($thing, autoexpanded) {
