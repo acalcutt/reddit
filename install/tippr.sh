@@ -464,7 +464,31 @@ if [ -d "$TIPPR_VENV" ] && [ ! -w "$TIPPR_VENV" ]; then
     echo "Existing venv at $TIPPR_VENV is not writable by $TIPPR_USER; removing"
     rm -rf "$TIPPR_VENV"
 fi
-sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV
+
+# Attempt to create venv; if ensurepip fails (some images lack ensurepip),
+# install prerequisites and retry by bootstrapping pip via get-pip.py.
+if sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV; then
+    :
+else
+    echo "python3 -m venv failed; attempting fallback (installing prerequisites)"
+    apt-get update || true
+    apt-get install -y python3-venv python3-distutils python3-pip || true
+
+    # Try creating venv without pip, then bootstrap pip using get-pip.py
+    if sudo -u $TIPPR_USER python3 -m venv --without-pip $TIPPR_VENV; then
+        echo "Bootstrapping pip into venv using get-pip.py"
+        curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py || true
+        if [ -f /tmp/get-pip.py ]; then
+            sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py || true
+            rm -f /tmp/get-pip.py || true
+        else
+            echo "Failed to download get-pip.py; attempting system pip to install pip into venv"
+            sudo -u $TIPPR_USER python3 -m pip install --upgrade pip || true
+        fi
+    else
+        echo "Retry to create venv failed; aborting venv setup" >&2
+    fi
+fi
 
 # Create 'python' symlink for compatibility with Makefiles that expect 'python'
 sudo -u $TIPPR_USER ln -sf python3 $TIPPR_VENV/bin/python
