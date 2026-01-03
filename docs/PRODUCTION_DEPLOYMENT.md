@@ -1,25 +1,50 @@
 # Tippr Production Deployment Guide
 
-This document provides guidance for deploying the Reddit codebase in a production environment. While `install-reddit.sh` sets up a development environment with all services running locally, production deployments require a distributed architecture with proper scaling, redundancy, and managed services.
+## About This Guide
+
+This deployment guide is for **Tippr**, a modern fork of the reddit codebase updated for Python 3 and current infrastructure. While the core architecture remains similar to the original reddit design, this guide has been updated for modern cloud platforms and self-hosting scenarios.
+
+**Attribution**: Based on reddit's open-source architecture and deployment patterns. Original reddit code © 2006-2015 reddit Inc.
+
+For the original reddit codebase and historical context, see: https://github.com/reddit-archive/reddit
+
+---
+
+This document provides guidance for deploying the Tippr codebase in a production environment. While `install-tippr.sh` sets up a development environment with all services running locally, production deployments require a distributed architecture with proper scaling, redundancy, and managed services.
 
 ## Table of Contents
 
+**Getting Started**
 1. [Architecture Overview](#architecture-overview)
-2. [AWS Managed Services Strategy](#aws-managed-services-strategy)
-3. [Google Cloud Platform Strategy](#google-cloud-platform-strategy)
-4. [Microsoft Azure Strategy](#microsoft-azure-strategy)
-5. [Database Configuration](#database-configuration)
-6. [Caching Layer](#caching-layer)
-7. [Message Queue](#message-queue)
-8. [Application Servers](#application-servers)
-9. [Load Balancing & Reverse Proxy](#load-balancing--reverse-proxy)
-10. [Configuration Changes for Production](#configuration-changes-for-production)
-11. [Scaling Lessons from Reddit's History](#scaling-lessons-from-reddits-history)
-12. [Monitoring & Observability](#monitoring--observability)
-13. [Security Considerations](#security-considerations)
-14. [Deployment Checklist](#deployment-checklist)
-15. [Cloud Provider Comparison](#cloud-provider-comparison)
-16. [Self-Hosted Production Deployment](#self-hosted-production-deployment)
+2. [Choosing Your Deployment Strategy](#choosing-your-deployment-strategy)
+3. [Development vs Production](#development-vs-production)
+
+**Cloud Deployments**
+4. [AWS Deployment Guide](#aws-managed-services-strategy)
+5. [Google Cloud Platform Guide](#google-cloud-platform-strategy)
+6. [Microsoft Azure Guide](#microsoft-azure-strategy)
+7. [Cloud Provider Comparison](#cloud-provider-comparison)
+
+**Self-Hosted Deployments**
+8. [Self-Hosted Production Deployment](#self-hosted-production-deployment)
+9. [Hybrid Deployment Strategy](#hybrid-deployment-strategy)
+
+**Common Components** (all deployment types)
+10. [Database Configuration](#database-configuration)
+11. [Caching Layer](#caching-layer)
+12. [Message Queue](#message-queue)
+13. [Application Servers](#application-servers)
+14. [Load Balancing & Reverse Proxy](#load-balancing--reverse-proxy)
+
+**Operations**
+15. [Configuration Changes for Production](#configuration-changes-for-production)
+16. [Migration from Development to Production](#migration-from-development-to-production)
+17. [Backup & Disaster Recovery](#backup--disaster-recovery)
+18. [Monitoring & Observability](#monitoring--observability)
+19. [Security Considerations](#security-considerations)
+20. [Scaling Lessons from Reddit's History](#scaling-lessons-from-reddits-history)
+21. [Deployment Checklists](#deployment-checklist)
+22. [Additional Resources](#additional-resources)
 
 ---
 
@@ -60,6 +85,54 @@ This document provides guidance for deploying the Reddit codebase in a productio
 
 ---
 
+## Choosing Your Deployment Strategy
+
+### Decision Tree
+
+**Start here**: What's your primary goal?
+
+```
+├─ Fastest time-to-production → AWS (all managed services, minimal code changes)
+│  └─ Expected cost: $1,325-1,910/month
+│
+├─ Cost optimization → GCP + Astra DB or Self-Hosted Hybrid
+│  ├─ Cloud: $950-1,450/month (GCP + Astra DB)
+│  └─ Hybrid: $100-260/month (local compute + cloud storage/DB)
+│
+├─ Enterprise/Microsoft ecosystem → Azure
+│  └─ Expected cost: $1,220-2,450/month (depending on Cassandra choice)
+│
+├─ Learning/Development → Self-Hosted (all local)
+│  └─ Expected cost: Hardware + ~$50-100/month (internet + power + backups)
+│
+└─ Maximum scale (Reddit-level) → GCP with Bigtable (requires code changes)
+   └─ Expected cost: $2,200-2,750/month
+```
+
+### Quick Comparison
+
+| Priority | Best Choice | Why |
+|----------|-------------|-----|
+| Speed to production | AWS | All managed services, S3 provider exists in codebase |
+| Lowest operating cost | Self-hosted hybrid | Local compute, cloud storage/DB only |
+| Easiest to manage | AWS or GCP + Astra DB | Fully managed, CQL-compatible |
+| Enterprise features | Azure | Best Microsoft integration, compliance certifications |
+| Learning the architecture | Self-hosted | Full control, understand all components |
+| Maximum scalability | GCP + Bigtable | Petabyte-scale, but requires code refactoring |
+
+### Cost Estimation by Traffic Tier
+
+| Traffic Tier | DAU | AWS | GCP + Astra | Azure + Astra | Self-Hosted Hybrid |
+|--------------|-----|-----|-------------|---------------|-------------------|
+| Small | <10K | $500-800 | $400-600 | $450-700 | $50-150 |
+| Medium | 10K-100K | $1,325-1,910 | $950-1,450 | $1,220-1,750 | $100-260 |
+| Large | 100K-1M | $3,000-5,000 | $2,500-4,000 | $3,000-5,000 | $300-500 |
+| X-Large | >1M | $8,000+ | $6,000+ | $7,000+ | Full cloud recommended |
+
+> **Note on costs**: These estimates do not include data transfer/egress fees, which can add 10-30% depending on traffic patterns. Reserved instances and committed use discounts can reduce costs by 30-70% for predictable workloads.
+
+---
+
 ## AWS Managed Services Strategy
 
 ### Why Use Managed Services?
@@ -74,7 +147,7 @@ Using AWS managed services like Amazon Keyspaces and RDS PostgreSQL provides sev
 
 ### Amazon Keyspaces (for Apache Cassandra)
 
-Amazon Keyspaces is a serverless, Cassandra-compatible database service ideal for Reddit's time-series data (votes, comments, activity tracking).
+Amazon Keyspaces is a serverless, Cassandra-compatible database service ideal for Tippr's time-series data (votes, comments, activity tracking).
 
 #### Setup Considerations
 
@@ -102,7 +175,35 @@ cassandra_pool_size = 10
 1. **Authentication**: Use AWS Signature Version 4 (SigV4) authentication plugin or service-specific credentials
 2. **Keyspace creation**: Create keyspaces via AWS Console or CQL with `SingleRegionStrategy`
 3. **Throughput**: Start with on-demand capacity mode; switch to provisioned once traffic patterns are understood
-4. **Schema**: Same CQL schema works, but avoid unsupported features (counters work differently, no ALLOW FILTERING in prod)
+4. **Schema**: Same CQL schema works, but avoid unsupported features (see limitations below)
+
+#### Keyspaces Limitations (Important)
+
+> **Warning**: Amazon Keyspaces is CQL-compatible but not feature-complete. Review these limitations before migrating:
+
+| Feature | Self-Hosted Cassandra | Amazon Keyspaces | Impact |
+|---------|----------------------|------------------|--------|
+| `ALLOW FILTERING` | Supported | **Not supported** | Must redesign queries |
+| Lightweight Transactions (LWT) | Full support | Limited support | `IF NOT EXISTS` works, but behavior differs |
+| Counters | Native counters | **Emulated, eventual** | May see stale counts briefly |
+| User-Defined Functions (UDF) | Supported | **Not supported** | Move logic to application layer |
+| User-Defined Aggregates | Supported | **Not supported** | Aggregate in application |
+| Materialized Views | Supported | **Not supported** | Create separate tables manually |
+| Secondary Indexes | Supported | **Not supported** | Design with partition keys |
+| Batch Statements | Unlimited | **Max 30 statements** | Split large batches |
+| Request Size | Configurable | **Max 1MB** | Paginate large results |
+| TTL | Any value | **Max 630,720,000 sec (~20 years)** | Usually not an issue |
+
+**Throughput Considerations:**
+- On-demand mode: Good for variable/unknown traffic, but can throttle on spikes
+- Provisioned mode: Predictable cost, but must size correctly
+- **Burst capacity**: Keyspaces provides burst capacity but throttles sustained high traffic
+
+**Recommended Testing:**
+```bash
+# Before migrating, test your queries against Keyspaces
+# Use the NoSQL Workbench for Amazon Keyspaces to validate schema
+```
 
 ```python
 # Example: Connecting to Keyspaces with SigV4
@@ -141,7 +242,7 @@ cqlsh cassandra.us-east-1.amazonaws.com 9142 --ssl \
 
 ### Amazon RDS for PostgreSQL
 
-RDS PostgreSQL handles Reddit's relational data: links, accounts, subreddits, and anything requiring ACID transactions.
+RDS PostgreSQL handles Tippr's relational data: links, accounts, subreddits, and anything requiring ACID transactions.
 
 #### Setup Considerations
 
@@ -164,7 +265,7 @@ main_db = tippr, your-db.cluster-xxxxx.us-east-1.rds.amazonaws.com, *, *, *, *, 
 
 # Read replicas for read-heavy tables
 # Use reader endpoint for slave connections
-comment_db = reddit, your-db.cluster-ro-xxxxx.us-east-1.rds.amazonaws.com, *, *, *, *, *
+comment_db = tippr, your-db.cluster-ro-xxxxx.us-east-1.rds.amazonaws.com, *, *, *, *, *
 ```
 
 #### RDS Instance Recommendations
@@ -206,7 +307,7 @@ From Reddit's scaling experience: **SSDs provide 16x performance improvement at 
 
 ## Google Cloud Platform Strategy
 
-Google Cloud Platform (GCP) offers a compelling alternative to AWS with competitive pricing, strong networking, and excellent managed services. This section covers the equivalent GCP services for running Reddit in production.
+Google Cloud Platform (GCP) offers a compelling alternative to AWS with competitive pricing, strong networking, and excellent managed services. This section covers the equivalent GCP services for running Tippr in production.
 
 ### GCP Architecture Overview
 
@@ -232,7 +333,7 @@ Google Cloud Platform (GCP) offers a compelling alternative to AWS with competit
 
 ### GCP Service Mapping
 
-| Reddit Component | AWS Service | GCP Equivalent |
+| Tippr Component | AWS Service | GCP Equivalent |
 |------------------|-------------|----------------|
 | PostgreSQL | RDS for PostgreSQL | Cloud SQL for PostgreSQL |
 | Cassandra | Amazon Keyspaces | DataStax Astra DB / Cloud Bigtable / Self-managed |
@@ -255,7 +356,7 @@ Cloud SQL is Google's fully managed PostgreSQL service with automatic failover, 
 ```ini
 # production-gcp.update - Cloud SQL configuration
 [DEFAULT]
-db_user = reddit
+db_user = tippr
 db_pass = YOUR_SECURE_PASSWORD
 db_port = 5432
 
@@ -267,10 +368,10 @@ databases = main, comment, email, authorize, award, hc, traffic
 
 # Cloud SQL connection (private IP recommended)
 # Format: project:region:instance or private IP
-main_db = reddit, 10.0.0.5, *, *, *, *, *
+main_db = tippr, 10.0.0.5, *, *, *, *, *
 
 # Read replica for heavy read tables
-comment_db = reddit, 10.0.0.6, *, *, *, *, *
+comment_db = tippr, 10.0.0.6, *, *, *, *, *
 ```
 
 #### Cloud SQL Instance Recommendations
@@ -288,11 +389,11 @@ Use Cloud SQL Proxy for secure connections without exposing the database:
 ```bash
 # Download and run Cloud SQL Proxy
 ./cloud-sql-proxy --private-ip \
-  your-project:us-central1:reddit-db &
+  your-project:us-central1:tippr-db &
 
 # Application connects to localhost
 # production-gcp.update
-main_db = reddit, 127.0.0.1, *, *, *, *, *
+main_db = tippr, 127.0.0.1, *, *, *, *, *
 ```
 
 #### Cloud SQL Best Practices
@@ -345,21 +446,21 @@ cassandra_pool_size = 10
 **Python Connection Example:**
 
 ```python
-# Connecting to Astra DB from Reddit codebase
+# Connecting to Astra DB from Tippr codebase
 # Minimal changes to r2/r2/lib/db/cassandra_compat.py
 from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 
 # Using Secure Connect Bundle (recommended)
 cloud_config = {
-    'secure_connect_bundle': '/path/to/secure-connect-reddit.zip'
+    'secure_connect_bundle': '/path/to/secure-connect-tippr.zip'
 }
 auth_provider = PlainTextAuthProvider(
     username='token',
     secret='AstraCS:YOUR_APPLICATION_TOKEN'
 )
 cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
-session = cluster.connect('reddit')
+session = cluster.connect('tippr')
 
 # All existing CQL queries work unchanged
 session.execute("SELECT * FROM votes WHERE user_id = %s", [user_id])
@@ -377,7 +478,7 @@ session.execute("SELECT * FROM votes WHERE user_id = %s", [user_id])
 
 #### Option B: Cloud Bigtable (Maximum Scale)
 
-Cloud Bigtable is Google's NoSQL wide-column database. While not CQL-compatible, it's highly performant for Reddit's use cases (votes, activity tracking, time-series data) at massive scale.
+Cloud Bigtable is Google's NoSQL wide-column database. While not CQL-compatible, it's highly performant for Tippr's use cases (votes, activity tracking, time-series data) at massive scale.
 
 ##### Key Differences from Cassandra
 
@@ -398,7 +499,7 @@ from google.cloud import bigtable
 from google.cloud.bigtable import column_family
 
 client = bigtable.Client(project='your-project', admin=True)
-instance = client.instance('reddit-instance')
+instance = client.instance('tippr-instance')
 table = instance.table('votes')
 
 # Write vote
@@ -475,7 +576,7 @@ cassandra_wcl = LOCAL_QUORUM
 
 ### Memorystore for Memcached
 
-Memorystore provides managed Memcached compatible with Reddit's caching layer.
+Memorystore provides managed Memcached compatible with Tippr's caching layer.
 
 #### Configuration
 
@@ -506,7 +607,7 @@ num_mc_clients = 20
 Cloud Pub/Sub is a fully managed messaging service. It uses a different paradigm (topics/subscriptions) than RabbitMQ (exchanges/queues) and would require adapter code.
 
 ```python
-# Example: Pub/Sub adapter for Reddit's queue system
+# Example: Pub/Sub adapter for Tippr's queue system
 # Would wrap r2/r2/lib/amqp.py
 from google.cloud import pubsub_v1
 
@@ -539,7 +640,7 @@ For drop-in compatibility, run RabbitMQ on GKE:
 apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
 metadata:
-  name: reddit-rabbitmq
+  name: tippr-rabbitmq
 spec:
   replicas: 3
   persistence:
@@ -556,8 +657,8 @@ spec:
 
 ```ini
 # production-gcp.update - RabbitMQ on GKE
-amqp_host = reddit-rabbitmq.default.svc.cluster.local:5672
-amqp_user = reddit
+amqp_host = tippr-rabbitmq.default.svc.cluster.local:5672
+amqp_user = tippr
 amqp_pass = YOUR_SECURE_PASSWORD
 amqp_virtual_host = /
 ```
@@ -570,7 +671,7 @@ Traditional VM-based deployment similar to EC2:
 
 ```bash
 # Create instance template
-gcloud compute instance-templates create reddit-template \
+gcloud compute instance-templates create tippr-template \
   --machine-type=n2-standard-4 \
   --image-family=ubuntu-2404-lts \
   --image-project=ubuntu-os-cloud \
@@ -579,12 +680,12 @@ gcloud compute instance-templates create reddit-template \
   --metadata-from-file=startup-script=startup.sh
 
 # Create managed instance group with autoscaling
-gcloud compute instance-groups managed create reddit-mig \
-  --template=reddit-template \
+gcloud compute instance-groups managed create tippr-mig \
+  --template=tippr-template \
   --size=3 \
   --zone=us-central1-a
 
-gcloud compute instance-groups managed set-autoscaling reddit-mig \
+gcloud compute instance-groups managed set-autoscaling tippr-mig \
   --min-num-replicas=2 \
   --max-num-replicas=10 \
   --target-cpu-utilization=0.7 \
@@ -596,29 +697,29 @@ gcloud compute instance-groups managed set-autoscaling reddit-mig \
 Container-based deployment for better resource utilization:
 
 ```yaml
-# reddit-deployment.yaml
+# tippr-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reddit-app
+  name: tippr-app
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: reddit
+      app: tippr
   template:
     metadata:
       labels:
-        app: reddit
+        app: tippr
     spec:
       containers:
-      - name: reddit
-        image: gcr.io/your-project/reddit:latest
+      - name: tippr
+        image: gcr.io/your-project/tippr:latest
         ports:
         - containerPort: 8001
         env:
         - name: PYTHONPATH
-          value: "/app/reddit:/app"
+          value: "/app/tippr:/app"
         resources:
           requests:
             cpu: "1"
@@ -634,12 +735,12 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: reddit-hpa
+  name: tippr-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: reddit-app
+    name: tippr-app
   minReplicas: 2
   maxReplicas: 20
   metrics:
@@ -657,34 +758,34 @@ spec:
 
 ```bash
 # Create health check
-gcloud compute health-checks create http reddit-health \
+gcloud compute health-checks create http tippr-health \
   --port=8001 \
   --request-path=/health
 
 # Create backend service
-gcloud compute backend-services create reddit-backend \
+gcloud compute backend-services create tippr-backend \
   --protocol=HTTP \
-  --health-checks=reddit-health \
+  --health-checks=tippr-health \
   --global
 
 # Add instance group to backend
-gcloud compute backend-services add-backend reddit-backend \
-  --instance-group=reddit-mig \
+gcloud compute backend-services add-backend tippr-backend \
+  --instance-group=tippr-mig \
   --instance-group-zone=us-central1-a \
   --global
 
 # Create URL map
-gcloud compute url-maps create reddit-lb \
-  --default-service=reddit-backend
+gcloud compute url-maps create tippr-lb \
+  --default-service=tippr-backend
 
 # Create HTTPS proxy with SSL cert
-gcloud compute target-https-proxies create reddit-https-proxy \
-  --url-map=reddit-lb \
-  --ssl-certificates=reddit-ssl-cert
+gcloud compute target-https-proxies create tippr-https-proxy \
+  --url-map=tippr-lb \
+  --ssl-certificates=tippr-ssl-cert
 
 # Create forwarding rule
-gcloud compute forwarding-rules create reddit-https-rule \
-  --target-https-proxy=reddit-https-proxy \
+gcloud compute forwarding-rules create tippr-https-rule \
+  --target-https-proxy=tippr-https-proxy \
   --ports=443 \
   --global
 ```
@@ -694,7 +795,7 @@ gcloud compute forwarding-rules create reddit-https-rule \
 Enable Cloud CDN on the backend service for caching:
 
 ```bash
-gcloud compute backend-services update reddit-backend \
+gcloud compute backend-services update tippr-backend \
   --enable-cdn \
   --cache-mode=CACHE_ALL_STATIC \
   --default-ttl=3600 \
@@ -709,8 +810,8 @@ gcloud compute backend-services update reddit-backend \
 media_provider = gcs  # Requires implementing GCS provider
 
 # GCS bucket configuration
-gcs_media_bucket = your-reddit-media
-gcs_image_bucket = your-reddit-images
+gcs_media_bucket = your-tippr-media
+gcs_image_bucket = your-tippr-images
 gcs_project = your-project-id
 ```
 
@@ -723,7 +824,7 @@ media_provider = s3
 S3KEY_ID = YOUR_GCS_HMAC_ACCESS_ID
 S3SECRET_KEY = YOUR_GCS_HMAC_SECRET
 s3_media_domain = storage.googleapis.com
-s3_media_buckets = your-reddit-media
+s3_media_buckets = your-tippr-media
 ```
 
 ### GCP Production Configuration
@@ -744,11 +845,11 @@ media_domain = media.yourdomain.com
 https_endpoint = https://yourdomain.com
 
 # Cloud SQL
-db_user = reddit
+db_user = tippr
 db_pass = YOUR_SECURE_PASSWORD
 db_port = 5432
 databases = main, comment, email, authorize, award, hc, traffic
-main_db = reddit, /cloudsql/project:region:instance, *, *, *, *, *
+main_db = tippr, /cloudsql/project:region:instance, *, *, *, *, *
 
 # Bigtable or self-managed Cassandra
 cassandra_seeds = cassandra.default.svc.cluster.local:9042
@@ -760,8 +861,8 @@ permacache_memcaches = 10.0.0.10:11211
 hardcache_memcaches = 10.0.0.10:11211
 
 # RabbitMQ on GKE
-amqp_host = reddit-rabbitmq.default.svc.cluster.local:5672
-amqp_user = reddit
+amqp_host = tippr-rabbitmq.default.svc.cluster.local:5672
+amqp_user = tippr
 amqp_pass = YOUR_SECURE_PASSWORD
 
 # GCS media storage (S3-compatible)
@@ -791,10 +892,10 @@ metadata:
 data:
   mapping.yml: |
     mappings:
-    - match: "reddit.*"
-      name: "reddit_${1}"
+    - match: "tippr.*"
+      name: "tippr_${1}"
       labels:
-        job: "reddit"
+        job: "tippr"
 ```
 
 #### Cloud Logging
@@ -859,7 +960,7 @@ For a medium-traffic deployment (~100K-500K daily active users):
 
 ## Microsoft Azure Strategy
 
-Microsoft Azure provides a comprehensive set of managed services for running Reddit in production, with strong enterprise integration and hybrid cloud capabilities.
+Microsoft Azure provides a comprehensive set of managed services for running Tippr in production, with strong enterprise integration and hybrid cloud capabilities.
 
 ### Azure Architecture Overview
 
@@ -885,7 +986,7 @@ Microsoft Azure provides a comprehensive set of managed services for running Red
 
 ### Azure Service Mapping
 
-| Reddit Component | AWS Service | GCP Equivalent | Azure Equivalent |
+| Tippr Component | AWS Service | GCP Equivalent | Azure Equivalent |
 |------------------|-------------|----------------|------------------|
 | PostgreSQL | RDS for PostgreSQL | Cloud SQL | Azure Database for PostgreSQL |
 | Cassandra | Amazon Keyspaces | Astra DB / Bigtable | Azure Managed Instance for Cassandra |
@@ -908,7 +1009,7 @@ Azure Database for PostgreSQL Flexible Server is the recommended option for new 
 ```ini
 # production-azure.update - Azure PostgreSQL configuration
 [DEFAULT]
-db_user = reddit
+db_user = tippr
 db_pass = YOUR_SECURE_PASSWORD
 db_port = 5432
 
@@ -919,10 +1020,10 @@ db_pool_overflow_size = 20
 databases = main, comment, email, authorize, award, hc, traffic
 
 # Azure PostgreSQL Flexible Server (private endpoint recommended)
-main_db = reddit, reddit-db.postgres.database.azure.com, *, *, *, *, *
+main_db = tippr, tippr-db.postgres.database.azure.com, *, *, *, *, *
 
 # Read replica for heavy read tables
-comment_db = reddit, reddit-db-replica.postgres.database.azure.com, *, *, *, *, *
+comment_db = tippr, tippr-db-replica.postgres.database.azure.com, *, *, *, *, *
 ```
 
 #### Azure PostgreSQL Instance Recommendations
@@ -944,10 +1045,10 @@ comment_db = reddit, reddit-db-replica.postgres.database.azure.com, *, *, *, *, 
 ```bash
 # Create Azure PostgreSQL Flexible Server
 az postgres flexible-server create \
-  --resource-group reddit-rg \
-  --name reddit-db \
+  --resource-group tippr-rg \
+  --name tippr-db \
   --location eastus \
-  --admin-user reddit \
+  --admin-user tippr \
   --admin-password YOUR_SECURE_PASSWORD \
   --sku-name Standard_D4s_v3 \
   --tier GeneralPurpose \
@@ -976,7 +1077,7 @@ Azure Managed Instance for Apache Cassandra provides a fully managed, CQL-compat
 # production-azure.update - Azure Managed Cassandra configuration
 [DEFAULT]
 # Azure Managed Cassandra data center endpoint
-cassandra_seeds = reddit-cassandra-dc1.cassandra.cosmos.azure.com:10350
+cassandra_seeds = tippr-cassandra-dc1.cassandra.cosmos.azure.com:10350
 
 # Azure Managed Cassandra requires SSL/TLS
 cassandra_ssl = true
@@ -993,7 +1094,7 @@ cassandra_pool_size = 10
 #### Python Connection Example
 
 ```python
-# Connecting to Azure Managed Cassandra from Reddit codebase
+# Connecting to Azure Managed Cassandra from Tippr codebase
 # Minimal changes to r2/r2/lib/db/cassandra_compat.py
 from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
@@ -1007,17 +1108,17 @@ ssl_context.verify_mode = CERT_REQUIRED
 
 # Authentication
 auth_provider = PlainTextAuthProvider(
-    username='reddit-cassandra',
+    username='tippr-cassandra',
     password='YOUR_CASSANDRA_PASSWORD'
 )
 
 cluster = Cluster(
-    contact_points=['reddit-cassandra-dc1.cassandra.cosmos.azure.com'],
+    contact_points=['tippr-cassandra-dc1.cassandra.cosmos.azure.com'],
     port=10350,
     auth_provider=auth_provider,
     ssl_context=ssl_context
 )
-session = cluster.connect('reddit')
+session = cluster.connect('tippr')
 
 # All existing CQL queries work unchanged
 session.execute("SELECT * FROM votes WHERE user_id = %s", [user_id])
@@ -1034,16 +1135,16 @@ session.execute("SELECT * FROM votes WHERE user_id = %s", [user_id])
 ```bash
 # Create Azure Managed Cassandra Cluster
 az managed-cassandra cluster create \
-  --resource-group reddit-rg \
-  --cluster-name reddit-cassandra \
+  --resource-group tippr-rg \
+  --cluster-name tippr-cassandra \
   --location eastus \
   --delegated-management-subnet-id /subscriptions/.../subnets/cassandra-subnet \
   --initial-cassandra-admin-password YOUR_CASSANDRA_PASSWORD
 
 # Create data center
 az managed-cassandra datacenter create \
-  --resource-group reddit-rg \
-  --cluster-name reddit-cassandra \
+  --resource-group tippr-rg \
+  --cluster-name tippr-cassandra \
   --data-center-name dc1 \
   --data-center-location eastus \
   --delegated-subnet-id /subscriptions/.../subnets/cassandra-subnet \
@@ -1070,13 +1171,13 @@ Azure doesn't offer managed Memcached, but Azure Cache for Redis can work as a h
 
 #### Option A: Azure Cache for Redis (Recommended)
 
-Redis is more feature-rich than Memcached and works well for Reddit's caching needs. However, it requires changes to the caching code to use Redis instead of Memcached.
+Redis is more feature-rich than Memcached and works well for Tippr's caching needs. However, it requires changes to the caching code to use Redis instead of Memcached.
 
 ```ini
 # production-azure.update - Azure Cache for Redis
 # Note: Requires implementing Redis cache provider in r2/r2/lib/cache.py
 [DEFAULT]
-redis_host = reddit-cache.redis.cache.windows.net
+redis_host = tippr-cache.redis.cache.windows.net
 redis_port = 6380
 redis_password = YOUR_ACCESS_KEY
 redis_ssl = true
@@ -1142,10 +1243,10 @@ num_mc_clients = 20
 Azure Service Bus provides enterprise messaging with queues and topics. It uses a different API than RabbitMQ, requiring an adapter.
 
 ```python
-# Example: Azure Service Bus adapter for Reddit's queue system
+# Example: Azure Service Bus adapter for Tippr's queue system
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 
-connection_str = "Endpoint=sb://reddit-bus.servicebus.windows.net/;..."
+connection_str = "Endpoint=sb://tippr-bus.servicebus.windows.net/;..."
 client = ServiceBusClient.from_connection_string(connection_str)
 
 def add_item(queue_name, item):
@@ -1170,7 +1271,7 @@ For drop-in compatibility with existing code:
 apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
 metadata:
-  name: reddit-rabbitmq
+  name: tippr-rabbitmq
 spec:
   replicas: 3
   persistence:
@@ -1187,8 +1288,8 @@ spec:
 
 ```ini
 # production-azure.update - RabbitMQ on AKS
-amqp_host = reddit-rabbitmq.default.svc.cluster.local:5672
-amqp_user = reddit
+amqp_host = tippr-rabbitmq.default.svc.cluster.local:5672
+amqp_user = tippr
 amqp_pass = YOUR_SECURE_PASSWORD
 amqp_virtual_host = /
 ```
@@ -1202,29 +1303,29 @@ Traditional VM-based deployment with auto-scaling:
 ```bash
 # Create VM Scale Set
 az vmss create \
-  --resource-group reddit-rg \
-  --name reddit-vmss \
+  --resource-group tippr-rg \
+  --name tippr-vmss \
   --image Ubuntu2204 \
   --vm-sku Standard_D4s_v3 \
   --instance-count 3 \
-  --admin-username reddit \
+  --admin-username tippr \
   --generate-ssh-keys \
   --custom-data cloud-init.yaml \
-  --load-balancer reddit-lb \
-  --backend-pool-name reddit-backend
+  --load-balancer tippr-lb \
+  --backend-pool-name tippr-backend
 
 # Configure autoscaling
 az monitor autoscale create \
-  --resource-group reddit-rg \
-  --resource reddit-vmss \
+  --resource-group tippr-rg \
+  --resource tippr-vmss \
   --resource-type Microsoft.Compute/virtualMachineScaleSets \
   --min-count 2 \
   --max-count 10 \
   --count 3
 
 az monitor autoscale rule create \
-  --resource-group reddit-rg \
-  --autoscale-name reddit-vmss-autoscale \
+  --resource-group tippr-rg \
+  --autoscale-name tippr-vmss-autoscale \
   --scale out 1 \
   --condition "Percentage CPU > 70 avg 5m"
 ```
@@ -1234,29 +1335,29 @@ az monitor autoscale rule create \
 Container-based deployment with excellent Azure integration:
 
 ```yaml
-# reddit-deployment.yaml for AKS
+# tippr-deployment.yaml for AKS
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reddit-app
+  name: tippr-app
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: reddit
+      app: tippr
   template:
     metadata:
       labels:
-        app: reddit
+        app: tippr
     spec:
       containers:
-      - name: reddit
-        image: redditacr.azurecr.io/reddit:latest
+      - name: tippr
+        image: tippracr.azurecr.io/tippr:latest
         ports:
         - containerPort: 8001
         env:
         - name: PYTHONPATH
-          value: "/app/reddit:/app"
+          value: "/app/tippr:/app"
         resources:
           requests:
             cpu: "1"
@@ -1272,12 +1373,12 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: reddit-hpa
+  name: tippr-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: reddit-app
+    name: tippr-app
   minReplicas: 2
   maxReplicas: 20
   metrics:
@@ -1292,8 +1393,8 @@ spec:
 ```bash
 # Create AKS cluster
 az aks create \
-  --resource-group reddit-rg \
-  --name reddit-aks \
+  --resource-group tippr-rg \
+  --name tippr-aks \
   --node-count 3 \
   --node-vm-size Standard_D4s_v3 \
   --enable-cluster-autoscaler \
@@ -1313,12 +1414,12 @@ Azure Application Gateway provides L7 load balancing with WAF capabilities:
 ```bash
 # Create Application Gateway
 az network application-gateway create \
-  --resource-group reddit-rg \
-  --name reddit-appgw \
+  --resource-group tippr-rg \
+  --name tippr-appgw \
   --location eastus \
   --sku Standard_v2 \
   --capacity 2 \
-  --vnet-name reddit-vnet \
+  --vnet-name tippr-vnet \
   --subnet appgw-subnet \
   --frontend-port 443 \
   --http-settings-port 8001 \
@@ -1334,23 +1435,23 @@ For global distribution and caching:
 ```bash
 # Create Azure Front Door
 az afd profile create \
-  --resource-group reddit-rg \
-  --profile-name reddit-afd \
+  --resource-group tippr-rg \
+  --profile-name tippr-afd \
   --sku Premium_AzureFrontDoor
 
 az afd endpoint create \
-  --resource-group reddit-rg \
-  --profile-name reddit-afd \
-  --endpoint-name reddit-endpoint \
+  --resource-group tippr-rg \
+  --profile-name tippr-afd \
+  --endpoint-name tippr-endpoint \
   --enabled-state Enabled
 
 # Enable caching
 az afd route create \
-  --resource-group reddit-rg \
-  --profile-name reddit-afd \
-  --endpoint-name reddit-endpoint \
+  --resource-group tippr-rg \
+  --profile-name tippr-afd \
+  --endpoint-name tippr-endpoint \
   --route-name default-route \
-  --origin-group reddit-origin-group \
+  --origin-group tippr-origin-group \
   --patterns "/*" \
   --enable-caching true \
   --query-string-caching-behavior IgnoreQueryString
@@ -1364,7 +1465,7 @@ az afd route create \
 media_provider = azure  # Requires implementing Azure provider
 
 # Azure Blob Storage configuration
-azure_storage_account = redditstorageaccount
+azure_storage_account = tipprstorageaccount
 azure_storage_container = media
 azure_storage_connection_string = DefaultEndpointsProtocol=https;AccountName=...
 ```
@@ -1403,14 +1504,14 @@ media_domain = media.yourdomain.com
 https_endpoint = https://yourdomain.com
 
 # Azure Database for PostgreSQL
-db_user = reddit
+db_user = tippr
 db_pass = YOUR_SECURE_PASSWORD
 db_port = 5432
 databases = main, comment, email, authorize, award, hc, traffic
-main_db = reddit, reddit-db.postgres.database.azure.com, *, *, *, *, *
+main_db = tippr, tippr-db.postgres.database.azure.com, *, *, *, *, *
 
 # Azure Managed Cassandra
-cassandra_seeds = reddit-cassandra-dc1.cassandra.cosmos.azure.com:10350
+cassandra_seeds = tippr-cassandra-dc1.cassandra.cosmos.azure.com:10350
 cassandra_ssl = true
 cassandra_pool_size = 10
 cassandra_rcl = LOCAL_QUORUM
@@ -1422,13 +1523,13 @@ permacache_memcaches = memcached.default.svc.cluster.local:11211
 hardcache_memcaches = memcached.default.svc.cluster.local:11211
 
 # RabbitMQ on AKS
-amqp_host = reddit-rabbitmq.default.svc.cluster.local:5672
-amqp_user = reddit
+amqp_host = tippr-rabbitmq.default.svc.cluster.local:5672
+amqp_user = tippr
 amqp_pass = YOUR_SECURE_PASSWORD
 
 # Azure Blob Storage
 media_provider = azure
-azure_storage_account = redditstorageaccount
+azure_storage_account = tipprstorageaccount
 azure_storage_container = media
 
 # Security
@@ -1446,14 +1547,14 @@ statsd_addr = localhost:8125  # Use statsd-exporter sidecar with Azure Monitor
 ```bash
 # Create Log Analytics workspace
 az monitor log-analytics workspace create \
-  --resource-group reddit-rg \
-  --workspace-name reddit-logs
+  --resource-group tippr-rg \
+  --workspace-name tippr-logs
 
 # Enable diagnostic settings for PostgreSQL
 az monitor diagnostic-settings create \
-  --resource /subscriptions/.../reddit-db \
-  --name reddit-db-diagnostics \
-  --workspace reddit-logs \
+  --resource /subscriptions/.../tippr-db \
+  --name tippr-db-diagnostics \
+  --workspace tippr-logs \
   --logs '[{"category": "PostgreSQLLogs", "enabled": true}]' \
   --metrics '[{"category": "AllMetrics", "enabled": true}]'
 ```
@@ -1463,10 +1564,10 @@ az monitor diagnostic-settings create \
 ```bash
 # Create Application Insights
 az monitor app-insights component create \
-  --resource-group reddit-rg \
-  --app reddit-insights \
+  --resource-group tippr-rg \
+  --app tippr-insights \
   --location eastus \
-  --workspace reddit-logs
+  --workspace tippr-logs
 ```
 
 ### Azure Cost Estimation
@@ -1521,7 +1622,7 @@ For a medium-traffic deployment (~100K-500K daily active users):
 
 ### Amazon ElastiCache for Memcached
 
-Reddit heavily relies on memcached for performance. The caching layer handles:
+Tippr heavily relies on memcached for performance. The caching layer handles:
 - Page fragment caching
 - Query result caching
 - Session data
@@ -1571,7 +1672,7 @@ stalecaches = your-stale-cache.xxxxx.cfg.use1.cache.amazonaws.com:11211
 
 ### Amazon MQ for RabbitMQ
 
-Reddit uses RabbitMQ for async job processing: votes, comments, scraping, search indexing.
+Tippr uses RabbitMQ for async job processing: votes, comments, scraping, search indexing.
 
 #### Configuration
 
@@ -1579,9 +1680,9 @@ Reddit uses RabbitMQ for async job processing: votes, comments, scraping, search
 # production.update - Amazon MQ configuration
 [DEFAULT]
 amqp_host = b-xxxxx.mq.us-east-1.amazonaws.com:5671
-amqp_user = reddit
+amqp_user = tippr
 amqp_pass = YOUR_SECURE_PASSWORD
-amqp_virtual_host = /reddit
+amqp_virtual_host = /tippr
 
 # Enable SSL for Amazon MQ
 amqp_ssl = true
@@ -1595,7 +1696,7 @@ amqp_logging = true
 Scale queue consumers based on queue depth. Production consumer counts:
 
 ```bash
-# /home/reddit/consumer-count.d/
+# /home/tippr/consumer-count.d/
 echo 5 > commentstree_q    # Parallelize comment tree processing
 echo 3 > vote_link_q       # Handle vote processing
 echo 3 > vote_comment_q
@@ -1644,24 +1745,24 @@ For c5.xlarge (4 vCPUs): `workers = 9`
 ### Systemd Service (Production)
 
 ```ini
-# /etc/systemd/system/reddit-app.service
+# /etc/systemd/system/tippr-app.service
 [Unit]
-Description=Reddit Application Server
+Description=Tippr Application Server
 After=network.target
 
 [Service]
 Type=simple
-User=reddit
-Group=reddit
-WorkingDirectory=/home/reddit/src/reddit/r2
-Environment=PYTHONPATH=/home/reddit/src/reddit:/home/reddit/src
-Environment=PATH=/home/reddit/venv/bin:/usr/bin
-ExecStart=/home/reddit/venv/bin/gunicorn \
+User=tippr
+Group=tippr
+WorkingDirectory=/home/tippr/src/tippr/r2
+Environment=PYTHONPATH=/home/tippr/src/tippr:/home/tippr/src
+Environment=PATH=/home/tippr/venv/bin:/usr/bin
+ExecStart=/home/tippr/venv/bin/gunicorn \
     --bind 0.0.0.0:8001 \
     --workers 4 \
     --timeout 30 \
-    --access-logfile /var/log/reddit/access.log \
-    --error-logfile /var/log/reddit/error.log \
+    --access-logfile /var/log/tippr/access.log \
+    --error-logfile /var/log/tippr/error.log \
     'r2.config.middleware:make_app()'
 Restart=always
 RestartSec=5
@@ -1688,19 +1789,19 @@ Replace local HAProxy with ALB for production:
 
 ```
 Target Groups:
-- reddit-app (port 8001) - Main application
-- reddit-websockets (port 9001) - WebSocket connections
-- reddit-media (port 9000) - Static/media files (or use S3/CloudFront)
+- tippr-app (port 8001) - Main application
+- tippr-websockets (port 9001) - WebSocket connections
+- tippr-media (port 9000) - Static/media files (or use S3/CloudFront)
 ```
 
 #### Routing Rules
 
 | Path Pattern | Target |
 |--------------|--------|
-| `/websocket/*` | reddit-websockets |
+| `/websocket/*` | tippr-websockets |
 | `/media/*` | S3 via CloudFront |
-| `/pixel/*` | reddit-pixel (or Lambda@Edge) |
-| `/*` | reddit-app |
+| `/pixel/*` | tippr-pixel (or Lambda@Edge) |
+| `/*` | tippr-app |
 
 ### CloudFront CDN
 
@@ -1710,7 +1811,7 @@ From Reddit's experience: By serving logged-out users (80% of traffic) cached co
 - Reduces load on application servers dramatically
 - Provides geographic edge caching
 - Handles traffic spikes gracefully
-- If Reddit goes down, logged-out users may never notice
+- If Tippr goes down, logged-out users may never notice
 
 ```
 CloudFront Configuration:
@@ -1781,7 +1882,7 @@ mailgun_api_base_url = https://api.mailgun.net/v3
 
 Generate production.ini:
 ```bash
-cd /home/reddit/src/reddit/r2
+cd /home/tippr/src/tippr/r2
 make ini  # Creates production.ini from example.ini + production.update
 ```
 
@@ -1789,7 +1890,9 @@ make ini  # Creates production.ini from example.ini + production.update
 
 ## Scaling Lessons from Reddit's History
 
-These lessons come from Reddit's experience scaling from 1 million to 1 billion pageviews:
+> **Note**: These lessons come from Reddit's engineering team's experience scaling the original codebase from 1 million to 1 billion pageviews. While Tippr is a fork with modernizations, these architectural principles remain relevant.
+>
+> **Source**: [Reddit's scaling talk by Jeremy Edberg](https://www.youtube.com/watch?v=nUcO7n4hek4)
 
 ### 1. Plan for Scale, But Don't Over-Engineer Early
 
@@ -1905,7 +2008,7 @@ handlers = console, syslog
 [handler_syslog]
 class = handlers.SysLogHandler
 args = ('/dev/log', handlers.SysLogHandler.LOG_USER)
-formatter = reddit
+formatter = tippr
 ```
 
 Ship logs to CloudWatch Logs or ELK stack.
@@ -2054,7 +2157,7 @@ Costs scale with traffic. Start small and scale up based on actual usage.
 4. **Existing AWS infrastructure**: Easier to integrate with existing AWS resources
 5. **Enterprise support needs**: AWS has a larger partner ecosystem
 
-**AWS Strengths for Reddit:**
+**AWS Strengths for Tippr:**
 - Keyspaces = no code changes for Cassandra layer
 - Amazon MQ = no code changes for queue layer
 - S3 provider already exists in codebase
@@ -2070,7 +2173,7 @@ Costs scale with traffic. Start small and scale up based on actual usage.
 4. **AI/ML integration**: Need BigQuery, Vertex AI, or vector search capabilities
 5. **Multi-cloud strategy**: Astra DB works across GCP, AWS, and Azure
 
-**GCP Strengths for Reddit:**
+**GCP Strengths for Tippr:**
 - GKE is excellent for container orchestration
 - Better sustained use pricing for always-on workloads
 - Cloud SQL is very reliable
@@ -2087,9 +2190,9 @@ Costs scale with traffic. Start small and scale up based on actual usage.
 2. **Hybrid cloud requirements**: Need to connect to on-premises data centers with Azure Arc
 3. **CQL compatibility needed**: Azure Managed Instance for Apache Cassandra is fully CQL-compatible
 4. **Compliance requirements**: Azure has extensive compliance certifications (FedRAMP, HIPAA, etc.)
-5. **Windows workloads**: Running any Windows-based components alongside Reddit
+5. **Windows workloads**: Running any Windows-based components alongside Tippr
 
-**Azure Strengths for Reddit:**
+**Azure Strengths for Tippr:**
 - Azure Managed Cassandra = no code changes for Cassandra layer
 - Strong enterprise security and compliance features
 - Azure Front Door provides excellent global load balancing
@@ -2204,61 +2307,484 @@ You could also consider:
 
 ---
 
+## Kubernetes-Native Deployment
+
+For production-grade deployments across any cloud provider, Kubernetes provides consistent orchestration. This section provides a cloud-agnostic Kubernetes approach.
+
+### Why Kubernetes?
+
+| Advantage | Description |
+|-----------|-------------|
+| **Automatic failover** | Self-healing restarts failed containers |
+| **Zero-downtime updates** | Rolling deployments with health checks |
+| **Horizontal autoscaling** | Scale based on CPU, memory, or custom metrics |
+| **Resource efficiency** | Better bin-packing than VM-per-service |
+| **Service discovery** | Built-in DNS and load balancing |
+| **Portability** | Same manifests work on EKS, GKE, AKS, or self-hosted |
+
+### Helm Chart Structure
+
+```yaml
+# Chart.yaml
+apiVersion: v2
+name: tippr
+version: 1.0.0
+description: Tippr application deployment
+
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: rabbitmq
+    version: "11.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: rabbitmq.enabled
+  - name: memcached
+    version: "6.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: memcached.enabled
+```
+
+```yaml
+# values.yaml
+replicaCount: 3
+
+image:
+  repository: your-registry/tippr
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# External managed database (recommended for production)
+database:
+  external: true
+  host: tippr-db.xxx.rds.amazonaws.com
+  port: 5432
+  name: tippr
+  ssl: true
+  existingSecret: tippr-db-credentials
+
+# External Cassandra/Keyspaces
+cassandra:
+  external: true
+  seeds: cassandra.us-east-1.amazonaws.com:9142
+  ssl: true
+  existingSecret: tippr-cassandra-credentials
+
+# Local memcached (low latency is important)
+memcached:
+  enabled: true
+  replicaCount: 3
+  resources:
+    requests:
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+# Local RabbitMQ (or external Amazon MQ)
+rabbitmq:
+  enabled: true
+  replicaCount: 3
+  auth:
+    existingPasswordSecret: tippr-rabbitmq-credentials
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+
+# Ingress
+ingress:
+  enabled: true
+  className: nginx  # or alb, gce, azure
+  hosts:
+    - host: tippr.net
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: tippr-tls
+      hosts:
+        - tippr.net
+
+# Resources
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "2"
+    memory: "4Gi"
+```
+
+### Application Deployment Manifest
+
+```yaml
+# templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tippr.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: tippr
+  template:
+    metadata:
+      labels:
+        app: tippr
+    spec:
+      containers:
+      - name: tippr
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: 8001
+        env:
+        - name: PYTHONPATH
+          value: "/app/tippr:/app"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: tippr-db-credentials
+              key: host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: tippr-db-credentials
+              key: password
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "tippr.fullname" . }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "tippr.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetCPUUtilization }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetMemoryUtilization }}
+```
+
+### Deployment Commands
+
+```bash
+# Add Bitnami repo for dependencies
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+
+# Install with managed databases (production recommended)
+helm install tippr ./tippr-chart \
+  --namespace tippr \
+  --create-namespace \
+  --set database.external=true \
+  --set cassandra.external=true \
+  --set-file secrets.dbPassword=./secrets/db-password.txt
+
+# Install with all local services (development/testing)
+helm install tippr ./tippr-chart \
+  --namespace tippr \
+  --create-namespace \
+  --set postgresql.enabled=true \
+  --set database.external=false
+
+# Upgrade with new image
+helm upgrade tippr ./tippr-chart \
+  --namespace tippr \
+  --set image.tag=v1.2.3
+
+# Rollback if needed
+helm rollback tippr 1 --namespace tippr
+```
+
+---
+
+## Migration from Development to Production
+
+If you started with `install-tippr.sh` and need to move to production, follow this guide.
+
+### Phase 1: Data Export (on development machine)
+
+```bash
+# 1. Stop the application to ensure consistent data
+sudo systemctl stop tippr-app
+
+# 2. Export PostgreSQL
+pg_dump -U tippr -h localhost tippr > tippr_dev_backup.sql
+
+# 3. Export Cassandra data (for each table)
+cqlsh localhost 9042 -e "COPY tippr.votes TO 'votes.csv' WITH HEADER=TRUE;"
+cqlsh localhost 9042 -e "COPY tippr.activity TO 'activity.csv' WITH HEADER=TRUE;"
+
+# 4. Package media files (if stored locally)
+tar -czvf media_backup.tar.gz /var/lib/tippr/media/
+
+# 5. Backup configuration
+cp /home/tippr/src/tippr/r2/production.ini production.ini.backup
+```
+
+### Phase 2: Cloud Setup
+
+**For AWS:**
+```bash
+# Create RDS PostgreSQL
+aws rds create-db-instance \
+  --db-instance-identifier tippr-prod \
+  --db-instance-class db.t3.medium \
+  --engine postgres \
+  --master-username tippr \
+  --master-user-password YOUR_PASSWORD \
+  --allocated-storage 100 \
+  --multi-az
+
+# Wait for RDS to be available
+aws rds wait db-instance-available --db-instance-identifier tippr-prod
+
+# Get endpoint
+aws rds describe-db-instances --db-instance-identifier tippr-prod \
+  --query 'DBInstances[0].Endpoint.Address' --output text
+```
+
+### Phase 3: Data Import
+
+```bash
+# Import PostgreSQL to RDS
+psql -h tippr-prod.xxx.rds.amazonaws.com -U tippr -d tippr < tippr_dev_backup.sql
+
+# Import Cassandra to Keyspaces (use smaller batches)
+cqlsh cassandra.us-east-1.amazonaws.com 9142 --ssl \
+  -e "COPY tippr.votes FROM 'votes.csv' WITH HEADER=TRUE AND MAXBATCHSIZE=10;"
+
+# Upload media to S3
+aws s3 sync /var/lib/tippr/media/ s3://your-tippr-media-bucket/
+```
+
+### Phase 4: Application Configuration
+
+Create `production.update` with cloud endpoints:
+
+```ini
+[DEFAULT]
+debug = false
+
+# Cloud database
+db_user = tippr
+db_pass = YOUR_RDS_PASSWORD
+main_db = tippr, tippr-prod.xxx.rds.amazonaws.com, *, *, *, *, *
+db_ssl = true
+
+# Cloud Cassandra
+cassandra_seeds = cassandra.us-east-1.amazonaws.com:9142
+cassandra_ssl = true
+
+# Cloud media storage
+media_provider = s3
+s3_media_buckets = your-tippr-media-bucket
+```
+
+### Phase 5: Verification Checklist
+
+- [ ] Database connection works: `psql -h <rds-endpoint> -U tippr -c "SELECT 1"`
+- [ ] Cassandra connection works: `cqlsh <keyspaces-endpoint> 9142 --ssl -e "DESCRIBE KEYSPACES"`
+- [ ] Application starts without errors
+- [ ] Login/logout works
+- [ ] Posting and voting works
+- [ ] Media uploads work
+- [ ] All background jobs are processing (check queue depths)
+
+### Phase 6: DNS Cutover
+
+```bash
+# Update DNS to point to production load balancer
+# Reduce TTL beforehand (e.g., to 300 seconds)
+# Monitor closely for 24-48 hours after cutover
+```
+
+---
+
+## Backup & Disaster Recovery
+
+### Backup Strategy
+
+| Component | Backup Method | Frequency | Retention |
+|-----------|--------------|-----------|-----------|
+| PostgreSQL | RDS automated snapshots | Daily | 30 days |
+| PostgreSQL | Manual snapshots | Before major changes | 90 days |
+| Cassandra/Keyspaces | Point-in-time recovery | Continuous | 35 days |
+| Media (S3) | Cross-region replication | Real-time | Indefinite |
+| Configuration | Git repository | Every change | Indefinite |
+
+### PostgreSQL Backup (RDS)
+
+```bash
+# Enable automated backups (during RDS creation or modify)
+aws rds modify-db-instance \
+  --db-instance-identifier tippr-prod \
+  --backup-retention-period 30 \
+  --preferred-backup-window "03:00-04:00"
+
+# Create manual snapshot before risky changes
+aws rds create-db-snapshot \
+  --db-instance-identifier tippr-prod \
+  --db-snapshot-identifier tippr-pre-migration-$(date +%Y%m%d)
+
+# Restore from snapshot (creates new instance)
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier tippr-restored \
+  --db-snapshot-identifier tippr-pre-migration-20240115
+```
+
+### Cassandra/Keyspaces Backup
+
+Amazon Keyspaces provides Point-in-Time Recovery (PITR):
+
+```bash
+# Enable PITR on a table
+aws keyspaces update-table \
+  --keyspace-name tippr \
+  --table-name votes \
+  --point-in-time-recovery status=ENABLED
+
+# Restore to a point in time (creates new table)
+aws keyspaces restore-table \
+  --source-keyspace-name tippr \
+  --source-table-name votes \
+  --target-keyspace-name tippr \
+  --target-table-name votes_restored \
+  --restore-timestamp 2024-01-15T12:00:00Z
+```
+
+### Media Backup (S3)
+
+```bash
+# Enable versioning
+aws s3api put-bucket-versioning \
+  --bucket your-tippr-media \
+  --versioning-configuration Status=Enabled
+
+# Enable cross-region replication
+aws s3api put-bucket-replication \
+  --bucket your-tippr-media \
+  --replication-configuration file://replication-config.json
+```
+
+### Disaster Recovery Runbook
+
+**RTO (Recovery Time Objective)**: 4 hours
+**RPO (Recovery Point Objective)**: 1 hour
+
+| Scenario | Recovery Steps | Estimated Time |
+|----------|----------------|----------------|
+| Single AZ failure | Automatic RDS failover | 1-2 minutes |
+| Application bug | Rollback deployment | 5-10 minutes |
+| Database corruption | Restore from snapshot | 30-60 minutes |
+| Region outage | Promote DR region | 2-4 hours |
+| Accidental deletion | Restore from backup | 30-60 minutes |
+
+### Recovery Testing
+
+Schedule quarterly DR tests:
+
+```markdown
+## DR Test Checklist
+
+1. [ ] Restore PostgreSQL from 24-hour-old snapshot to test instance
+2. [ ] Verify data integrity with checksums
+3. [ ] Restore Cassandra table from PITR
+4. [ ] Test application against restored databases
+5. [ ] Document recovery time and any issues
+6. [ ] Update runbooks based on findings
+```
+
+---
+
 ## Self-Hosted Production Deployment
 
 ## Hybrid Deployment Strategy
 
 This section describes a hybrid deployment approach that combines local (on-prem) compute and caching with cloud-managed storage and databases. The goal is to keep latency-sensitive services local while moving durable storage and backups to the cloud to reduce operational risk.
 
-Diagram (ASCII)
+### Hybrid Architecture Diagram
 
-                     ┌─────────────────────────────────┐
-                     │           CLOUD                 │
-                     │                                 │
-                     │  ┌───────────┐ ┌───────────┐   │
-                     │  │ Managed   │ │  Object   │   │
-                     │  │ Database  │ │  Storage  │   │
-                     │  │ (Postgres)│ │  (S3/GCS) │   │
-                     │  └───────────┘ └───────────┘   │
-                     │                                 │
-                     │  ┌───────────┐                  │
-                     │  │  Backups  │                  │
-                     │  │ (Optional)│                  │
-                     │  └───────────┘                  │
-                     └──────────┬──────────────────────┘
-                                │ VPN/Direct Connect
-                                │
-┌───────────────────────────────┼───────────────────────────────┐
-│                        LOCAL  │                               │
-│                               │                               │
-│  ┌──────────┐    ┌────────────┴────────────┐                 │
-│  │ pfSense  │───▶│     App Servers         │                 │
-│  │ HAProxy  │    │  (192.168.1.101-103)    │                 │
-│  └──────────┘    └────────────┬────────────┘                 │
-│                               │                               │
-│              ┌────────────────┼────────────────┐             │
-│              ▼                ▼                ▼             │
-│       ┌──────────┐     ┌──────────┐     ┌──────────┐        │
-│       │Memcached │     │ RabbitMQ │     │  Redis   │        │
-│       └──────────┘     └──────────┘     └──────────┘        │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+```
+                     ┌──────────────────────────────────┐
+                     │            CLOUD                 │
+                     │                                  │
+                     │  ┌───────────┐  ┌───────────┐   │
+                     │  │ Managed   │  │  Object   │   │
+                     │  │ Database  │  │  Storage  │   │
+                     │  │(Postgres) │  │ (S3/GCS)  │   │
+                     │  └───────────┘  └───────────┘   │
+                     │                                  │
+                     │  ┌───────────┐                   │
+                     │  │  Backups  │                   │
+                     │  │(Optional) │                   │
+                     │  └───────────┘                   │
+                     └────────────┬─────────────────────┘
+                                  │ VPN/Direct Connect
+                                  │
+┌─────────────────────────────────┼─────────────────────────────────┐
+│                          LOCAL  │                                 │
+│                                 │                                 │
+│  ┌──────────┐    ┌──────────────┴──────────────┐                 │
+│  │ pfSense  │───▶│       App Servers           │                 │
+│  │ HAProxy  │    │    (192.168.1.101-103)      │                 │
+│  └──────────┘    └──────────────┬──────────────┘                 │
+│                                 │                                 │
+│              ┌──────────────────┼──────────────────┐             │
+│              ▼                  ▼                  ▼             │
+│       ┌───────────┐      ┌───────────┐      ┌──────────┐        │
+│       │ Memcached │      │ RabbitMQ  │      │  Redis   │        │
+│       └───────────┘      └───────────┘      └──────────┘        │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-Priority Order: What to Cloud First
+### Priority Order: What to Cloud First
 
-1. Object Storage (S3/GCS/Azure Blob) - Do This First
+#### 1. Object Storage (S3/GCS/Azure Blob) - Do This First
 
-Why first:
+**Why first:**
+- Extremely cheap (~$0.02/GB/month)
+- Zero maintenance
+- Built-in CDN integration
+- Offloads bandwidth from your home connection
+- No migration pain - just configure and use
 
-Extremely cheap (~$0.02/GB/month)
-Zero maintenance
-Built-in CDN integration
-Offloads bandwidth from your home connection
-No migration pain - just configure and use
+**Cost:** $5-20/month for typical usage
 
-Cost: $5-20/month for typical usage
-
-Example `production.update` snippet for media storage
+**Example `production.update` snippet for media storage:**
 
 ```ini
 # production.update
@@ -2271,19 +2797,18 @@ s3_media_domain = s3.amazonaws.com
 s3_media_domain = your-account.r2.cloudflarestorage.com
 ```
 
-2. PostgreSQL (RDS/Cloud SQL) - High Value, Moderate Cost
+#### 2. PostgreSQL (RDS/Cloud SQL) - High Value, Moderate Cost
 
-Why second:
+**Why second:**
+- Hardest to manage yourself (backups, replication, failover)
+- Data loss here is catastrophic
+- Automatic backups, point-in-time recovery
+- Easy read replicas when you need them
+- Connection from local servers works fine over internet/VPN
 
-Hardest to manage yourself (backups, replication, failover)
-Data loss here is catastrophic
-Automatic backups, point-in-time recovery
-Easy read replicas when you need them
-Connection from local servers works fine over internet/VPN
+**Cost:** $50-150/month (smallest production tier)
 
-Cost: $50-150/month (smallest production tier)
-
-Provider comparison (small production tiers)
+**Provider comparison (small production tiers):**
 
 | Provider | Smallest Production Tier | Monthly Cost |
 |----------|-------------------------|--------------|
@@ -2293,13 +2818,12 @@ Provider comparison (small production tiers)
 | Neon (Serverless) | Free tier + usage | ~$0-25 |
 | Supabase | Pro plan | ~$25 |
 
-Budget Option: Neon or Supabase
+**Budget Option: Neon or Supabase**
+- Serverless PostgreSQL with generous free tiers
+- Pay only for what you use
+- Great for lower traffic
 
-Serverless PostgreSQL with generous free tiers
-Pay only for what you use
-Great for lower traffic
-
-Example `production.update` for Neon
+**Example `production.update` for Neon:**
 
 ```ini
 # production.update for Neon
@@ -2309,11 +2833,11 @@ db_port = 5432
 db_ssl = true
 ```
 
-3. Backups to Cloud Storage - Essential, Cheap
+#### 3. Backups to Cloud Storage - Essential, Cheap
 
-Even if you keep databases local initially, back up to cloud:
+Even if you keep databases local initially, back up to cloud.
 
-Cost: $5-10/month
+**Cost:** $5-10/month
 
 | Provider | Cost | Notes |
 |----------|------|-------|
@@ -2321,43 +2845,44 @@ Cost: $5-10/month
 | Wasabi | $0.0059/GB | No egress fees |
 | Cloudflare R2 | $0.015/GB | No egress fees |
 
-What to Keep Local (Cost Savings)
+### What to Keep Local (Cost Savings)
 
-Keep Local: Memcached/Redis
-Why:
+#### Keep Local: Memcached/Redis
 
-Latency-sensitive (cloud adds ~10-50ms)
-Easy to run, low maintenance
-Cheap hardware requirement
-Data is ephemeral anyway
+**Why:**
+- Latency-sensitive (cloud adds ~10-50ms)
+- Easy to run, low maintenance
+- Cheap hardware requirement
+- Data is ephemeral anyway
 
-Keep Local: RabbitMQ
-Why:
+#### Keep Local: RabbitMQ
 
-Works fine locally
-Amazon MQ is expensive (~$150/month minimum)
-Queue data is transient
-Easy to migrate later if needed
+**Why:**
+- Works fine locally
+- Amazon MQ is expensive (~$150/month minimum)
+- Queue data is transient
+- Easy to migrate later if needed
 
-Keep Local: Cassandra (Initially)
-Why:
+#### Keep Local: Cassandra (Initially)
 
-Managed Cassandra is expensive
-Can start with single node locally
-Migrate to Astra DB (serverless) later when traffic justifies
+**Why:**
+- Managed Cassandra is expensive
+- Can start with single node locally
+- Migrate to Astra DB (serverless) later when traffic justifies
 
-Exception: If Cassandra management is painful, use Astra DB serverless - you only pay for operations, so low traffic = low cost (~$25/month at low usage).
+> **Exception**: If Cassandra management is painful, use Astra DB serverless - you only pay for operations, so low traffic = low cost (~$25/month at low usage).
 
-Keep Local: Application Servers
-Why:
+#### Keep Local: Application Servers
 
-Your pfSense/HAProxy handles load balancing well
-Easy to scale by adding machines
-Compute is where self-hosting saves the most money
+**Why:**
+- Your pfSense/HAProxy handles load balancing well
+- Easy to scale by adding machines
+- Compute is where self-hosting saves the most money
 
-Recommended Hybrid Setup
+### Recommended Hybrid Setup
 
-Phase 1: Minimal Cloud (Start Here)
+#### Phase 1: Minimal Cloud (Start Here)
+
 | Component | Location | Monthly Cost |
 |-----------|----------|--------------|
 | App Servers | Local | $0 |
@@ -2368,9 +2893,10 @@ Phase 1: Minimal Cloud (Start Here)
 | Cassandra | Local | $0 |
 | Media Storage | Cloudflare R2 | $5-15 |
 | Backups | Backblaze B2 | $5-10 |
-| Total Cloud | | $10-50/month |
+| **Total Cloud** | | **$10-50/month** |
 
-Phase 2: Production-Ready Hybrid
+#### Phase 2: Production-Ready Hybrid
+
 | Component | Location | Monthly Cost |
 |-----------|----------|--------------|
 | App Servers | Local | $0 |
@@ -2381,13 +2907,13 @@ Phase 2: Production-Ready Hybrid
 | Cassandra | Astra DB Serverless | $25-100 |
 | Media Storage | S3 + CloudFront | $20-50 |
 | Backups | B2 | $5-10 |
-| Total Cloud | | $100-260/month |
+| **Total Cloud** | | **$100-260/month** |
 
-Connection Configuration
+### Connection Configuration
 
-Secure Connection to Cloud Database
+#### Secure Connection to Cloud Database
 
-Option 1: Direct SSL Connection (Simplest)
+**Option 1: Direct SSL Connection (Simplest)**
 
 ```ini
 # production.update
@@ -2395,7 +2921,7 @@ db_ssl = true
 main_db = tippr, your-db.xxx.us-east-1.rds.amazonaws.com, *, *, *, *, *
 ```
 
-Option 2: WireGuard VPN to Cloud VPC
+**Option 2: WireGuard VPN to Cloud VPC**
 
 More secure, keeps database off public internet:
 
@@ -2405,11 +2931,11 @@ More secure, keeps database off public internet:
 # Route database subnet through tunnel
 ```
 
-Option 3: AWS Site-to-Site VPN
+**Option 3: AWS Site-to-Site VPN**
 
 For production-grade connectivity (~$35/month for AWS VPN).
 
-Example `production.update` for Hybrid
+### Example `production.update` for Hybrid
 
 ```ini
 # production.update - Hybrid deployment
@@ -2447,18 +2973,23 @@ s3_media_buckets = tippr-media
 # s3_media_buckets = tippr-media-bucket
 ```
 
-Migration Path Summary
+### Migration Path Summary
 
+```
 Phase 1 (Now)           Phase 2 (Growth)         Phase 3 (Scale)
 ─────────────────       ─────────────────        ─────────────────
 Local Everything   →    Hybrid                →   Full Cloud
                         + Cloud DB                + Cloud Compute
                         + Cloud Storage           + Managed Cache
                         + Cloud Backups           + CDN
-                        
-Cost: ~$150/mo          Cost: ~$200-350/mo       Cost: $1,500+/mo
 
-The key insight: Cloud databases and storage are cheap and eliminate your biggest operational risks (data loss, complex backups). Keep compute local where you save the most money.
+Cost: ~$150/mo          Cost: ~$200-350/mo       Cost: $1,500+/mo
+```
+
+> **Key insight**: Cloud databases and storage are cheap and eliminate your biggest operational risks (data loss, complex backups). Keep compute local where you save the most money.
+
+---
+
 For smaller deployments or when you want to start locally before migrating to cloud, self-hosting is a viable option. This approach lets you validate your application and understand traffic patterns before committing to cloud infrastructure costs.
 
 ### When to Self-Host
@@ -2567,12 +3098,12 @@ In **Services → HAProxy → Frontend**:
 
 | Setting | Value |
 |---------|-------|
-| Name | `reddit_frontend` |
+| Name | `tippr_frontend` |
 | Listen Address | WAN address |
 | Port | 443 |
 | SSL Offloading | Enabled |
 | Certificate | Let's Encrypt (via ACME package) |
-| Default Backend | `reddit_servers` |
+| Default Backend | `tippr_servers` |
 
 **HTTP to HTTPS Redirect (Port 80):**
 
@@ -2589,7 +3120,7 @@ In **Services → HAProxy → Backend**:
 
 | Setting | Value |
 |---------|-------|
-| Name | `reddit_servers` |
+| Name | `tippr_servers` |
 | Balance | `roundrobin` or `leastconn` |
 | Health Check Method | HTTP |
 | Health Check URI | `/health` |
@@ -2630,15 +3161,15 @@ version: '3.8'
 
 services:
   app:
-    build: ./reddit
+    build: ./tippr
     restart: always
     ports:
       - "8001:8001"
     environment:
-      - PYTHONPATH=/app/reddit:/app
-      - REDDIT_INI=/app/reddit/r2/production.ini
+      - PYTHONPATH=/app/tippr:/app
+      - TIPPR_INI=/app/tippr/r2/production.ini
     volumes:
-      - ./config/production.update:/app/reddit/r2/production.update:ro
+      - ./config/production.update:/app/tippr/r2/production.update:ro
     depends_on:
       - db
       - memcached
@@ -2661,11 +3192,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
     environment:
-      - POSTGRES_USER=reddit
+      - POSTGRES_USER=tippr
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=reddit
+      - POSTGRES_DB=tippr
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reddit"]
+      test: ["CMD-SHELL", "pg_isready -U tippr"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -2676,7 +3207,7 @@ services:
     volumes:
       - cassandra_data:/var/lib/cassandra
     environment:
-      - CASSANDRA_CLUSTER_NAME=reddit
+      - CASSANDRA_CLUSTER_NAME=tippr
       - MAX_HEAP_SIZE=2G
       - HEAP_NEWSIZE=400M
     healthcheck:
@@ -2701,7 +3232,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     environment:
-      - RABBITMQ_DEFAULT_USER=reddit
+      - RABBITMQ_DEFAULT_USER=tippr
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
     ports:
       - "15672:15672"  # Management UI (internal only)
@@ -2727,17 +3258,17 @@ version: '3.8'
 
 services:
   app:
-    build: ./reddit
+    build: ./tippr
     restart: always
     ports:
       - "8001:8001"
     environment:
-      - PYTHONPATH=/app/reddit:/app
-      - REDDIT_INI=/app/reddit/r2/production.ini
-      - DATABASE_URL=postgres://reddit:${DB_PASSWORD}@192.168.1.110:5432/reddit
+      - PYTHONPATH=/app/tippr:/app
+      - TIPPR_INI=/app/tippr/r2/production.ini
+      - DATABASE_URL=postgres://tippr:${DB_PASSWORD}@192.168.1.110:5432/tippr
       - CASSANDRA_SEEDS=192.168.1.111:9042
       - MEMCACHED_SERVERS=192.168.1.112:11211
-      - RABBITMQ_URL=amqp://reddit:${RABBITMQ_PASSWORD}@192.168.1.112:5672/
+      - RABBITMQ_URL=amqp://tippr:${RABBITMQ_PASSWORD}@192.168.1.112:5672/
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
@@ -2761,9 +3292,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
     environment:
-      - POSTGRES_USER=reddit
+      - POSTGRES_USER=tippr
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=reddit
+      - POSTGRES_DB=tippr
     command:
       - "postgres"
       - "-c"
@@ -2785,7 +3316,7 @@ services:
     volumes:
       - cassandra_data:/var/lib/cassandra
     environment:
-      - CASSANDRA_CLUSTER_NAME=reddit
+      - CASSANDRA_CLUSTER_NAME=tippr
       - MAX_HEAP_SIZE=8G
       - HEAP_NEWSIZE=1600M
 
@@ -2817,7 +3348,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     environment:
-      - RABBITMQ_DEFAULT_USER=reddit
+      - RABBITMQ_DEFAULT_USER=tippr
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
 
   redis:
@@ -2884,11 +3415,11 @@ media_domain = media.yourdomain.com
 https_endpoint = https://yourdomain.com
 
 # PostgreSQL (self-hosted)
-db_user = reddit
+db_user = tippr
 db_pass = YOUR_SECURE_PASSWORD
 db_port = 5432
 databases = main, comment, email, authorize, award, hc, traffic
-main_db = reddit, 192.168.1.110, *, *, *, *, *
+main_db = tippr, 192.168.1.110, *, *, *, *, *
 
 # Cassandra (self-hosted)
 cassandra_seeds = 192.168.1.111:9042
@@ -2904,13 +3435,13 @@ num_mc_clients = 20
 
 # RabbitMQ (self-hosted)
 amqp_host = 192.168.1.112:5672
-amqp_user = reddit
+amqp_user = tippr
 amqp_pass = YOUR_SECURE_PASSWORD
 amqp_virtual_host = /
 
 # Local media storage (or configure S3-compatible like MinIO)
 media_provider = filesystem
-media_fs_root = /var/reddit/media
+media_fs_root = /var/tippr/media
 media_fs_url = https://media.yourdomain.com
 
 # Security
@@ -3000,10 +3531,10 @@ DATE=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS=7
 
 # Create backup
-docker exec postgres pg_dump -U reddit reddit | gzip > "${BACKUP_DIR}/reddit_${DATE}.sql.gz"
+docker exec postgres pg_dump -U tippr tippr | gzip > "${BACKUP_DIR}/tippr_${DATE}.sql.gz"
 
 # Upload to offsite storage (Backblaze B2, Wasabi, etc.)
-rclone copy "${BACKUP_DIR}/reddit_${DATE}.sql.gz" b2:reddit-backups/postgres/
+rclone copy "${BACKUP_DIR}/tippr_${DATE}.sql.gz" b2:tippr-backups/postgres/
 
 # Remove old local backups
 find ${BACKUP_DIR} -type f -mtime +${RETENTION_DAYS} -delete
@@ -3024,14 +3555,14 @@ BACKUP_DIR="/backups/cassandra"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 # Create snapshot
-docker exec cassandra nodetool snapshot -t backup_${DATE} reddit
+docker exec cassandra nodetool snapshot -t backup_${DATE} tippr
 
 # Copy snapshot files
-docker cp cassandra:/var/lib/cassandra/data/reddit/. "${BACKUP_DIR}/${DATE}/"
+docker cp cassandra:/var/lib/cassandra/data/tippr/. "${BACKUP_DIR}/${DATE}/"
 
 # Compress and upload
 tar -czf "${BACKUP_DIR}/cassandra_${DATE}.tar.gz" "${BACKUP_DIR}/${DATE}"
-rclone copy "${BACKUP_DIR}/cassandra_${DATE}.tar.gz" b2:reddit-backups/cassandra/
+rclone copy "${BACKUP_DIR}/cassandra_${DATE}.tar.gz" b2:tippr-backups/cassandra/
 
 # Cleanup
 rm -rf "${BACKUP_DIR}/${DATE}"
@@ -3123,7 +3654,7 @@ volumes:
 # /opt/scripts/deploy.sh
 
 SERVERS=("192.168.1.101" "192.168.1.102" "192.168.1.103")
-REPO_PATH="/opt/reddit"
+REPO_PATH="/opt/tippr"
 BRANCH="${1:-main}"
 
 for server in "${SERVERS[@]}"; do
