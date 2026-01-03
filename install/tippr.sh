@@ -392,16 +392,19 @@ function clone_tippr_repo {
         repository_url="https://github.com/${repo_spec}.git"
     fi
 
-    # If a GitHub token is available (GITHUB_TOKEN from Actions or
-    # TIPPR_GITHUB_TOKEN), inject it so HTTPS clone works in CI runners.
-    if [ -n "$TIPPR_GITHUB_TOKEN" ]; then
-        repository_url=$(echo "$repository_url" | sed -E "s#https://#https://x-access-token:${TIPPR_GITHUB_TOKEN}@#")
-    elif [ -n "$GITHUB_TOKEN" ]; then
-        repository_url=$(echo "$repository_url" | sed -E "s#https://#https://x-access-token:${GITHUB_TOKEN}@#")
-    fi
 
     if [ ! -d $destination ]; then
-        sudo -u $TIPPR_USER -H git clone "$repository_url" $destination
+        # First try an anonymous clone (preserves previous CI behavior).
+        if sudo -u $TIPPR_USER -H git clone "$repository_url" $destination; then
+            : # success
+        else
+            # Anonymous clone failed; if a token is available, retry with it.
+            if [ -n "$TIPPR_GITHUB_TOKEN" ] || [ -n "$GITHUB_TOKEN" ]; then
+                token=${TIPPR_GITHUB_TOKEN:-$GITHUB_TOKEN}
+                repo_with_token=$(echo "$repository_url" | sed -E "s#https://#https://x-access-token:${token}@#")
+                sudo -u $TIPPR_USER -H git clone "$repo_with_token" $destination || true
+            fi
+        fi
     fi
 
     copy_upstart $destination
