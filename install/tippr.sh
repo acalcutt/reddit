@@ -382,10 +382,26 @@ function copy_upstart {
 
 function clone_tippr_repo {
     local destination=$TIPPR_SRC/${1}
-    local repository_url=https://github.com/${2}.git
+    local repo_spec=${2}
+    local repository_url
+
+    # Accept either an owner/repo spec or a full URL
+    if echo "$repo_spec" | grep -qE '^https?://'; then
+        repository_url="$repo_spec"
+    else
+        repository_url="https://github.com/${repo_spec}.git"
+    fi
+
+    # If a GitHub token is available (GITHUB_TOKEN from Actions or
+    # TIPPR_GITHUB_TOKEN), inject it so HTTPS clone works in CI runners.
+    if [ -n "$TIPPR_GITHUB_TOKEN" ]; then
+        repository_url=$(echo "$repository_url" | sed -E "s#https://#https://x-access-token:${TIPPR_GITHUB_TOKEN}@#")
+    elif [ -n "$GITHUB_TOKEN" ]; then
+        repository_url=$(echo "$repository_url" | sed -E "s#https://#https://x-access-token:${GITHUB_TOKEN}@#")
+    fi
 
     if [ ! -d $destination ]; then
-        sudo -u $TIPPR_USER -H git clone $repository_url $destination
+        sudo -u $TIPPR_USER -H git clone "$repository_url" $destination
     fi
 
     copy_upstart $destination
