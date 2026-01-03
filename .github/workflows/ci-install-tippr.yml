@@ -39,6 +39,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-src-
 
+      - name: Cache mcrouter build (/opt/mcrouter)
+        uses: actions/cache@v4
+        with:
+          path: /opt/mcrouter
+          key: ${{ runner.os }}-mcrouter-${{ github.ref }}
+          restore-keys: |
+            ${{ runner.os }}-mcrouter-
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.ref }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:

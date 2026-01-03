@@ -78,6 +78,9 @@ make
 optipng
 jpegoptim
 
+# ccache speeds C/C++ rebuilds (useful for mcrouter/thrift builds)
+ccache
+
 libpcre3-dev
 libpq-dev
 build-essential
