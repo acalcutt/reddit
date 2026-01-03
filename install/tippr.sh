@@ -414,9 +414,10 @@ function clone_tippr_service_repo {
 }
 
 clone_tippr_repo tippr TechIdiots-LLC/tippr
-# i18n repo lives under the organization owner – ensure we clone the
-# TechIdiots-LLC owner (not the old `tippr/` owner).
-clone_tippr_repo i18n TechIdiots-LLC/tippr-i18n
+# The i18n repository was previously cloned from the public `tippr/` org
+# which allows anonymous CI clones; restore that behavior so workflows
+# that don't provide tokens continue to work.
+clone_tippr_repo i18n tippr/tippr-i18n
 clone_tippr_service_repo websockets "$TIPPR_WEBSOCKETS_REPO"
 clone_tippr_service_repo activity "$TIPPR_ACTIVITY_REPO"
 
