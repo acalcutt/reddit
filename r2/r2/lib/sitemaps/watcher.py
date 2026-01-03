@@ -99,7 +99,7 @@ def _create_test_message():
 
     sqs_q.send_message(MessageBody=json.dumps({
         'job_name': 'daily-sr-sitemap-reporting',
-        'location': ('s3://reddit-data-analysis/big-data/r2/prod/' +
+        'location': ('s3://tippr-data-analysis/big-data/r2/prod/' +
                      'daily_sr_sitemap_reporting/dt=2016-06-14'),
         'timestamp': _current_timestamp(),
     }))

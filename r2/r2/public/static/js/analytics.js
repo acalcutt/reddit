@@ -1,6 +1,6 @@
 r.analytics = {
   init: function() {
-    // these guys are relying on the custom 'onshow' from jquery.reddit.js
+    // these guys are relying on the custom 'onshow' from jquery.tippr.js
     $(document).delegate(
       '.organic-listing .promotedlink.promoted',
       'onshow',

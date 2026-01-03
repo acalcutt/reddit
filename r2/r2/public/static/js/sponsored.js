@@ -785,7 +785,7 @@ var exports = r.sponsored = {
         this.collections = [{
             name: 'none',
             sr_names: null,
-            description: 'influencers on reddit’s highest trafficking page',
+            description: 'influencers on tippr’s highest trafficking page',
         }].concat(collections || []);
 
         this.collectionsByName = _.reduce(collections, function(obj, item) {
@@ -800,7 +800,7 @@ var exports = r.sponsored = {
           + '<input type="radio" name="collection" value="<%= name %>"'
           + '    <% print(name === \'' + defaultValue + '\' ? "checked=\'checked\'" : "") %>/>'
           + '  <div class="label-group">'
-          + '    <span class="label"><% print(name === \'none\' ? \'Reddit front page\' : name) %></span>'           + '    <small class="description"><%= description %></small>'
+          + '    <span class="label"><% print(name === \'none\' ? \'Tippr front page\' : name) %></span>'           + '    <small class="description"><%= description %></small>'
           + '  </div>'
           + '</label>');
 

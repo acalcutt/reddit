@@ -163,7 +163,7 @@
         if ($media.is('iframe')) {
           this._expandoEventData.provider = 'embedly';
         } else {
-          this._expandoEventData.provider = 'reddit';
+          this._expandoEventData.provider = 'tippr';
         }
       }
 

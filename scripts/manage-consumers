@@ -1,6 +1,6 @@
 #!/bin/bash
 
-command=${UPSTART_JOB#reddit-consumers-}
+command=${UPSTART_JOB#tippr-consumers-}
 for consumerpath in $REDDIT_CONSUMER_CONFIG/*; do
     consumer=$(basename $consumerpath)
 
@@ -20,7 +20,7 @@ for consumerpath in $REDDIT_CONSUMER_CONFIG/*; do
         type_=$(basename $typepath)
 
         for i in $(seq 1 "$instance_count"); do
-            "/sbin/$command" "reddit-consumer-$consumer" "type=$type_" "x=$i"
+            "/sbin/$command" "tippr-consumer-$consumer" "type=$type_" "x=$i"
         done
     done
 done

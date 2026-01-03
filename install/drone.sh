@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 ###############################################################################
-# reddit Drone environment installer
+# tippr Drone environment installer
 # ----------------------------------
 # This script re-purposes some of our existing vagrant/Travis install and
 # setup scripts for our Drone CI builds.
 #
 # NOTE: You don't want to run this script directly in your development
 # environment, since we assume that it's running within this Docker image
-# that Drone runs our builds within: https://github.com/reddit/docker-reddit-py
+# that Drone runs our builds within: https://github.com/tippr/docker-tippr-py
 #
-# docker-reddit-py has most of the apt dependencies pre-installed in order to
+# docker-tippr-py has most of the apt dependencies pre-installed in order to
 # significantly reduce our build times.
 #
 # Refer to .drone.yml in the repo root to see where this script gets called
@@ -30,7 +30,7 @@ source $RUNDIR/install.cfg
 install/install_services.sh
 
 ###############################################################################
-# Install and configure the reddit code
+# Install and configure the tippr code
 ###############################################################################
 
 # Create venv if it doesn't exist

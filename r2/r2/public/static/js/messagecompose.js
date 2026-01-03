@@ -77,7 +77,7 @@
       if (mc.dom.$form.length) {
         // Clean up the form after sucessful submission.
         // This is delayed until after the ajax implementation of the form
-        // submission (post_form in reddit.js) so that it does't interfere with the
+        // submission (post_form in tippr.js) so that it does't interfere with the
         // form submission, but can still clean up after. I haven't found any other
         // hooks in to the form submission that let us run code after the form is
         // reset.
@@ -199,16 +199,16 @@
           mc.dom.$rule.val(mc.dom.$subject.val());
         } else if (/\S/.test(mc.dom.$subject.val())
             || _(mc.dom.$subject).contains(document.activeElement)
-            || rulesJson['sr_name'] !== 'reddit.com') {
+            || rulesJson['sr_name'] !== 'tippr.com') {
           // Select Other if the user has entered anything in the custom
           // subject OR if the keyboard focus is already on the subject OR if
-          // the subreddit is not reddit.com.
+          // the subreddit is not tippr.com.
           //
           // This call happens after a network round trip to load the rules, so
           // there's plenty of time for the user to have started typing.
           mc.dom.$other.prop('selected', true);
         } else {
-          // To reddit.com. Select Blank by default to encourage consistent subjects.
+          // To tippr.com. Select Blank by default to encourage consistent subjects.
           mc.dom.$blank.show();
           mc.dom.$blank.prop('selected', true);
         }
@@ -298,6 +298,6 @@
 
   // No exports, this is a leaf module for now.
 
-  r.hooks.get('reddit-init').register(r.messagecompose.init);
+  r.hooks.get('tippr-init').register(r.messagecompose.init);
 
 }(r);

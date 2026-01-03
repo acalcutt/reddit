@@ -1,6 +1,6 @@
 # Feature
 
-`r2.config.feature` is reddit's feature flagging API. It lets us quickly
+`r2.config.feature` is tippr's feature flagging API. It lets us quickly
 switch on and off features for specific segments of users and requests.
 
 It's inspired by Etsy's feature framework, at

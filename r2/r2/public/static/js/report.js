@@ -12,7 +12,7 @@ $(function() {
   function init() {
     var subredditRulesTemplate = _getTemplate('subreddit-rules-report-template');
     var subredditDefaultTemplate = _getTemplate('subreddit-default-report-template');
-    var redditTemplate = _getTemplate('reddit-report-template');
+    var redditTemplate = _getTemplate('tippr-report-template');
     var reasonTemplate = _getTemplate('report-reason-template');
 
     templates = {
@@ -31,7 +31,7 @@ $(function() {
         return formEl;
       },
 
-      reddit: function(data) {
+      tippr: function(data) {
         var formStr = redditTemplate(data);
         var formEl = $.parseHTML(formStr);
         return formEl;
@@ -58,7 +58,7 @@ $(function() {
     var templateData;
 
     if (!hasSubreddit) {
-      template = templates.reddit;
+      template = templates.tippr;
     } else if (hasRules) {
       template = templates.subredditRules;
     } else {
@@ -151,7 +151,7 @@ $(function() {
         showForm($reportForm, form);
       }, true, "html", true);
     } else if (!srFullname) {
-      // if no subreddit, render the reddit form (never needs to hit API)
+      // if no subreddit, render the tippr form (never needs to hit API)
       var formData = { fullname: attrs.thing };
       var form = renderFromTemplate(formData, thingType);
       showForm($reportForm, form);
