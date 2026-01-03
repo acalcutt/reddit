@@ -37,9 +37,9 @@ jobs:
       - name: Install tippr via installer (non-interactive)
         env:
           # Prefer develop branch of baseplate for these smoke runs
-          REDDIT_BASEPLATE_PIP_URL: "git+https://github.com/acalcutt/baseplate.py.git@develop#egg=baseplate"
+          TIPPR_BASEPLATE_PIP_URL: "git+https://github.com/acalcutt/baseplate.py.git@develop#egg=baseplate"
           # Ensure a non-root runtime user exists in the installer
-          REDDIT_USER: "runner"
+          TIPPR_USER: "runner"
         run: |
           # The installer expects to run as root; run it under sudo and
           # pipe a single 'Y' to answer the final confirmation prompt.

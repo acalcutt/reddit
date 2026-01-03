@@ -34,14 +34,14 @@ install/install_services.sh
 ###############################################################################
 
 # Create venv if it doesn't exist
-if [ ! -d "$REDDIT_VENV" ]; then
-    python3 -m venv $REDDIT_VENV
-    $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
+if [ ! -d "$TIPPR_VENV" ]; then
+    python3 -m venv $TIPPR_VENV
+    $TIPPR_VENV/bin/pip install --upgrade pip setuptools wheel
 fi
 
 pushd r2
-$REDDIT_VENV/bin/pip install -e .
-$REDDIT_VENV/bin/python setup.py build
+$TIPPR_VENV/bin/pip install -e .
+$TIPPR_VENV/bin/python setup.py build
 make pyx
 ln -sf example.ini test.ini
 popd

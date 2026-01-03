@@ -1,7 +1,7 @@
 #!/bin/bash
 
 command=${UPSTART_JOB#tippr-consumers-}
-for consumerpath in $REDDIT_CONSUMER_CONFIG/*; do
+for consumerpath in $TIPPR_CONSUMER_CONFIG/*; do
     consumer=$(basename $consumerpath)
 
     # allow targeting which consumer the event is meant for (defaulting to 'all')

@@ -23,7 +23,7 @@
 # implementation in `baseplate.lib.metrics` if available, otherwise
 # provide a noop fallback. This edits the venv site-packages package
 # after pip installs so runtime imports succeed regardless of PYTHONPATH.
-#    sudo REDDIT_DOMAIN=example.com ./install/tippr.sh
+#    sudo TIPPR_DOMAIN=example.com ./install/tippr.sh
 #
 ###############################################################################
 
@@ -32,8 +32,8 @@ RUNDIR=$(dirname $0)
 source $RUNDIR/install.cfg
 
 # Allow overriding service repo locations (format: owner/repo)
-: ${REDDIT_WEBSOCKETS_REPO:=acalcutt/tippr-service-websockets}
-: ${REDDIT_ACTIVITY_REPO:=acalcutt/tippr-service-activity}
+: ${TIPPR_WEBSOCKETS_REPO:=acalcutt/tippr-service-websockets}
+: ${TIPPR_ACTIVITY_REPO:=acalcutt/tippr-service-activity}
 
 
 ###############################################################################
@@ -44,7 +44,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if [[ -z "$REDDIT_USER" ]]; then
+if [[ -z "$TIPPR_USER" ]]; then
     # in a production install, you'd want the code to be owned by root and run
     # by a less privileged user. this script is intended to build a development
     # install, so we expect the owner to run the app and not be root.
@@ -52,7 +52,7 @@ if [[ -z "$REDDIT_USER" ]]; then
 ERROR: You have not specified a user. This usually means you're running this
 script directly as root. It is not recommended to run tippr as the root user.
 
-Please create a user to run tippr and set the REDDIT_USER variable
+Please create a user to run tippr and set the TIPPR_USER variable
 appropriately.
 END
     exit 1
@@ -91,13 +91,13 @@ if [[ "2000000" -gt $(awk '/MemTotal/{print $2}' /proc/meminfo) ]]; then
     fi
 fi
 
-REDDIT_AVAILABLE_PLUGINS=""
-for plugin in $REDDIT_PLUGINS; do
-    if [ -d $REDDIT_SRC/$plugin ]; then
-        if [[ -z "$REDDIT_PLUGINS" ]]; then
-            REDDIT_AVAILABLE_PLUGINS+="$plugin"
+TIPPR_AVAILABLE_PLUGINS=""
+for plugin in $TIPPR_PLUGINS; do
+    if [ -d $TIPPR_SRC/$plugin ]; then
+        if [[ -z "$TIPPR_PLUGINS" ]]; then
+            TIPPR_AVAILABLE_PLUGINS+="$plugin"
         else
-            REDDIT_AVAILABLE_PLUGINS+=" $plugin"
+            TIPPR_AVAILABLE_PLUGINS+=" $plugin"
         fi
         echo "plugin $plugin found"
     else
@@ -109,7 +109,7 @@ done
 # creating a small `secrets.py` shim in the package when missing. This
 # keeps runtime imports working for older services that import
 # `baseplate.secrets` directly.
-for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
+for p in "$TIPPR_VENV"/lib/python*/site-packages/baseplate; do
     if [ -d "$p" ]; then
         target="$p/secrets.py"
         if [ ! -f "$target" ]; then
@@ -149,7 +149,7 @@ done
 # Provide a small compatibility module for Python 2 `urlparse` imports.
 # Some older services do `import urlparse`; create a shim in the venv
 # site-packages that re-exports `urllib.parse` for Python 3.
-for p in "$REDDIT_VENV"/lib/python*/site-packages; do
+for p in "$TIPPR_VENV"/lib/python*/site-packages; do
     if [ -d "$p" ]; then
         target="$p/urlparse.py"
         if [ ! -f "$target" ]; then
@@ -175,7 +175,7 @@ done
 # The `imp` module was removed in Python 3.12. Some legacy packages
 # still use it. This shim provides the commonly used functions
 # using importlib.
-for p in "$REDDIT_VENV"/lib/python*/site-packages; do
+for p in "$TIPPR_VENV"/lib/python*/site-packages; do
     if [ -d "$p" ]; then
         target="$p/imp.py"
         if [ ! -f "$target" ]; then
@@ -304,7 +304,7 @@ done
 
 # Ensure venv-installed baseplate exposes a `crypto` module expected by
 # older services (e.g. `from baseplate.crypto import validate_signature`).
-for p in "$REDDIT_VENV"/lib/python*/site-packages/baseplate; do
+for p in "$TIPPR_VENV"/lib/python*/site-packages/baseplate; do
     if [ -d "$p" ]; then
         target="$p/crypto.py"
         if [ ! -f "$target" ]; then
@@ -356,9 +356,9 @@ $RUNDIR/install_services.sh
 ###############################################################################
 # Install the tippr source repositories
 ###############################################################################
-if [ ! -d $REDDIT_SRC ]; then
-    mkdir -p $REDDIT_SRC
-    chown $REDDIT_USER $REDDIT_SRC
+if [ ! -d $TIPPR_SRC ]; then
+    mkdir -p $TIPPR_SRC
+    chown $TIPPR_USER $TIPPR_SRC
 fi
 
 function copy_upstart {
@@ -379,11 +379,11 @@ function copy_upstart {
 }
 
 function clone_reddit_repo {
-    local destination=$REDDIT_SRC/${1}
+    local destination=$TIPPR_SRC/${1}
     local repository_url=https://github.com/${2}.git
 
     if [ ! -d $destination ]; then
-        sudo -u $REDDIT_USER -H git clone $repository_url $destination
+        sudo -u $TIPPR_USER -H git clone $repository_url $destination
     fi
 
     copy_upstart $destination
@@ -397,14 +397,14 @@ function clone_reddit_service_repo {
 
 clone_reddit_repo tippr acalcutt/tippr
 clone_reddit_repo i18n tippr/tippr-i18n
-clone_reddit_service_repo websockets "$REDDIT_WEBSOCKETS_REPO"
-clone_reddit_service_repo activity "$REDDIT_ACTIVITY_REPO"
+clone_reddit_service_repo websockets "$TIPPR_WEBSOCKETS_REPO"
+clone_reddit_service_repo activity "$TIPPR_ACTIVITY_REPO"
 
 # Patch activity and websockets setup.py to use new baseplate module path
 # (baseplate.integration was renamed to baseplate.frameworks in baseplate 1.0)
 for repo in activity websockets; do
-    if [ -f "$REDDIT_SRC/$repo/setup.py" ]; then
-        sed -i 's/baseplate\.integration\./baseplate.frameworks./g' "$REDDIT_SRC/$repo/setup.py"
+    if [ -f "$TIPPR_SRC/$repo/setup.py" ]; then
+        sed -i 's/baseplate\.integration\./baseplate.frameworks./g' "$TIPPR_SRC/$repo/setup.py"
     fi
 done
 
@@ -434,58 +434,58 @@ $RUNDIR/setup_rabbitmq.sh
 # Ensure the venv parent exists and is writable by the tippr user
 # Remove any stale venv that is not writable by the runtime user so we can
 # recreate it as the correct owner.
-echo "Creating Python virtual environment at $REDDIT_VENV"
-mkdir -p "$(dirname "$REDDIT_VENV")"
-chown $REDDIT_USER:$REDDIT_GROUP "$(dirname "$REDDIT_VENV")" || true
-if [ -d "$REDDIT_VENV" ] && [ ! -w "$REDDIT_VENV" ]; then
-    echo "Existing venv at $REDDIT_VENV is not writable by $REDDIT_USER; removing"
-    rm -rf "$REDDIT_VENV"
+echo "Creating Python virtual environment at $TIPPR_VENV"
+mkdir -p "$(dirname "$TIPPR_VENV")"
+chown $TIPPR_USER:$TIPPR_GROUP "$(dirname "$TIPPR_VENV")" || true
+if [ -d "$TIPPR_VENV" ] && [ ! -w "$TIPPR_VENV" ]; then
+    echo "Existing venv at $TIPPR_VENV is not writable by $TIPPR_USER; removing"
+    rm -rf "$TIPPR_VENV"
 fi
-sudo -u $REDDIT_USER python3 -m venv $REDDIT_VENV
+sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV
 
 # Create 'python' symlink for compatibility with Makefiles that expect 'python'
-sudo -u $REDDIT_USER ln -sf python3 $REDDIT_VENV/bin/python
+sudo -u $TIPPR_USER ln -sf python3 $TIPPR_VENV/bin/python
 
 # Upgrade pip and install build tools in venv
 # Install current setuptools/wheel and ensure `packaging` is recent so editable
 # installs / metadata generation behave correctly.
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade pip setuptools wheel
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade 'packaging>=23.1'
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade pip setuptools wheel
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade 'packaging>=23.1'
 
 # Install `baseplate` early so packages that inspect/import it at build time
-# (e.g., r2) can detect it. Prefer a local checkout at $REDDIT_SRC/baseplate.py
-# when available, otherwise use the configured REDDIT_BASEPLATE_PIP_URL or
+# (e.g., r2) can detect it. Prefer a local checkout at $TIPPR_SRC/baseplate.py
+# when available, otherwise use the configured TIPPR_BASEPLATE_PIP_URL or
 # fall back to PyPI.
-if [ -d "$REDDIT_SRC/baseplate.py" ]; then
-    echo "Installing local baseplate from $REDDIT_SRC/baseplate.py"
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install -e "$REDDIT_SRC/baseplate.py"
-elif [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
-    echo "Installing baseplate from $REDDIT_BASEPLATE_PIP_URL"
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install "$REDDIT_BASEPLATE_PIP_URL"
+if [ -d "$TIPPR_SRC/baseplate.py" ]; then
+    echo "Installing local baseplate from $TIPPR_SRC/baseplate.py"
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install -e "$TIPPR_SRC/baseplate.py"
+elif [ -n "$TIPPR_BASEPLATE_PIP_URL" ]; then
+    echo "Installing baseplate from $TIPPR_BASEPLATE_PIP_URL"
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install "$TIPPR_BASEPLATE_PIP_URL"
 else
     echo "Installing baseplate from PyPI"
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install baseplate
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install baseplate
 fi
 
 # If provided, prefer a fork of `formenergy-observability` that supports
 # modern `packaging`, install it early so it cannot force a downgrade of
 # `packaging` during later bulk installs.
-if [ -n "$REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL" ]; then
-    echo "Installing formenergy-observability from $REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL"
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install "$REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL" || true
+if [ -n "$TIPPR_FORMENERGY_OBSERVABILITY_PIP_URL" ]; then
+    echo "Installing formenergy-observability from $TIPPR_FORMENERGY_OBSERVABILITY_PIP_URL"
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install "$TIPPR_FORMENERGY_OBSERVABILITY_PIP_URL" || true
 fi
 
 # Install baseplate and other runtime dependencies
 # Installation order/options:
-# 1. If `REDDIT_BASEPLATE_PIP_URL` is set, install baseplate from that pip
+# 1. If `TIPPR_BASEPLATE_PIP_URL` is set, install baseplate from that pip
 #    spec (supports git+ URLs, file://, or local editable installs).
-# 2. Else if `REDDIT_BASEPLATE_REPO` is set, install from the given fork
+# 2. Else if `TIPPR_BASEPLATE_REPO` is set, install from the given fork
 #    (legacy behavior).
 # 3. Otherwise install `baseplate` from PyPI.
-if [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
-    echo "Installing baseplate from pip spec: $REDDIT_BASEPLATE_PIP_URL"
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
-        "$REDDIT_BASEPLATE_PIP_URL" \
+if [ -n "$TIPPR_BASEPLATE_PIP_URL" ]; then
+    echo "Installing baseplate from pip spec: $TIPPR_BASEPLATE_PIP_URL"
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install \
+        "$TIPPR_BASEPLATE_PIP_URL" \
         "gunicorn" \
         "whoosh" \
         "PasteScript" \
@@ -503,10 +503,10 @@ if [ -n "$REDDIT_BASEPLATE_PIP_URL" ]; then
         "GeoIP" \
         "pika>=1.3.2,<2" \
         "sentry-sdk"
-elif [ -n "$REDDIT_BASEPLATE_REPO" ]; then
-    echo "Installing baseplate from fork: $REDDIT_BASEPLATE_REPO"
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
-        "git+https://github.com/$REDDIT_BASEPLATE_REPO.git@main#egg=baseplate" \
+elif [ -n "$TIPPR_BASEPLATE_REPO" ]; then
+    echo "Installing baseplate from fork: $TIPPR_BASEPLATE_REPO"
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install \
+        "git+https://github.com/$TIPPR_BASEPLATE_REPO.git@main#egg=baseplate" \
         "gunicorn" \
         "whoosh" \
         "PasteScript" \
@@ -525,7 +525,7 @@ elif [ -n "$REDDIT_BASEPLATE_REPO" ]; then
         "pika>=1.3.2,<2" \
         "sentry-sdk"
 else
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install \
         "baseplate" \
         "gunicorn" \
         "whoosh" \
@@ -551,14 +551,14 @@ fi
 PROMETHEUS_DIR=/var/lib/tippr/prometheus-multiproc
 if [ ! -d "$PROMETHEUS_DIR" ]; then
     mkdir -p "$PROMETHEUS_DIR"
-    chown $REDDIT_USER:$REDDIT_GROUP "$PROMETHEUS_DIR"
+    chown $TIPPR_USER:$TIPPR_GROUP "$PROMETHEUS_DIR"
     chmod 0775 "$PROMETHEUS_DIR"
 fi
 # Additional packages that `r2` currently lists as runtime/test deps.
 # Install them into the venv as the tippr user. Some packages require
 # system libs (e.g. libpq-dev, libxml2-dev); failures will be reported
 # but won't abort the installer.
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install \
     bcrypt \
     beautifulsoup4 \
     boto3 \
@@ -585,29 +585,29 @@ sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install \
 # Prefer psycopg2-binary to avoid requiring system postgres headers during
 # install; if you need the real psycopg2 build from source, install
 # libpq-dev and python3-dev on the host instead.
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install psycopg2-binary || true
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install psycopg2-binary || true
 
 # Ensure `packaging` remains at a modern version — some packages may pull
 # older versions during bulk installs. Force-reinstall without deps to keep
 # the build-toolchain compatible for later editable installs.
-sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade --force-reinstall --no-deps 'packaging>=23.1' || true
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade --force-reinstall --no-deps 'packaging>=23.1' || true
 
 # Convert legacy Python 2 sources in i18n to Python 3 using lib2to3
-if [ -d "$REDDIT_SRC/i18n" ]; then
+if [ -d "$TIPPR_SRC/i18n" ]; then
     echo "Converting i18n Python files to Python 3 with lib2to3"
-    for pyf in $(find "$REDDIT_SRC/i18n" -name "*.py"); do
-        sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" python3 -m lib2to3 -w "$pyf" || true
+    for pyf in $(find "$TIPPR_SRC/i18n" -name "*.py"); do
+        sudo -u $TIPPR_USER PATH="$TIPPR_VENV/bin:$PATH" python3 -m lib2to3 -w "$pyf" || true
     done
 fi
 
 function install_reddit_repo {
-    pushd $REDDIT_SRC/$1
+    pushd $TIPPR_SRC/$1
     # Ensure build-toolchain is pinned so metadata generation won't fail
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --upgrade --force-reinstall --no-deps pip setuptools wheel 'packaging>=23.1' || true
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade --force-reinstall --no-deps pip setuptools wheel 'packaging>=23.1' || true
 
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/python setup.py build
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/python setup.py build
     # --no-build-isolation uses the venv's packages (like baseplate) instead of isolated env
-    sudo -u $REDDIT_USER $REDDIT_VENV/bin/pip install --no-build-isolation -e .
+    sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --no-build-isolation -e .
     popd
 }
 
@@ -618,13 +618,13 @@ install_reddit_repo tippr/r2
 # install and rely on local compatibility shims in the tree.
 # Ensure i18n is installed; if its setup.py lacks a version, inject a
 # minimal default to satisfy modern packaging tools.
-if [ -f "$REDDIT_SRC/i18n/setup.py" ]; then
-    if ! grep -Eq "version\s*=\s*['\"][^'\"]+['\"]" "$REDDIT_SRC/i18n/setup.py"; then
+if [ -f "$TIPPR_SRC/i18n/setup.py" ]; then
+    if ! grep -Eq "version\s*=\s*['\"][^'\"]+['\"]" "$TIPPR_SRC/i18n/setup.py"; then
         echo "Patching i18n/setup.py to add default version 0.0.1"
         # Backup original for debugging
-        cp "$REDDIT_SRC/i18n/setup.py" "$REDDIT_SRC/i18n/setup.py.orig" || true
+        cp "$TIPPR_SRC/i18n/setup.py" "$TIPPR_SRC/i18n/setup.py.orig" || true
         # Replace with a minimal, safe setup.py to avoid legacy packaging issues
-        cat > "$REDDIT_SRC/i18n/setup.py" <<'PYSETUP'
+        cat > "$TIPPR_SRC/i18n/setup.py" <<'PYSETUP'
 from setuptools import setup, find_packages
 
 setup(
@@ -639,8 +639,8 @@ else
     echo "i18n checkout not present; skipping i18n install"
     SKIP_I18N=1
 fi
-for plugin in $REDDIT_AVAILABLE_PLUGINS; do
-    copy_upstart $REDDIT_SRC/$plugin
+for plugin in $TIPPR_AVAILABLE_PLUGINS; do
+    copy_upstart $TIPPR_SRC/$plugin
     install_reddit_repo $plugin
 done
 install_reddit_repo websockets
@@ -649,7 +649,7 @@ install_reddit_repo activity
 # generate binary translation files from source
 if [ "${SKIP_I18N}" != "1" ]; then
     # Use venv's python for make commands
-    sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" make -C $REDDIT_SRC/i18n clean all
+    sudo -u $TIPPR_USER PATH="$TIPPR_VENV/bin:$PATH" make -C $TIPPR_SRC/i18n clean all
 else
     echo "Skipping i18n message compilation because i18n package was not installed"
 fi
@@ -657,11 +657,11 @@ fi
 # this builds static files and should be run *after* languages are installed
 # so that the proper language-specific static files can be generated and after
 # plugins are installed so all the static files are available.
-pushd $REDDIT_SRC/tippr/r2
+pushd $TIPPR_SRC/tippr/r2
 # Use venv's python for make commands
-sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/tippr:$REDDIT_SRC" make clean pyx
+sudo -u $TIPPR_USER PATH="$TIPPR_VENV/bin:$PATH" PYTHONPATH="$TIPPR_SRC/tippr:$TIPPR_SRC" make clean pyx
 
-plugin_str=$(echo -n "$REDDIT_AVAILABLE_PLUGINS" | tr " " ,)
+plugin_str=$(echo -n "$TIPPR_AVAILABLE_PLUGINS" | tr " " ,)
 if [ ! -f development.update ]; then
     cat > development.update <<DEVELOPMENT
 # after editing this file, run "make ini" to
@@ -678,10 +678,10 @@ disable_captcha = true
 disable_ratelimit = true
 disable_require_admin_otp = true
 
-domain = $REDDIT_DOMAIN
-oauth_domain = $REDDIT_DOMAIN
-https_endpoint = https://$REDDIT_DOMAIN
-payment_domain = https://pay.$REDDIT_DOMAIN/
+domain = $TIPPR_DOMAIN
+oauth_domain = $TIPPR_DOMAIN
+https_endpoint = https://$TIPPR_DOMAIN
+payment_domain = https://pay.$TIPPR_DOMAIN/
 
 plugins = $plugin_str
 
@@ -692,41 +692,41 @@ media_fs_base_url_http = http://%(domain)s/media/
 [server:main]
 port = 8001
 DEVELOPMENT
-    chown $REDDIT_USER development.update
+    chown $TIPPR_USER development.update
 else
-    sed -i "s/^plugins = .*$/plugins = $plugin_str/" $REDDIT_SRC/tippr/r2/development.update
-    sed -i "s/^domain = .*$/domain = $REDDIT_DOMAIN/" $REDDIT_SRC/tippr/r2/development.update
-    sed -i "s/^oauth_domain = .*$/oauth_domain = $REDDIT_DOMAIN/" $REDDIT_SRC/tippr/r2/development.update
-    sed -i "s@^https_endpoint = .*@https_endpoint = https://$REDDIT_DOMAIN@" $REDDIT_SRC/tippr/r2/development.update
-    sed -i "s@^payment_domain = .*@payment_domain = https://pay.$REDDIT_DOMAIN/@" $REDDIT_SRC/tippr/r2/development.update
+    sed -i "s/^plugins = .*$/plugins = $plugin_str/" $TIPPR_SRC/tippr/r2/development.update
+    sed -i "s/^domain = .*$/domain = $TIPPR_DOMAIN/" $TIPPR_SRC/tippr/r2/development.update
+    sed -i "s/^oauth_domain = .*$/oauth_domain = $TIPPR_DOMAIN/" $TIPPR_SRC/tippr/r2/development.update
+    sed -i "s@^https_endpoint = .*@https_endpoint = https://$TIPPR_DOMAIN@" $TIPPR_SRC/tippr/r2/development.update
+    sed -i "s@^payment_domain = .*@payment_domain = https://pay.$TIPPR_DOMAIN/@" $TIPPR_SRC/tippr/r2/development.update
 fi
 
-sudo -u $REDDIT_USER PATH="$REDDIT_VENV/bin:$PATH" PYTHONPATH="$REDDIT_SRC/tippr:$REDDIT_SRC" make ini || true
+sudo -u $TIPPR_USER PATH="$TIPPR_VENV/bin:$PATH" PYTHONPATH="$TIPPR_SRC/tippr:$TIPPR_SRC" make ini || true
 
 # Ensure `development.ini` exists. If `make ini` didn't create it (CI or
 # permission issues), try generating it directly with `updateini.py`.
 if [ ! -f development.ini ]; then
     echo "development.ini not found; attempting to generate with updateini.py"
-    sudo -u $REDDIT_USER bash -lc "PATH=\"$REDDIT_VENV/bin:\$PATH\" PYTHONPATH=\"$REDDIT_SRC/tippr:$REDDIT_SRC\" python updateini.py example.ini development.update > development.ini" || true
+    sudo -u $TIPPR_USER bash -lc "PATH=\"$TIPPR_VENV/bin:\$PATH\" PYTHONPATH=\"$TIPPR_SRC/tippr:$TIPPR_SRC\" python updateini.py example.ini development.update > development.ini" || true
 fi
 
 # Ensure run.ini is a symlink to a real ini. Prefer development.ini, fall
 # back to example.ini if generation failed.
 if [ -f development.ini ]; then
     # Create a real file (not a symlink) to avoid broken-link surprises in CI
-    sudo -u $REDDIT_USER cp -f development.ini run.ini
-    sudo -u $REDDIT_USER chown $REDDIT_USER run.ini || true
+    sudo -u $TIPPR_USER cp -f development.ini run.ini
+    sudo -u $TIPPR_USER chown $TIPPR_USER run.ini || true
 else
     echo "Falling back to example.ini for run.ini (development.ini missing)"
-    sudo -u $REDDIT_USER cp -f example.ini run.ini
-    sudo -u $REDDIT_USER chown $REDDIT_USER run.ini || true
+    sudo -u $TIPPR_USER cp -f example.ini run.ini
+    sudo -u $TIPPR_USER chown $TIPPR_USER run.ini || true
 fi
 
 popd
 
 # Ensure generated Mako template cache files are owned by the app user
-if [ -d "$REDDIT_SRC/tippr/r2/data/templates" ]; then
-    chown -R $REDDIT_USER:$REDDIT_GROUP $REDDIT_SRC/tippr/r2/data/templates || true
+if [ -d "$TIPPR_SRC/tippr/r2/data/templates" ]; then
+    chown -R $TIPPR_USER:$TIPPR_GROUP $TIPPR_SRC/tippr/r2/data/templates || true
 fi
 
 ###############################################################################
@@ -738,7 +738,7 @@ function helper-script() {
 }
 
 # Create a Python script for tippr-run that bypasses paster's plugin discovery
-cat > $REDDIT_VENV/bin/tippr-run-cmd <<PYCMD
+cat > $TIPPR_VENV/bin/tippr-run-cmd <<PYCMD
 #!/usr/bin/env python3
 """Direct invocation of r2's RunCommand, bypassing paster plugin discovery."""
 import sys
@@ -746,7 +746,7 @@ import os
 
 # Add tippr repo root to Python path for local shims (e.g., pylons)
 # This must come before site-packages so local shims take precedence
-reddit_root = '$REDDIT_SRC/tippr'
+reddit_root = '$TIPPR_SRC/tippr'
 r2_dir = reddit_root + '/r2'
 sys.path.insert(0, reddit_root)
 sys.path.insert(0, r2_dir)
@@ -757,20 +757,20 @@ cmd = RunCommand('run')
 # Args: config file + any additional args
 cmd.run(sys.argv[1:])
 PYCMD
-chmod +x $REDDIT_VENV/bin/tippr-run-cmd
+chmod +x $TIPPR_VENV/bin/tippr-run-cmd
 
 helper-script /usr/local/bin/tippr-run <<REDDITRUN
 #!/bin/bash
 # Direct invocation of r2 RunCommand
-cd $REDDIT_SRC/tippr/r2
-exec $REDDIT_VENV/bin/python $REDDIT_VENV/bin/tippr-run-cmd run.ini "\$@"
+cd $TIPPR_SRC/tippr/r2
+exec $TIPPR_VENV/bin/python $TIPPR_VENV/bin/tippr-run-cmd run.ini "\$@"
 REDDITRUN
 
 helper-script /usr/local/bin/tippr-shell <<REDDITSHELL
 #!/bin/bash
 # Use paster shell command
-cd $REDDIT_SRC/tippr/r2
-exec $REDDIT_VENV/bin/paster shell run.ini
+cd $TIPPR_SRC/tippr/r2
+exec $TIPPR_VENV/bin/paster shell run.ini
 REDDITSHELL
 
 helper-script /usr/local/bin/tippr-start <<REDDITSTART
@@ -819,9 +819,9 @@ REDDITFLUSH
 
 helper-script /usr/local/bin/tippr-serve <<REDDITSERVE
 #!/bin/bash
-cd $REDDIT_SRC/tippr/r2
-export PYTHONPATH="$REDDIT_SRC/tippr:$REDDIT_SRC:\$PYTHONPATH"
-exec $REDDIT_VENV/bin/paster serve --reload run.ini
+cd $TIPPR_SRC/tippr/r2
+export PYTHONPATH="$TIPPR_SRC/tippr:$TIPPR_SRC:\$PYTHONPATH"
+exec $TIPPR_VENV/bin/paster serve --reload run.ini
 REDDITSERVE
 
 # Create a systemd unit for tippr-serve that uses the installer helper
@@ -834,11 +834,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=$REDDIT_USER
-Group=$REDDIT_USER
-WorkingDirectory=$REDDIT_SRC/tippr/r2
-Environment=VIRTUAL_ENV=$REDDIT_VENV
-Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+User=$TIPPR_USER
+Group=$TIPPR_USER
+WorkingDirectory=$TIPPR_SRC/tippr/r2
+Environment=VIRTUAL_ENV=$TIPPR_VENV
+Environment=PATH=$TIPPR_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
 Environment=MAKO_MODULE_DIRECTORY=/var/opt/tippr/mako
 ExecStart=/usr/local/bin/tippr-serve
 Restart=on-failure
@@ -855,15 +855,15 @@ fi
 # pixel and click server
 ###############################################################################
 mkdir -p /var/opt/tippr/
-chown $REDDIT_USER:$REDDIT_GROUP /var/opt/tippr/
+chown $TIPPR_USER:$TIPPR_GROUP /var/opt/tippr/
 
 # Create a mako module cache directory for compiled templates and make it writable
 mkdir -p /var/opt/tippr/mako
-chown $REDDIT_USER:$REDDIT_GROUP /var/opt/tippr/mako
+chown $TIPPR_USER:$TIPPR_GROUP /var/opt/tippr/mako
 
 mkdir -p /srv/www/pixel
-chown $REDDIT_USER:$REDDIT_GROUP /srv/www/pixel
-cp $REDDIT_SRC/tippr/r2/r2/public/static/pixel.png /srv/www/pixel
+chown $TIPPR_USER:$TIPPR_GROUP /srv/www/pixel
+cp $TIPPR_SRC/tippr/r2/r2/public/static/pixel.png /srv/www/pixel
 
 if [ ! -d /etc/gunicorn.d ]; then
     mkdir -p /etc/gunicorn.d
@@ -872,10 +872,10 @@ if [ ! -f /etc/gunicorn.d/click.conf ]; then
     cat > /etc/gunicorn.d/click.conf <<CLICK
 CONFIG = {
     "mode": "wsgi",
-    "working_dir": "$REDDIT_SRC/tippr/scripts",
-    "user": "$REDDIT_USER",
-    "group": "$REDDIT_USER",
-    "python": "$REDDIT_VENV/bin/python",
+    "working_dir": "$TIPPR_SRC/tippr/scripts",
+    "user": "$TIPPR_USER",
+    "group": "$TIPPR_USER",
+    "python": "$TIPPR_VENV/bin/python",
     "args": (
         "--bind=unix:/var/opt/tippr/click.sock",
         "--workers=1",
@@ -895,13 +895,13 @@ After=network.target
 
 [Service]
 Type=simple
-User=$REDDIT_USER
-Group=$REDDIT_GROUP
-WorkingDirectory=$REDDIT_SRC/tippr/scripts
-Environment=PATH=$REDDIT_VENV/bin
-Environment=PYTHONPATH=$REDDIT_SRC:$REDDIT_SRC/tippr
+User=$TIPPR_USER
+Group=$TIPPR_GROUP
+WorkingDirectory=$TIPPR_SRC/tippr/scripts
+Environment=PATH=$TIPPR_VENV/bin
+Environment=PYTHONPATH=$TIPPR_SRC:$TIPPR_SRC/tippr
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
-ExecStart=$REDDIT_VENV/bin/gunicorn --bind unix:/var/opt/tippr/click.sock --workers=1 tracker:application
+ExecStart=$TIPPR_VENV/bin/gunicorn --bind unix:/var/opt/tippr/click.sock --workers=1 tracker:application
 Restart=on-failure
 
 [Install]
@@ -917,7 +917,7 @@ fi
 ###############################################################################
 
 mkdir -p /srv/www/media
-chown $REDDIT_USER:$REDDIT_GROUP /srv/www/media
+chown $TIPPR_USER:$TIPPR_GROUP /srv/www/media
 
 cat > /etc/nginx/sites-available/tippr-media <<MEDIA
 server {
@@ -1008,7 +1008,7 @@ log_format directlog '$remote_addr - $remote_user [$time_local] '
 LOGCONF
 
 # link the ini file for the Flask click tracker
-ln -nsf $REDDIT_SRC/tippr/r2/development.ini $REDDIT_SRC/tippr/scripts/production.ini
+ln -nsf $TIPPR_SRC/tippr/r2/development.ini $TIPPR_SRC/tippr/scripts/production.ini
 
 service nginx restart
 
@@ -1119,7 +1119,7 @@ kill timeout 15
 
 limit nofile 65535 65535
 
-exec $REDDIT_VENV/bin/baseplate-serve --bind localhost:9001 $REDDIT_SRC/websockets/example.ini
+exec $TIPPR_VENV/bin/baseplate-serve --bind localhost:9001 $TIPPR_SRC/websockets/example.ini
 UPSTART_WEBSOCKETS
     fi
 fi
@@ -1134,23 +1134,23 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=$REDDIT_USER
+User=$TIPPR_USER
 # Use the app user as group to avoid permission issues with user-owned venvs
-Group=$REDDIT_USER
-WorkingDirectory=$REDDIT_SRC/websockets
+Group=$TIPPR_USER
+WorkingDirectory=$TIPPR_SRC/websockets
 # Provide the venv bin first, but keep system PATH entries so helpers are found
 # Omit /sbin which can cause the service to fail on some systems
-Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
-Environment=VIRTUAL_ENV=$REDDIT_VENV
+Environment=PATH=$TIPPR_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$TIPPR_VENV
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
 
 # Ensure prometheus multiproc dir exists and is owned by the service user
 ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
-ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
+ExecStartPre=/bin/chown $TIPPR_USER:$TIPPR_USER $PROMETHEUS_DIR
 
 # Bind to 127.0.0.1 to avoid potential localhost resolution issues
-Environment=HOME=/home/$REDDIT_USER
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9001 $REDDIT_SRC/websockets/example.ini
+Environment=HOME=/home/$TIPPR_USER
+ExecStart=$TIPPR_VENV/bin/baseplate-serve --bind 127.0.0.1:9001 $TIPPR_SRC/websockets/example.ini
 Restart=on-failure
 TimeoutStartSec=120
 
@@ -1179,7 +1179,7 @@ respawn
 respawn limit 10 5
 kill timeout 15
 
-exec $REDDIT_VENV/bin/baseplate-serve --bind localhost:9002 $REDDIT_SRC/activity/example.ini
+exec $TIPPR_VENV/bin/baseplate-serve --bind localhost:9002 $TIPPR_SRC/activity/example.ini
 UPSTART_ACTIVITY
     fi
 fi
@@ -1194,17 +1194,17 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=$REDDIT_USER
-Group=$REDDIT_GROUP
-WorkingDirectory=$REDDIT_SRC/activity
+User=$TIPPR_USER
+Group=$TIPPR_GROUP
+WorkingDirectory=$TIPPR_SRC/activity
 # Provide the venv bin first and common system paths; omit /sbin for compatibility
-Environment=PATH=$REDDIT_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
-Environment=VIRTUAL_ENV=$REDDIT_VENV
+Environment=PATH=$TIPPR_VENV/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$TIPPR_VENV
 Environment=PROMETHEUS_MULTIPROC_DIR=$PROMETHEUS_DIR
-Environment=HOME=/home/$REDDIT_USER
+Environment=HOME=/home/$TIPPR_USER
 ExecStartPre=/bin/mkdir -p $PROMETHEUS_DIR
-ExecStartPre=/bin/chown $REDDIT_USER:$REDDIT_USER $PROMETHEUS_DIR
-ExecStart=$REDDIT_VENV/bin/baseplate-serve --bind 127.0.0.1:9002 $REDDIT_SRC/activity/example.ini
+ExecStartPre=/bin/chown $TIPPR_USER:$TIPPR_USER $PROMETHEUS_DIR
+ExecStart=$TIPPR_VENV/bin/baseplate-serve --bind 127.0.0.1:9002 $TIPPR_SRC/activity/example.ini
 Restart=on-failure
 TimeoutStartSec=120
 
@@ -1223,10 +1223,10 @@ if [ ! -f /etc/gunicorn.d/geoip.conf ]; then
     cat > /etc/gunicorn.d/geoip.conf <<GEOIP
 CONFIG = {
     "mode": "wsgi",
-    "working_dir": "$REDDIT_SRC/tippr/scripts",
-    "user": "$REDDIT_USER",
-    "group": "$REDDIT_USER",
-    "python": "$REDDIT_VENV/bin/python",
+    "working_dir": "$TIPPR_SRC/tippr/scripts",
+    "user": "$TIPPR_USER",
+    "group": "$TIPPR_USER",
+    "python": "$TIPPR_VENV/bin/python",
     "args": (
         "--bind=127.0.0.1:5000",
         "--workers=1",
@@ -1246,11 +1246,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=$REDDIT_USER
-Group=$REDDIT_GROUP
-WorkingDirectory=$REDDIT_SRC/tippr/scripts
-Environment=PATH=$REDDIT_VENV/bin
-ExecStart=$REDDIT_VENV/bin/gunicorn --bind 127.0.0.1:5000 --workers=1 --limit-request-line=8190 geoip_service:application
+User=$TIPPR_USER
+Group=$TIPPR_GROUP
+WorkingDirectory=$TIPPR_SRC/tippr/scripts
+Environment=PATH=$TIPPR_VENV/bin
+ExecStart=$TIPPR_VENV/bin/gunicorn --bind 127.0.0.1:5000 --workers=1 --limit-request-line=8190 geoip_service:application
 Restart=on-failure
 
 [Install]
@@ -1264,17 +1264,17 @@ fi
 ###############################################################################
 # Job Environment
 ###############################################################################
-CONSUMER_CONFIG_ROOT=$REDDIT_HOME/consumer-count.d
+CONSUMER_CONFIG_ROOT=$TIPPR_HOME/consumer-count.d
 
 if [ ! -f /etc/default/tippr ]; then
     cat > /etc/default/tippr <<DEFAULT
-export REDDIT_ROOT=$REDDIT_SRC/tippr/r2
-export REDDIT_INI=$REDDIT_SRC/tippr/r2/run.ini
-export REDDIT_USER=$REDDIT_USER
-export REDDIT_GROUP=$REDDIT_GROUP
-export REDDIT_CONSUMER_CONFIG=$CONSUMER_CONFIG_ROOT
-alias wrap-job=$REDDIT_SRC/tippr/scripts/wrap-job
-alias manage-consumers=$REDDIT_SRC/tippr/scripts/manage-consumers
+export TIPPR_ROOT=$TIPPR_SRC/tippr/r2
+export TIPPR_INI=$TIPPR_SRC/tippr/r2/run.ini
+export TIPPR_USER=$TIPPR_USER
+export TIPPR_GROUP=$TIPPR_GROUP
+export TIPPR_CONSUMER_CONFIG=$CONSUMER_CONFIG_ROOT
+alias wrap-job=$TIPPR_SRC/tippr/scripts/wrap-job
+alias manage-consumers=$TIPPR_SRC/tippr/scripts/manage-consumers
 DEFAULT
 fi
 
@@ -1303,15 +1303,15 @@ set_consumer_count author_query_q 1
 set_consumer_count subreddit_query_q 1
 set_consumer_count domain_query_q 1
 
-chown -R $REDDIT_USER:$REDDIT_GROUP $CONSUMER_CONFIG_ROOT/
+chown -R $TIPPR_USER:$TIPPR_GROUP $CONSUMER_CONFIG_ROOT/
 
 ###############################################################################
 # Complete plugin setup, if setup.sh exists
 ###############################################################################
-for plugin in $REDDIT_AVAILABLE_PLUGINS; do
-    if [ -x $REDDIT_SRC/$plugin/setup.sh ]; then
+for plugin in $TIPPR_AVAILABLE_PLUGINS; do
+    if [ -x $TIPPR_SRC/$plugin/setup.sh ]; then
         echo "Found setup.sh for $plugin; running setup script"
-        $REDDIT_SRC/$plugin/setup.sh $REDDIT_SRC $REDDIT_USER
+        $TIPPR_SRC/$plugin/setup.sh $TIPPR_SRC $TIPPR_USER
     fi
 done
 
@@ -1352,8 +1352,8 @@ if [ ! -f /etc/cron.d/tippr ]; then
 
 # jobs that recalculate time-limited listings (e.g. top this year)
 PGPASSWORD=password
-*/15 * * * * $REDDIT_USER $REDDIT_SRC/tippr/scripts/compute_time_listings link year "['hour', 'day', 'week', 'month', 'year']"
-*/15 * * * * $REDDIT_USER $REDDIT_SRC/tippr/scripts/compute_time_listings comment year "['hour', 'day', 'week', 'month', 'year']"
+*/15 * * * * $TIPPR_USER $TIPPR_SRC/tippr/scripts/compute_time_listings link year "['hour', 'day', 'week', 'month', 'year']"
+*/15 * * * * $TIPPR_USER $TIPPR_SRC/tippr/scripts/compute_time_listings comment year "['hour', 'day', 'week', 'month', 'year']"
 
 # disabled by default, uncomment if you need these jobs
 #*    * * * * root /sbin/start --quiet tippr-job-email

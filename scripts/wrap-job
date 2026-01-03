@@ -6,19 +6,19 @@ code, and send output to syslog.
 The following environment variables may be used to control
 the environment the wrapped command runs in:
 
-REDDIT_USER
+TIPPR_USER
 
     The user to run the job as. Defaults to "tippr".
 
-REDDIT_GROUP
+TIPPR_GROUP
 
-    The group to run the job as. Defaults to $REDDIT_USER.
+    The group to run the job as. Defaults to $TIPPR_USER.
 
-REDDIT_ROOT
+TIPPR_ROOT
 
     The root directory of the tippr package. It's where the makefile lives.
 
-REDDIT_LOG_FACILITY
+TIPPR_LOG_FACILITY
 
     The syslog facility to write messages to.
 """
@@ -35,8 +35,8 @@ CONSUMER_PREFIX = "tippr-consumer-"
 
 
 # drop permissions
-user = os.environ.get("REDDIT_USER", "tippr")
-group = os.environ.get("REDDIT_GROUP", user)
+user = os.environ.get("TIPPR_USER", "tippr")
+group = os.environ.get("TIPPR_GROUP", user)
 uid = pwd.getpwnam(user).pw_uid
 gid = grp.getgrnam(group).gr_gid
 os.setgroups([])
@@ -44,7 +44,7 @@ os.setgid(gid)
 os.setuid(uid)
 
 # change directory to the tippr code root
-root = os.environ.get("REDDIT_ROOT", "/opt/tippr/lib/public/r2")
+root = os.environ.get("TIPPR_ROOT", "/opt/tippr/lib/public/r2")
 os.chdir(root)
 
 # configure syslog
@@ -56,7 +56,7 @@ if job_name.startswith(CONSUMER_PREFIX):
     job_name = (job_name[len(CONSUMER_PREFIX):] +
                 "_" +
                 os.environ.get("UPSTART_INSTANCE", ""))
-facility = getattr(syslog, "LOG_" + os.environ.get("REDDIT_LOG_FACILITY", "CRON"))
+facility = getattr(syslog, "LOG_" + os.environ.get("TIPPR_LOG_FACILITY", "CRON"))
 syslog.openlog(ident=job_name, facility=facility)
 
 # run the wrapped command

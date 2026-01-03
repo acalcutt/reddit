@@ -5,41 +5,41 @@ This document summarizes what `install-tippr.sh` (the dev environment installer)
 Overview
 - The installer must be run as root (it exits if not run with elevated privileges).
 - It expects to live next to an `install/` directory containing helper install scripts. If those helpers are missing it will download them from the canonical repo.
-- It sources `install/install.cfg` for configuration values and respects environment variable overrides (for example `REDDIT_USER` and `REDDIT_DOMAIN`).
+- It sources `install/install.cfg` for configuration values and respects environment variable overrides (for example `TIPPR_USER` and `TIPPR_DOMAIN`).
 - At the end it runs `install/tippr.sh`, which orchestrates the individual setup scripts.
 
 Typical invocation
 
-REDDIT_USER and REDDIT_DOMAIN are commonly provided when invoking the installer. In this project's docs we use `tippr.local` as the development domain. Example:
+TIPPR_USER and TIPPR_DOMAIN are commonly provided when invoking the installer. In this project's docs we use `tippr.local` as the development domain. Example:
 
 ```
-REDDIT_USER=appuser REDDIT_DOMAIN=tippr.local ./install-tippr.sh
+TIPPR_USER=appuser TIPPR_DOMAIN=tippr.local ./install-tippr.sh
 ```
 
 Configurable variables (from `install/install.cfg`)
 
 You can override these variables by exporting them on the command line when invoking the installer. The installer will use the value from the environment if provided, otherwise it falls back to the defaults shown here.
 
-- `REDDIT_USER` — user to install the code for (default: `$SUDO_USER`).
-- `REDDIT_GROUP` — group to run tippr code as (default: `nogroup`).
-- `REDDIT_HOME` — root directory for the install (default: `/home/$REDDIT_USER`).
-- `REDDIT_SRC` — source directory under the home (default: `$REDDIT_HOME/src`).
-- `REDDIT_VENV` — Python virtualenv path (default: `$REDDIT_HOME/venv`).
-- `REDDIT_DOMAIN` — domain used to access the install (default: `tippr.local`).
-- `REDDIT_PLUGINS` — space-separated plugins to install (default: `about gold`).
+- `TIPPR_USER` — user to install the code for (default: `$SUDO_USER`).
+- `TIPPR_GROUP` — group to run tippr code as (default: `nogroup`).
+- `TIPPR_HOME` — root directory for the install (default: `/home/$TIPPR_USER`).
+- `TIPPR_SRC` — source directory under the home (default: `$TIPPR_HOME/src`).
+- `TIPPR_VENV` — Python virtualenv path (default: `$TIPPR_HOME/venv`).
+- `TIPPR_DOMAIN` — domain used to access the install (default: `tippr.local`).
+- `TIPPR_PLUGINS` — space-separated plugins to install (default: `about gold`).
 - `APTITUDE_OPTIONS` — flags passed to `apt`/`apt-get` (default: `-y`).
 - `PYTHON_VERSION` — Python version to install/use (default: `3.12`).
-- `REDDIT_BASEPLATE_PIP_URL` — pip URL or requirement spec for `baseplate` installation (default: git+https://github.com/acalcutt/baseplate.py.git@develop#egg=baseplate).
-- `REDDIT_FORMENERGY_OBSERVABILITY_PIP_URL` — pip URL for formenergy-observability fork (default: git+https://github.com/acalcutt/formenergy-observability.git@main#egg=formenergy-observability).
-- `REDDIT_WEBSOCKETS_REPO` — owner/repo for the websockets service (default: `acalcutt/tippr-service-websockets`).
-- `REDDIT_ACTIVITY_REPO` — owner/repo for the activity service (default: `acalcutt/tippr-service-activity`).
+- `TIPPR_BASEPLATE_PIP_URL` — pip URL or requirement spec for `baseplate` installation (default: git+https://github.com/acalcutt/baseplate.py.git@develop#egg=baseplate).
+- `TIPPR_FORMENERGY_OBSERVABILITY_PIP_URL` — pip URL for formenergy-observability fork (default: git+https://github.com/acalcutt/formenergy-observability.git@main#egg=formenergy-observability).
+- `TIPPR_WEBSOCKETS_REPO` — owner/repo for the websockets service (default: `acalcutt/tippr-service-websockets`).
+- `TIPPR_ACTIVITY_REPO` — owner/repo for the activity service (default: `acalcutt/tippr-service-activity`).
 - `CASSANDRA_SOURCES_LIST` — path for a custom datastax APT sources list (default: `/etc/apt/sources.list.d/cassandra.sources.list`).
 - `DEBIAN_FRONTEND` — installer sets this to `noninteractive` by default to avoid interactive prompts.
 
 Example override (same as above):
 
 ```
-REDDIT_USER=appuser REDDIT_DOMAIN=tippr.local ./install-tippr.sh
+TIPPR_USER=appuser TIPPR_DOMAIN=tippr.local ./install-tippr.sh
 ```
 
 
@@ -61,7 +61,7 @@ Note: exact names and init/systemd units depend on the helper scripts and the ta
 - RabbitMQ (message queue) — `setup_rabbitmq.sh`
 - Any system service wrappers or unit files for the above so they run on boot (handled by `install_services.sh`)
 - Tippr-specific setup (`tippr.sh`) which typically:
-  - creates the `REDDIT_USER` account (if configured),
+  - creates the `TIPPR_USER` account (if configured),
   - clones/places the tippr codebase under the chosen user/home,
   - creates configuration files (pointing at the installed DBs/caches),
   - optionally prepares CI/dev helpers (e.g. `travis.sh`) and finalization steps (`done.sh`).
@@ -74,8 +74,8 @@ Important notes and warnings
 
 Next steps after install
 - Verify the installed services are running (systemd or init scripts depending on platform).
-- Check the configuration files in the installed code and update `REDDIT_DOMAIN` if necessary.
-- Start the tippr dev server/process as the configured `REDDIT_USER` and visit `https://tippr.local` (or whatever domain you used) in your browser.
+- Check the configuration files in the installed code and update `TIPPR_DOMAIN` if necessary.
+- Start the tippr dev server/process as the configured `TIPPR_USER` and visit `https://tippr.local` (or whatever domain you used) in your browser.
 
 If you want, I can also:
 - Add an example `/etc/hosts` entry for `tippr.local` to this doc, or

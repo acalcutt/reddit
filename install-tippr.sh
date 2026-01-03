@@ -17,7 +17,7 @@
 # Several configuration options (listed in the "Configuration" section below)
 # are overridable with environment variables. e.g.
 #
-#    sudo REDDIT_DOMAIN=example.com ./install/tippr.sh
+#    sudo TIPPR_DOMAIN=example.com ./install/tippr.sh
 #
 ###############################################################################
 set -e

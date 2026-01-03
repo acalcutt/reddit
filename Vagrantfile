@@ -143,7 +143,7 @@ Vagrant.configure(2) do |config|
         if [ ! -f /var/local/reddit_installed ]; then
           echo "running install script"
           cd /home/#{vagrant_user}/src/tippr
-          REDDIT_PLUGINS="#{plugin_string}" REDDIT_DOMAIN="#{hostname}" ./install/tippr.sh
+          TIPPR_PLUGINS="#{plugin_string}" TIPPR_DOMAIN="#{hostname}" ./install/tippr.sh
           touch /var/local/reddit_installed
         else
           echo "install script already run"
@@ -180,7 +180,7 @@ Vagrant.configure(2) do |config|
       # how to proceed.
       redditlocal.vm.provision "shell", inline: <<-SCRIPT
         cd /home/#{vagrant_user}/src/tippr
-        REDDIT_DOMAIN="#{hostname}" ./install/done.sh
+        TIPPR_DOMAIN="#{hostname}" ./install/done.sh
       SCRIPT
   end
 end

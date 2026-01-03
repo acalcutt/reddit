@@ -33,7 +33,7 @@ cd /opt/tippr
 3. Run the installer as root, specifying the user and domain:
 
 ```bash
-REDDIT_USER=tippr REDDIT_DOMAIN=tippr.local ./install-tippr.sh
+TIPPR_USER=tippr TIPPR_DOMAIN=tippr.local ./install-tippr.sh
 ```
 
 The installer will handle system dependencies, Python virtual environment setup, database configuration, and service installation. A Python venv is created at `/home/tippr/venv`.
@@ -50,11 +50,11 @@ You can customize the install by setting environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REDDIT_USER` | (required) | User to run tippr as |
-| `REDDIT_DOMAIN` | `tippr.local` | Domain for the site (must contain a dot) |
-| `REDDIT_HOME` | `/home/$REDDIT_USER` | Base directory for install |
-| `REDDIT_VENV` | `/home/$REDDIT_USER/venv` | Python virtual environment location |
-| `REDDIT_PLUGINS` | `about gold` | Plugins to install |
+| `TIPPR_USER` | (required) | User to run tippr as |
+| `TIPPR_DOMAIN` | `tippr.local` | Domain for the site (must contain a dot) |
+| `TIPPR_HOME` | `/home/$TIPPR_USER` | Base directory for install |
+| `TIPPR_VENV` | `/home/$TIPPR_USER/venv` | Python virtual environment location |
+| `TIPPR_PLUGINS` | `about gold` | Plugins to install |
 
 ### Notes
 
