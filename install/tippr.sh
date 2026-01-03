@@ -474,38 +474,41 @@ else
     apt-get update || true
 
     # Detect Python major.minor (e.g. 3.12) and prefer distro-specific packages
-    PYVER=$(python3 -c 'import sys; print(f"${sys.version_info.major}.${sys.version_info.minor}")' 2>/dev/null || echo "")
-    PKGS="python3-venv python3-pip"
+    PYVER=$(python3 -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))' 2>/dev/null || echo "")
+    PKGS="python3-venv python3-pip python3-distutils"
     if [ -n "$PYVER" ]; then
-        PKGS="$PKGS python${PYVER}-venv python${PYVER}-distutils libpython${PYVER}-stdlib python${PYVER}"
-    else
-        PKGS="$PKGS python3-distutils"
+        PKGS="$PKGS libpython${PYVER}-stdlib python${PYVER}"
     fi
 
-    # Try installing a set of candidate packages; tolerate failure and continue
+    # Try installing candidate packages; tolerate failure and continue
     apt-get install -y $PKGS || apt-get install -y python3-venv python3-pip || true
 
-    # Try creating venv without pip, then bootstrap pip using get-pip.py
-    if sudo -u $TIPPR_USER python3 -m venv --without-pip $TIPPR_VENV; then
-        echo "Bootstrapping pip into venv using get-pip.py"
-        curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py || true
-        if [ -f /tmp/get-pip.py ]; then
-            if ! sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py; then
-                # If bootstrapping failed, attempt to install missing stdlib/runtime
+    # Retry creating venv (this may succeed now that stdlib packages are present)
+    if sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV; then
+        :
+    else
+        # Fall back to creating venv without pip, then bootstrap pip using get-pip.py
+        if sudo -u $TIPPR_USER python3 -m venv --without-pip $TIPPR_VENV; then
+            echo "Bootstrapping pip into venv using get-pip.py"
+            curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py || true
+            if [ -f /tmp/get-pip.py ]; then
+                # Ensure libpython is installed before attempting to run get-pip.py
                 if [ -n "$PYVER" ]; then
                     apt-get update || true
                     apt-get install -y libpython${PYVER}-stdlib python${PYVER} || true
                 fi
-                # Retry bootstrap once more
-                sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py || true
+                if ! sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py; then
+                    # Retry once more
+                    sudo -u $TIPPR_USER $TIPPR_VENV/bin/python /tmp/get-pip.py || true
+                fi
+                rm -f /tmp/get-pip.py || true
+            else
+                echo "Failed to download get-pip.py; attempting system pip to install pip into venv"
+                sudo -u $TIPPR_USER python3 -m pip install --upgrade pip || true
             fi
-            rm -f /tmp/get-pip.py || true
         else
-            echo "Failed to download get-pip.py; attempting system pip to install pip into venv"
-            sudo -u $TIPPR_USER python3 -m pip install --upgrade pip || true
+            echo "Retry to create venv failed; aborting venv setup" >&2
         fi
-    else
-        echo "Retry to create venv failed; aborting venv setup" >&2
     fi
 fi
 
@@ -515,8 +518,8 @@ sudo -u $TIPPR_USER ln -sf python3 $TIPPR_VENV/bin/python
 # Upgrade pip and install build tools in venv
 # Install current setuptools/wheel and ensure `packaging` is recent so editable
 # installs / metadata generation behave correctly.
-sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade pip setuptools wheel
-sudo -u $TIPPR_USER $TIPPR_VENV/bin/pip install --upgrade 'packaging>=23.1'
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/python -m pip install --upgrade pip setuptools wheel
+sudo -u $TIPPR_USER $TIPPR_VENV/bin/python -m pip install --upgrade 'packaging>=23.1'
 
 # Install `baseplate` early so packages that inspect/import it at build time
 # (e.g., r2) can detect it. Prefer a local checkout at $TIPPR_SRC/tippr-baseplate.py
