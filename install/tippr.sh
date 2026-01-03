@@ -465,9 +465,24 @@ if [ -d "$TIPPR_VENV" ] && [ ! -w "$TIPPR_VENV" ]; then
     rm -rf "$TIPPR_VENV"
 fi
 
+# Check if a working venv already exists (e.g., pre-created by CI workflow).
+# A working venv has a python executable that can import basic stdlib modules.
+VENV_OK=0
+if [ -x "$TIPPR_VENV/bin/python" ]; then
+    if sudo -u $TIPPR_USER "$TIPPR_VENV/bin/python" -c "import sys, os, math; print('venv ok')" 2>/dev/null; then
+        echo "Reusing existing working venv at $TIPPR_VENV"
+        VENV_OK=1
+    else
+        echo "Existing venv at $TIPPR_VENV is broken; removing and recreating"
+        rm -rf "$TIPPR_VENV"
+    fi
+fi
+
 # Attempt to create venv; if ensurepip fails (some images lack ensurepip),
 # install prerequisites and retry by bootstrapping pip via get-pip.py.
-if sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV; then
+if [ "$VENV_OK" = "1" ]; then
+    :
+elif sudo -u $TIPPR_USER python3 -m venv $TIPPR_VENV; then
     :
 else
     echo "python3 -m venv failed; attempting fallback (installing prerequisites)"
@@ -512,8 +527,13 @@ else
     fi
 fi
 
-# Create 'python' symlink for compatibility with Makefiles that expect 'python'
-sudo -u $TIPPR_USER ln -sf python3 $TIPPR_VENV/bin/python
+# Create 'python' and 'python3' symlinks for compatibility
+# Some tools expect 'python', others 'python3'; ensure both exist
+if [ -x "$TIPPR_VENV/bin/python3" ] && [ ! -e "$TIPPR_VENV/bin/python" ]; then
+    sudo -u $TIPPR_USER ln -sf python3 $TIPPR_VENV/bin/python
+elif [ -x "$TIPPR_VENV/bin/python" ] && [ ! -e "$TIPPR_VENV/bin/python3" ]; then
+    sudo -u $TIPPR_USER ln -sf python $TIPPR_VENV/bin/python3
+fi
 
 # Upgrade pip and install build tools in venv
 # Install current setuptools/wheel and ensure `packaging` is recent so editable
