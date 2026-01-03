@@ -2206,6 +2206,259 @@ You could also consider:
 
 ## Self-Hosted Production Deployment
 
+## Hybrid Deployment Strategy
+
+This section describes a hybrid deployment approach that combines local (on-prem) compute and caching with cloud-managed storage and databases. The goal is to keep latency-sensitive services local while moving durable storage and backups to the cloud to reduce operational risk.
+
+Diagram (ASCII)
+
+                     ┌─────────────────────────────────┐
+                     │           CLOUD                 │
+                     │                                 │
+                     │  ┌───────────┐ ┌───────────┐   │
+                     │  │ Managed   │ │  Object   │   │
+                     │  │ Database  │ │  Storage  │   │
+                     │  │ (Postgres)│ │  (S3/GCS) │   │
+                     │  └───────────┘ └───────────┘   │
+                     │                                 │
+                     │  ┌───────────┐                  │
+                     │  │  Backups  │                  │
+                     │  │ (Optional)│                  │
+                     │  └───────────┘                  │
+                     └──────────┬──────────────────────┘
+                                │ VPN/Direct Connect
+                                │
+┌───────────────────────────────┼───────────────────────────────┐
+│                        LOCAL  │                               │
+│                               │                               │
+│  ┌──────────┐    ┌────────────┴────────────┐                 │
+│  │ pfSense  │───▶│     App Servers         │                 │
+│  │ HAProxy  │    │  (192.168.1.101-103)    │                 │
+│  └──────────┘    └────────────┬────────────┘                 │
+│                               │                               │
+│              ┌────────────────┼────────────────┐             │
+│              ▼                ▼                ▼             │
+│       ┌──────────┐     ┌──────────┐     ┌──────────┐        │
+│       │Memcached │     │ RabbitMQ │     │  Redis   │        │
+│       └──────────┘     └──────────┘     └──────────┘        │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+
+Priority Order: What to Cloud First
+
+1. Object Storage (S3/GCS/Azure Blob) - Do This First
+
+Why first:
+
+Extremely cheap (~$0.02/GB/month)
+Zero maintenance
+Built-in CDN integration
+Offloads bandwidth from your home connection
+No migration pain - just configure and use
+
+Cost: $5-20/month for typical usage
+
+Example `production.update` snippet for media storage
+
+```ini
+# production.update
+media_provider = s3
+S3KEY_ID = YOUR_KEY
+S3SECRET_KEY = YOUR_SECRET
+s3_media_buckets = your-tippr-media
+s3_media_domain = s3.amazonaws.com
+# Or use Cloudflare R2 (S3-compatible, no egress fees)
+s3_media_domain = your-account.r2.cloudflarestorage.com
+```
+
+2. PostgreSQL (RDS/Cloud SQL) - High Value, Moderate Cost
+
+Why second:
+
+Hardest to manage yourself (backups, replication, failover)
+Data loss here is catastrophic
+Automatic backups, point-in-time recovery
+Easy read replicas when you need them
+Connection from local servers works fine over internet/VPN
+
+Cost: $50-150/month (smallest production tier)
+
+Provider comparison (small production tiers)
+
+| Provider | Smallest Production Tier | Monthly Cost |
+|----------|-------------------------|--------------|
+| AWS RDS | db.t3.small (2GB RAM) | ~$50-70 |
+| GCP Cloud SQL | db-custom-1-3840 | ~$40-60 |
+| Azure PostgreSQL | Burstable B1ms | ~$35-50 |
+| Neon (Serverless) | Free tier + usage | ~$0-25 |
+| Supabase | Pro plan | ~$25 |
+
+Budget Option: Neon or Supabase
+
+Serverless PostgreSQL with generous free tiers
+Pay only for what you use
+Great for lower traffic
+
+Example `production.update` for Neon
+
+```ini
+# production.update for Neon
+main_db = tippr, ep-cool-darkness-123456.us-east-2.aws.neon.tech, *, *, *, *, *
+db_port = 5432
+# Neon requires SSL
+db_ssl = true
+```
+
+3. Backups to Cloud Storage - Essential, Cheap
+
+Even if you keep databases local initially, back up to cloud:
+
+Cost: $5-10/month
+
+| Provider | Cost | Notes |
+|----------|------|-------|
+| Backblaze B2 | $0.005/GB | Cheapest, S3-compatible |
+| Wasabi | $0.0059/GB | No egress fees |
+| Cloudflare R2 | $0.015/GB | No egress fees |
+
+What to Keep Local (Cost Savings)
+
+Keep Local: Memcached/Redis
+Why:
+
+Latency-sensitive (cloud adds ~10-50ms)
+Easy to run, low maintenance
+Cheap hardware requirement
+Data is ephemeral anyway
+
+Keep Local: RabbitMQ
+Why:
+
+Works fine locally
+Amazon MQ is expensive (~$150/month minimum)
+Queue data is transient
+Easy to migrate later if needed
+
+Keep Local: Cassandra (Initially)
+Why:
+
+Managed Cassandra is expensive
+Can start with single node locally
+Migrate to Astra DB (serverless) later when traffic justifies
+
+Exception: If Cassandra management is painful, use Astra DB serverless - you only pay for operations, so low traffic = low cost (~$25/month at low usage).
+
+Keep Local: Application Servers
+Why:
+
+Your pfSense/HAProxy handles load balancing well
+Easy to scale by adding machines
+Compute is where self-hosting saves the most money
+
+Recommended Hybrid Setup
+
+Phase 1: Minimal Cloud (Start Here)
+| Component | Location | Monthly Cost |
+|-----------|----------|--------------|
+| App Servers | Local | $0 |
+| Memcached | Local | $0 |
+| Redis | Local | $0 |
+| RabbitMQ | Local | $0 |
+| PostgreSQL | Neon/Supabase | $0-25 |
+| Cassandra | Local | $0 |
+| Media Storage | Cloudflare R2 | $5-15 |
+| Backups | Backblaze B2 | $5-10 |
+| Total Cloud | | $10-50/month |
+
+Phase 2: Production-Ready Hybrid
+| Component | Location | Monthly Cost |
+|-----------|----------|--------------|
+| App Servers | Local | $0 |
+| Memcached | Local | $0 |
+| Redis | Local | $0 |
+| RabbitMQ | Local | $0 |
+| PostgreSQL | RDS/Cloud SQL | $50-100 |
+| Cassandra | Astra DB Serverless | $25-100 |
+| Media Storage | S3 + CloudFront | $20-50 |
+| Backups | B2 | $5-10 |
+| Total Cloud | | $100-260/month |
+
+Connection Configuration
+
+Secure Connection to Cloud Database
+
+Option 1: Direct SSL Connection (Simplest)
+
+```ini
+# production.update
+db_ssl = true
+main_db = tippr, your-db.xxx.us-east-1.rds.amazonaws.com, *, *, *, *, *
+```
+
+Option 2: WireGuard VPN to Cloud VPC
+
+More secure, keeps database off public internet:
+
+```bash
+# On pfSense: Install WireGuard package
+# Create tunnel to AWS/GCP VPC
+# Route database subnet through tunnel
+```
+
+Option 3: AWS Site-to-Site VPN
+
+For production-grade connectivity (~$35/month for AWS VPN).
+
+Example `production.update` for Hybrid
+
+```ini
+# production.update - Hybrid deployment
+[DEFAULT]
+debug = false
+# Domain
+domain = yourdomain.com
+https_endpoint = https://yourdomain.com
+# PostgreSQL in Cloud (Neon example)
+db_user = tippr
+db_pass = YOUR_NEON_PASSWORD
+db_port = 5432
+db_ssl = true
+databases = main, comment, email, authorize, award, hc, traffic
+main_db = tippr, ep-xxx.us-east-2.aws.neon.tech, *, *, *, *, *
+# Cassandra - Local for now
+cassandra_seeds = 192.168.1.111:9042
+cassandra_pool_size = 10
+# Cache - Local (latency sensitive)
+lockcaches = 192.168.1.112:11211
+permacache_memcaches = 192.168.1.112:11211
+hardcache_memcaches = 192.168.1.112:11211
+# Queue - Local
+amqp_host = 192.168.1.112:5672
+amqp_user = tippr
+amqp_pass = YOUR_LOCAL_PASSWORD
+# Media - Cloud (Cloudflare R2)
+media_provider = s3
+S3KEY_ID = YOUR_R2_ACCESS_KEY
+S3SECRET_KEY = YOUR_R2_SECRET_KEY
+s3_media_domain = your-account.r2.cloudflarestorage.com
+s3_media_buckets = tippr-media
+# Or if using AWS S3 + CloudFront
+# s3_media_domain = d123xxx.cloudfront.net
+# s3_media_buckets = tippr-media-bucket
+```
+
+Migration Path Summary
+
+Phase 1 (Now)           Phase 2 (Growth)         Phase 3 (Scale)
+─────────────────       ─────────────────        ─────────────────
+Local Everything   →    Hybrid                →   Full Cloud
+                        + Cloud DB                + Cloud Compute
+                        + Cloud Storage           + Managed Cache
+                        + Cloud Backups           + CDN
+                        
+Cost: ~$150/mo          Cost: ~$200-350/mo       Cost: $1,500+/mo
+
+The key insight: Cloud databases and storage are cheap and eliminate your biggest operational risks (data loss, complex backups). Keep compute local where you save the most money.
 For smaller deployments or when you want to start locally before migrating to cloud, self-hosting is a viable option. This approach lets you validate your application and understand traffic patterns before committing to cloud infrastructure costs.
 
 ### When to Self-Host
