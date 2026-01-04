@@ -281,10 +281,23 @@ class RedditTestCase(TestCase):
     def patch_g(self, **kw):
         """Helper method to patch attrs on pylons.g.
 
-        Since we do this all the time.  autpatch g with the provided kw.
+        Since we do this all the time. Handles LocalStack properly by using
+        setattr/getattr instead of patch.object which fails on cleanup.
         """
         for k, v in kw.items():
-            self.autopatch(g, k, v, create=not hasattr(g, k))
+            had_attr = hasattr(g, k)
+            if had_attr:
+                orig = getattr(g, k)
+            setattr(g, k, v)
+            def cleanup(attr=k, had=had_attr, original=orig if had_attr else None):
+                if had:
+                    setattr(g, attr, original)
+                else:
+                    try:
+                        delattr(g, attr)
+                    except AttributeError:
+                        pass
+            self.addCleanup(cleanup)
 
     def patch_liveconfig(self, k, v):
         """Helper method to patch g.live_config (with cleanup)."""
