@@ -636,6 +636,19 @@ class UrlParser:
             if extension == subdomain_extension:
                 new_subdomain = subdomain
                 break
+
+        # Preserve intended scheme semantics used by callers/tests:
+        # - compact (i) should be served over https
+        # - mobile (simple) should be served over http
+        # - default / unknown -> http
+        if extension == 'compact':
+            self.scheme = 'https'
+        elif extension == 'mobile':
+            self.scheme = 'http'
+        else:
+            # default prefix or unknown extension -> http
+            self.scheme = 'http'
+
         self.hostname = '{}.{}'.format(new_subdomain, g.domain)
 
     def unparse(self):

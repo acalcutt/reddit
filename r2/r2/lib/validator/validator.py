@@ -3272,7 +3272,7 @@ class VMultiByPath(Validator):
         }
 
 
-sr_path_rx = re.compile(r"\A(/?r/)?(?P<name>.*?)/?\Z")
+sr_path_rx = re.compile(r"\A(/?v/)?(?P<name>.*?)/?\Z")
 class VSubredditList(Validator):
 
     def __init__(self, param, limit=20, allow_language_srs=True):

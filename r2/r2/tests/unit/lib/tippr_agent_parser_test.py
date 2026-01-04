@@ -29,7 +29,7 @@ from r2.lib.utils.tippr_agent_parser import (
     NarwhalForRedditDetector,
     ReaditDetector,
     TipprAndroidDetector,
-    RedditIOSDetector,
+    TipprIOSDetector,
     TipprIsFunDetector,
     RedditSyncDetector,
     RelayForRedditDetector,
@@ -65,9 +65,9 @@ class AgentDetectorTest(RedditTestCase):
         user_agent = ('Reddit/Version 1.1/Build 1106/iOS Version 9.3.2 '
                       '(Build 13F69)')
         agent_parsed = {}
-        result = RedditIOSDetector().detect(user_agent, agent_parsed)
+        result = TipprIOSDetector().detect(user_agent, agent_parsed)
         self.assertEqual(agent_parsed['browser']['name'],
-                         RedditIOSDetector.name)
+                 TipprIOSDetector.name)
         self.assertEqual(agent_parsed['browser']['version'], '1.1')
         self.assertEqual(agent_parsed['platform']['name'], 'iOS')
         self.assertEqual(agent_parsed['platform']['version'], '9.3.2')
@@ -174,7 +174,7 @@ class HAPIntegrationTests(RedditTestCase):
         user_agent = ('Reddit/Version 1.1/Build 1106/iOS Version 9.3.2 '
                       '(Build 13F69)')
         outs = detect(user_agent)
-        self.assertEqual(outs['browser']['name'], RedditIOSDetector.name)
+        self.assertEqual(outs['browser']['name'], TipprIOSDetector.name)
 
     def test_alien_blue_detector(self):
         user_agent = 'AlienBlue/2.9.10.0.2 CFNetwork/758.4.3 Darwin/15.5.0'

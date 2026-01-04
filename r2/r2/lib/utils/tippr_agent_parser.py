@@ -107,7 +107,7 @@ class TipprAndroidDetector(TipprBrowser):
 
 
 @register_detector
-class RedditIOSDetector(TipprBrowser):
+class TipprIOSDetector(TipprBrowser):
     is_app = True
     look_for = 'Tippr'
     name = 'tippr iOS'
