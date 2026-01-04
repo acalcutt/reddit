@@ -106,7 +106,7 @@ def pushup_permacache(verbosity=1000):
     from r2.lib.db import queries
     from r2.lib.db.operators import desc
     from r2.lib.promote import promoted_memo_key
-    from r2.lib.subreddit_search import load_all_reddits
+    from r2.lib.vault_search import load_all_reddits
     from r2.lib.utils import fetch_things2, in_chunks, last_modified_key
     from r2.models import Account, Link, Vault
 

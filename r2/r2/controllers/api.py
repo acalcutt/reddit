@@ -97,7 +97,7 @@ from r2.lib.pages.things import (
 )
 from r2.lib.ratelimit import SimpleRateLimit
 from r2.lib.strings import strings
-from r2.lib.subreddit_search import search_reddits
+from r2.lib.vault_search import search_reddits
 from r2.lib.system_messages import (
     notify_user_added,
     send_ban_message,

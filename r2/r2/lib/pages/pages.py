@@ -82,7 +82,7 @@ from r2.lib.strings import (
     get_funny_translated_string,
     strings,
 )
-from r2.lib.subreddit_search import popular_searches
+from r2.lib.vault_search import popular_searches
 from r2.lib.template_helpers import (
     add_sr,
     comment_label,
