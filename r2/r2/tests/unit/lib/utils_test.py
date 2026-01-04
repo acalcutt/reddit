@@ -496,7 +496,7 @@ class TestUrlToThing(unittest.TestCase):
             mock_sr = MagicMock()
             MockSubreddit._by_name.return_value = mock_sr
             self.assertEqual(
-                utils.url_to_thing('http://reddit.local/r/pics'),
+                utils.url_to_thing('http://reddit.local/v/pics'),
                 mock_sr,
             )
 
@@ -505,7 +505,7 @@ class TestUrlToThing(unittest.TestCase):
             mock_sr = MagicMock()
             MockSubreddit._by_name.return_value = mock_sr
             self.assertEqual(
-                utils.url_to_thing('http://reddit.local/r/pics/'),
+                utils.url_to_thing('http://reddit.local/v/pics/'),
                 mock_sr,
             )
 
