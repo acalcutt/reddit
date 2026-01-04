@@ -889,23 +889,32 @@ def url_to_thing(url):
     sr_pattern = SubredditMiddleware.sr_pattern
 
     urlparser = UrlParser(_force_utf8(url))
+    # Prefer to avoid touching non-tippr domains, but allow explicit
+    # vault-style paths ("/v/<name>") so local/dev hostnames like
+    # "reddit.local" used in unit tests still resolve.
     if not urlparser.is_reddit_url():
-        return None
+        if not sr_pattern.match(urlparser.path):
+            return None
 
     try:
         sr_name = sr_pattern.match(urlparser.path).group(1)
     except AttributeError:
         sr_name = None
 
+    # If we have an explicit sr_name, try to resolve the Vault early.
+    vault_obj = None
+    if sr_name:
+        try:
+            vault_obj = Vault._by_name(sr_name, data=True)
+        except NotFound:
+            vault_obj = None
+
     path = sr_pattern.sub('', urlparser.path)
     if not path or path == '/':
         if not sr_name:
             return None
 
-        try:
-            return Vault._by_name(sr_name, data=True)
-        except NotFound:
-            return None
+        return vault_obj
 
     # potential TypeError raised here because of environ being None
     # when calling outside of app context
