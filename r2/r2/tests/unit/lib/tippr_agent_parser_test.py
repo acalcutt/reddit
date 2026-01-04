@@ -22,7 +22,7 @@
 ###############################################################################
 
 
-from r2.lib.utils.reddit_agent_parser import (
+from r2.lib.utils.tippr_agent_parser import (
     AlienBlueDetector,
     BaconReaderDetector,
     McRedditDetector,
