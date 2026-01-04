@@ -31,7 +31,7 @@ from r2.lib.utils.tippr_agent_parser import (
     TipprAndroidDetector,
     TipprIOSDetector,
     TipprIsFunDetector,
-    RedditSyncDetector,
+    TipprSyncDetector,
     RelayForRedditDetector,
     detect,
 )
@@ -51,7 +51,7 @@ class AgentDetectorTest(RedditTestCase):
                          agent_parsed['browser']['name'])
 
     def test_reddit_android_detector(self):
-        user_agent = 'RedditAndroid 1.1.5'
+        user_agent = 'TipprAndroid 1.1.5'
         agent_parsed = {}
         result = TipprAndroidDetector().detect(user_agent, agent_parsed)
         self.assertTrue(result)
@@ -62,7 +62,7 @@ class AgentDetectorTest(RedditTestCase):
                         agent_parsed['browser']['name'])
 
     def test_reddit_ios_detector(self):
-        user_agent = ('Reddit/Version 1.1/Build 1106/iOS Version 9.3.2 '
+        user_agent = ('Tippr/Version 1.1/Build 1106/iOS Version 9.3.2 '
                       '(Build 13F69)')
         agent_parsed = {}
         result = TipprIOSDetector().detect(user_agent, agent_parsed)
@@ -97,13 +97,13 @@ class AgentDetectorTest(RedditTestCase):
                          agent_parsed['browser']['name'])
 
     def test_reddit_sync_detector(self):
-        user_agent = ('android:com.laurencedawson.reddit_sync:v11.4 '
+        user_agent = ('android:com.laurencedawson.tippr_sync:v11.4 '
                       '(by /u/ljdawson)')
         agent_parsed = {}
-        result = RedditSyncDetector().detect(user_agent, agent_parsed)
+        result = TipprSyncDetector().detect(user_agent, agent_parsed)
         self.assertTrue(result)
         self.assertEqual(agent_parsed['browser']['name'],
-                         RedditSyncDetector.name)
+                         TipprSyncDetector.name)
         self.assertEqual(agent_parsed['browser']['version'], '11.4')
         self.assertEqual(agent_parsed['app_name'],
                          agent_parsed['browser']['name'])
@@ -165,13 +165,13 @@ class HAPIntegrationTests(RedditTestCase):
         self.assertEqual(outs['dist']['name'], 'Android')
 
     def test_reddit_android_integration(self):
-        user_agent = 'RedditAndroid 1.1.5'
+        user_agent = 'TipprAndroid 1.1.5'
         outs = detect(user_agent)
         self.assertEqual(outs['browser']['name'], 'Tippr: The Official App')
         self.assertEqual(outs['dist']['name'], 'Android')
 
     def test_reddit_ios_integration(self):
-        user_agent = ('Reddit/Version 1.1/Build 1106/iOS Version 9.3.2 '
+        user_agent = ('Tippr/Version 1.1/Build 1106/iOS Version 9.3.2 '
                       '(Build 13F69)')
         outs = detect(user_agent)
         self.assertEqual(outs['browser']['name'], TipprIOSDetector.name)
@@ -187,10 +187,10 @@ class HAPIntegrationTests(RedditTestCase):
         self.assertEqual(outs['browser']['name'], RelayForRedditDetector.name)
 
     def test_reddit_sync_detector(self):
-        user_agent = ('android:com.laurencedawson.reddit_sync:v11.4 '
+        user_agent = ('android:com.laurencedawson.tippr_sync:v11.4 '
                       '(by /u/ljdawson)')
         outs = detect(user_agent)
-        self.assertEqual(outs['browser']['name'], RedditSyncDetector.name)
+        self.assertEqual(outs['browser']['name'], TipprSyncDetector.name)
 
     def test_narwhal_detector(self):
         user_agent = 'narwhal-iOS/2306 by det0ur'

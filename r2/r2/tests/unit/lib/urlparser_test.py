@@ -147,24 +147,24 @@ class TestSwitchSubdomainByExtension(RedditTestCase):
         )
 
     def test_normal_urls(self):
-        u = UrlParser('http://www.tippr.net/r/redditdev')
+        u = UrlParser('http://www.tippr.net/v/redditdev')
         u.switch_subdomain_by_extension('compact')
         result = u.unparse()
-        self.assertEqual('https://i.tippr.net/r/redditdev', result)
+        self.assertEqual('https://i.tippr.net/v/redditdev', result)
 
         u = UrlParser(result)
         u.switch_subdomain_by_extension('mobile')
         result = u.unparse()
-        self.assertEqual('http://simple.tippr.net/r/redditdev', result)
+        self.assertEqual('http://simple.tippr.net/v/redditdev', result)
 
     def test_default_prefix(self):
-        u = UrlParser('https://i.tippr.net/r/redditdev')
+        u = UrlParser('https://i.tippr.net/v/redditdev')
         u.switch_subdomain_by_extension()
-        self.assertEqual('http://www.tippr.net/r/redditdev', u.unparse())
+        self.assertEqual('http://www.tippr.net/v/redditdev', u.unparse())
 
-        u = UrlParser('https://i.tippr.net/r/redditdev')
+        u = UrlParser('https://i.tippr.net/v/redditdev')
         u.switch_subdomain_by_extension('does-not-exist')
-        self.assertEqual('http://www.tippr.net/r/redditdev', u.unparse())
+        self.assertEqual('http://www.tippr.net/v/redditdev', u.unparse())
 
 
 class TestPathExtension(unittest.TestCase):

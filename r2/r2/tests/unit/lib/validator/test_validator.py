@@ -279,7 +279,7 @@ class TestVSubredditName(ValidatorTests):
         self.assertEqual(result, 'foo')
 
     def test_r_slash(self):
-        result = self._test_success('r/foo', assertEqual=False)
+        result = self._test_success('v/foo', assertEqual=False)
         self.assertEqual(result, 'foo')
 
     def test_two_prefixes(self):

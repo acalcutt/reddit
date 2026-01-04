@@ -60,13 +60,29 @@ class TipprDetectorBase(DetectorBase):
     def detect(self, agent, result):
         detected = super().detect(agent, result)
 
-        if not detected or not self.agent_regex:
+        # If there's no custom agent regex, just return whatever the base
+        # detector found. Otherwise, attempt to match our custom regex and
+        # populate `result` even if the base detector didn't detect anything.
+        if not self.agent_regex:
             return detected
 
         match = self.agent_regex.search(agent)
+        if not match:
+            return detected
+
         groups = match.groupdict()
         platform_name = groups.get('platform')
-        version = groups.get('pversion')
+        version = groups.get('pversion') or groups.get('version') or self.getVersion(agent, None)
+
+        # Ensure there's a browser dict present for our detector to populate
+        if 'browser' not in result or not isinstance(result.get('browser'), dict):
+            result['browser'] = {}
+
+        # Set browser name/version based on detector metadata and regex
+        if self.name and 'name' not in result['browser']:
+            result['browser']['name'] = self.name
+        if version and 'version' not in result['browser']:
+            result['browser']['version'] = version
 
         if platform_name:
             platform = {}
@@ -101,7 +117,7 @@ class TipprIsFunDetector(TipprBrowser):
 @register_detector
 class TipprAndroidDetector(TipprBrowser):
     is_app = True
-    look_for = 'RedditAndroid'
+    look_for = 'TipprAndroid'
     name = 'Tippr: The Official App'
     agent_string = '{look_for} (?P<version>{version_string})$'
 
@@ -137,9 +153,9 @@ class RelayForRedditDetector(TipprBrowser):
 
 
 @register_detector
-class RedditSyncDetector(TipprBrowser):
+class TipprSyncDetector(TipprBrowser):
     is_app = True
-    look_for = 'reddit_sync'
+    look_for = 'tippr_sync'
     name = 'Sync for tippr'
     agent_string = (
         r'android:com\.laurencedawson\.{look_for}'
